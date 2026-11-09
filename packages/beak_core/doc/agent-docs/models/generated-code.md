@@ -204,6 +204,10 @@ UserModel.invoiceCompany.inputToggle(
 ),
 ```
 
+### Admission, the reviewed facts
+
+A model produced by a generator (as opposed to one `beak prepare` writes from a schema class) overrides `BeakModel.admission` with a `BeakAdmission`: the constant facts a review of the table settled. `writable` lists the only columns a client may set, and every other column is server-owned. `hidden` lists columns that never leave the server, `restoreKey` the key that brings a soft-deleted row back, `translation` the owner and locale columns of a translation table (`BeakTranslationSpec`), `write` the write binding, and `reason` why a read-only model is closed. A hand-written model returns `null`, and the admitted server policy does not serve it. The admission is a `const` value, so the server enforces it and the panel reads it without naming a column twice.
+
 ## The wiring under lib/beak/
 
 Four files, one concern each. The registry is the one every other file starts from:
@@ -228,7 +232,7 @@ A package that only holds schema classes, and depends on `beak_core` alone, gets
 - Never edit a generated file. The header says so, `beak doctor` fails on drift, and the next `prepare` overwrites your change.
 - Commit them. A fresh clone compiles before any `beak` command runs, a schema change shows up in review as the diff it caused, and CI needs no Beak CLI to build the app. The three entrypoints are the exception, they are git-ignored on purpose.
 - Reference fields through the model. `ProductModel.price`, not `'price'`. Nothing in an application spells a column key.
-- Some names have no shortcut. A field named `fields`, `options`, `search`, `table`, `displayColumnKey`, `columns`, `permissions`, `validationRules`, `behavior`, `capabilities`, `dataSource`, `createModel`, `editModel`, `relationships`, `relatedModels`, `softDeletes`, `formSlots`, `primaryKey`, `ref`, `query`, `count`, `sum`, `avg`, `sumDecimal`, `avgDecimal`, `summary`, `record`, `primaryKeyOf`, `columnsFor`, `columnByKey` or `relationshipByKey` collides with a member of `BeakModel`, so `ProductModel.count` is not emitted. Use `ProductModel.fields.count`, which always exists. A test in `beak_cli` reads `BeakModel` and fails when it gains a member this list misses.
+- Some names have no shortcut. A field named `fields`, `options`, `search`, `table`, `displayColumnKey`, `columns`, `permissions`, `admission`, `validationRules`, `behavior`, `capabilities`, `dataSource`, `createModel`, `editModel`, `relationships`, `relatedModels`, `softDeletes`, `formSlots`, `primaryKey`, `ref`, `query`, `count`, `sum`, `avg`, `sumDecimal`, `avgDecimal`, `summary`, `record`, `primaryKeyOf`, `columnsFor`, `columnByKey` or `relationshipByKey` collides with a member of `BeakModel`, so `ProductModel.count` is not emitted. Use `ProductModel.fields.count`, which always exists. A test in `beak_cli` reads `BeakModel` and fails when it gains a member this list misses.
 - One name is refused. A field named `record` is a `beak prepare` issue: the typed record view wraps the underlying `BeakRecord` as `record`, so a getter of that name would redeclare it. Rename the field, and pin the existing column with `@Column(columnName: 'record')` when the table already has it.
 - Draft getters are all nullable, record getters are not. A record getter is non-null exactly when the schema field is non-nullable. Do not paper over the difference with `!`.
 - An unloaded relation reads as empty. It does not throw and it does not fetch. Load it explicitly.

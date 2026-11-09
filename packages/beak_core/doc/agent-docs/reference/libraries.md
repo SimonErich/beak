@@ -100,7 +100,9 @@ The vocabulary both halves speak. It depends on neither Flutter nor `dart:io`, s
 
 | Group | Notable names |
 | --- | --- |
-| Models | `BeakModel`, `BeakModelRegistry`, `BeakFieldRef`, `BeakPermissions`, `BeakAttributeDefinition`, `BeakVariantMatrix` |
+| Models | `BeakModel`, `BeakModelRegistry`, `BeakFieldRef`, `BeakAttributeDefinition`, `BeakVariantMatrix` |
+| Definitions and admission | `BeakDefinitions`, `BeakModelDefinition`, `BeakAdmission`, `BeakTranslationSpec` |
+| Access | `BeakPermissions`, `BeakOperation`, `BeakAccess`, `BeakPrincipal` |
 | Columns | `BeakColumn` and its leaves (`BeakStringColumn`, `BeakTextColumn`, `BeakIntColumn`, `BeakDecimalColumn`, `BeakBoolColumn`, `BeakDateTimeColumn`, `BeakEnumColumn`, `BeakImageColumn`, `BeakFileColumn`, `BeakJsonColumn`, `BeakCustomColumn`), `BeakSemantic`, semantic values such as `BeakDecimal` and `BeakDate` |
 | Relationships | `BeakRelationship`, `BeakBelongsTo`, `BeakHasOne`, `BeakHasMany`, `BeakBelongsToMany`, `BeakOnDelete` |
 | Rules | `BeakRule` and its leaves (`BeakMin`, `BeakMax`, `BeakMinLength`, `BeakMaxLength`, `BeakEmail`, `BeakPattern`, `BeakRequiredIf`, ...), `BeakRecordRule`, `BeakExists`, `BeakFieldMatch` |
@@ -163,7 +165,7 @@ The Shelf half. It reaches `dart:io` and database drivers, so no file the panel 
 | Group | Notable names |
 | --- | --- |
 | Host | `BeakServeHost`, `BeakServerDefaults`, `BeakServer`, `BeakBackendConfig`, `BeakEnv`, `BeakStorageSettings`, `createDefaultStorageRegistry` |
-| Policy | `BeakPolicies`, `BeakModelRules`, `BeakAccess`, `BeakPolicy`, `BeakAllowAllPolicy`, `BeakRowPolicy`, `BeakFieldPolicy`, `BeakActionPolicy`, `BeakPrincipal` |
+| Policy | `BeakPolicies`, `BeakModelRules`, `BeakPolicy`, `BeakAllowAllPolicy`, `BeakRowPolicy`, `BeakFieldPolicy`, `BeakActionPolicy`, plus `BeakAccess` and `BeakPrincipal` re-exported from `beak_core` |
 | Auth | `BeakAuthSessions`, `BeakAuthGuard`, `TokenSessionStore`, `InMemoryTokenSessionStore` |
 | Writes | `BeakGraphCommitService`, `BeakSavePlanPreparer`, `BeakSavePlanFinalizer`, `BeakOutbox`, `BeakOutboxSchedule`, `BeakFrameworkTables` |
 | Data | `WormDataSource`, `BeakBlueprint`, `BeakBaselineMigration`, `adapterFromUrl`, `initializeBeakDatabase` |

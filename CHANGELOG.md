@@ -339,6 +339,19 @@ migration table at the end collects the common ones.
   `BeakSummaryMeasure.sumDecimal`, `BeakSummaryRow.decimalOf`,
   `BeakScalarField<BeakDecimal>.avg`, `.scale` and `.exactColumn`,
   `BeakDecimal.tryFromUnits` and `fromRoundedUnits`, and `BeakRounding`.
+- `BeakDefinitions` and `BeakModelDefinition` carry the authored behavior and
+  record rules of generated models, so a generated model reads them through
+  `BeakDefinitions.behaviorOf` and `rulesOf` and imports no authored code.
+  Bind a set once per isolate; binding an equal set again is a no-op, a
+  different one throws, and a lookup before binding throws too.
+  `BeakModelRegistry.of(models, definitions:)` binds, then registers, and
+  rejects a definition for a table outside the model set.
+- `BeakAdmission` and `BeakTranslationSpec`: the constant facts a generator
+  records on `BeakModel.admission` (writable and hidden columns, restore key,
+  translation columns, write binding, the reason a model is read only).
+- `BeakModelBehavior.builtInRows` refuses to delete (and with `lockEdits`, to
+  edit) rows flagged as built in. `BeakException.forCategory` and
+  `BeakErrorCategory` map a host's own failures onto the exception family.
 
 #### beak_backend
 
@@ -575,6 +588,10 @@ migration table at the end collects the common ones.
 - `architecture_guard_test.dart` in `beak_frontend` fails a `StatefulWidget`,
   `State` or `StatefulElement` subclass in the `lib/` of `beak_frontend` and
   `beak_serverpod_flutter`.
+- `BeakAuthIdentity.roles` and `BeakAuthIdentity.principal` carry the roles of
+  the signed-in account, and the built-in session store fills them from the
+  login response. A resource checks `BeakModel.permissions` against that
+  principal.
 
 ### Changed
 
@@ -588,6 +605,20 @@ migration table at the end collects the common ones.
   typed `field:` instead of a column. `BeakPanel.fromConfig` is removed (the
   `config:` parameter stays); the form controller types are no longer exported;
   `TableViewModel` is `BeakTableViewModel`.
+- **Breaking, `beak_core`: permissions are data.** `BeakPermissions` no longer
+  takes a map of closures. It is `BeakPermissions(read:, write:, create:,
+  update:, delete:, actions:)`, a constant `BeakAccess` per operation checked
+  against a `BeakPrincipal` with `allows(operation, principal)` and
+  `allowsAction(action, principal)`, so the panel and the server read one
+  value. `create`, `update` and `delete` default to `write`, a command to
+  `update`, and an operation with no access value is denied.
+  `BeakPermissions.allowAll()` stays the default of a model. Replace
+  `BeakPermissions({BeakOperation.read: () => true})` with
+  `const BeakPermissions(read: BeakAccess.anyone)`.
+- **Breaking, `beak_core` and `beak_backend`: `BeakAccess` and `BeakPrincipal`
+  move.** They are defined in `beak_core` now. `package:beak/beak.dart` and
+  `package:beak/server.dart` both export them, so an import of either keeps
+  compiling.
 - **Breaking, `beak_frontend`: the panel shorthand and its checks.**
   `BeakPanel.title` and `apiBaseUrl` are nullable (`Beak`, and the
   `BEAK_API_BASE_URL` define else `http://localhost:8080`). `config:` together

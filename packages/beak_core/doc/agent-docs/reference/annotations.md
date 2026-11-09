@@ -53,7 +53,7 @@ A schema class can also declare four `static` getters. `beak prepare` looks for 
 | `permissions` | `BeakPermissions` | `BeakModel.permissions` | [Model-owned transports](../extending/model-transports.md) |
 | `capabilities` | `Set<BeakOperation>` | `BeakModel.capabilities` | [Model-owned transports](../extending/model-transports.md) |
 
-`BeakPermissions` only hides UI. The server enforces access through its own policies.
+`BeakPermissions` is constant data: a `BeakAccess` per operation, checked against a `BeakPrincipal`. In the panel it only hides controls. The server enforces access through its own policies.
 
 ## Resource
 

@@ -356,7 +356,7 @@ final class CategoryResource extends BeakResource {
 | `allowsAction(BeakAction)` | `bool` | Live availability of a built-in or configured action; a custom action needs `isVisible` |
 | `copyWith(...)` | `BeakResource` | A copy with the named parts replaced; a `null` argument keeps the current value |
 
-`BeakScreenRole` has four values: `list`, `read`, `create`, `edit`. The permission hooks (`BeakModel.permissions`, a `BeakPermissions`) and the capability switches (`canCreate`, `canEdit`, `canDelete`) only hide routes and buttons. A hidden route redirects to `/403`. Authorization is enforced on the server, see [Auth and policies](../backend/auth-and-policies.md).
+`BeakScreenRole` has four values: `list`, `read`, `create`, `edit`. The permission hooks (`BeakModel.permissions`, a `BeakPermissions` checked against the signed-in principal) and the capability switches (`canCreate`, `canEdit`, `canDelete`) only hide routes and buttons. A hidden route redirects to `/403`. Authorization is enforced on the server, see [Auth and policies](../backend/auth-and-policies.md).
 
 ## BeakScreen
 

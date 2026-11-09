@@ -212,6 +212,7 @@ Add the resource to `resources: [...]` in an authored `lib/main.dart`; a generat
 | You want... | Declare | Page |
 | --- | --- | --- |
 | Who may do what | `BeakPolicies(rules: [BeakModelRules(const OrderModel(), read: BeakAccess.role('staff'))])` passed to `defaults.build(policy:)` | [Auth and policies](../backend/auth-and-policies.md) |
+| One permission the panel and the server both read | `BeakPermissions(read: BeakAccess.role('staff'), write: BeakAccess.role('manager'))` on `BeakModel.permissions` | [Auth and policies](../backend/auth-and-policies.md#permissions-on-the-model) |
 | Row scoping | A `BeakRowPolicy` | [Auth and policies](../backend/auth-and-policies.md) |
 | Field and action gates | `BeakFieldPolicy`, `BeakActionPolicy` | [Auth and policies](../backend/auth-and-policies.md) |
 | Login, logout, me | `authSessions:` on `defaults.build` | [Auth and policies](../backend/auth-and-policies.md) |

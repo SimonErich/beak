@@ -9,6 +9,7 @@ const _closeOrder = BeakModelAction(name: 'close', label: 'Close');
 const _refund = BeakModelAction(name: 'refund', label: 'Refund');
 
 void main() {
+  // --8<-- [start:permissionsRoleAccess]
   group('role access', () {
     const permissions = BeakPermissions(
       read: BeakAccess.role('viewer'),
@@ -44,6 +45,7 @@ void main() {
       }
     });
   });
+  // --8<-- [end:permissionsRoleAccess]
 
   group('per-operation overrides', () {
     const permissions = BeakPermissions(
@@ -108,6 +110,7 @@ void main() {
     });
   });
 
+  // --8<-- [start:permissionsActions]
   group('actions', () {
     const permissions = BeakPermissions(
       read: BeakAccess.authenticated,
@@ -137,6 +140,7 @@ void main() {
       );
     });
   });
+  // --8<-- [end:permissionsActions]
 
   group('allowAll', () {
     const permissions = BeakPermissions.allowAll();

@@ -56,10 +56,7 @@ EntryViewResource(
       ),
     ),
   ],
-  permissions: BeakPermissions({
-    BeakOperation.read: () => true,
-    BeakOperation.update: () => false,
-  }),
+  permissions: const BeakPermissions(read: BeakAccess.anyone),
 );
 ```
 

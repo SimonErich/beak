@@ -56,6 +56,36 @@ sealed class BeakException implements Exception {
   /// Creates an exception carrying a stable [code] and a [message].
   const BeakException({required this.code, required this.message});
 
+  /// The Beak exception for a failure of [category] described by [message].
+  ///
+  /// The mapping seam for a host whose own exceptions carry a category: map
+  /// each to a [BeakErrorCategory] and let Beak pick the type. [field] attaches
+  /// a validation failure to one column key and is ignored for every other
+  /// category. The [message] reaches the caller, so keep internals out of it.
+  ///
+  /// ```dart
+  /// throw BeakException.forCategory(BeakErrorCategory.conflict, 'Taken.');
+  /// ```
+  factory BeakException.forCategory(
+    BeakErrorCategory category,
+    String message, {
+    String? field,
+  }) => switch (category) {
+    BeakErrorCategory.validation => BeakValidationException(
+      message,
+      fieldErrors: field == null
+          ? const {}
+          : {
+              field: [message],
+            },
+    ),
+    BeakErrorCategory.notFound => BeakNotFoundException(message),
+    BeakErrorCategory.unauthenticated => BeakAuthenticationException(message),
+    BeakErrorCategory.forbidden => BeakAuthorizationException(message),
+    BeakErrorCategory.conflict => BeakConflictException(message),
+    BeakErrorCategory.unexpected => BeakInternalException(message),
+  };
+
   /// Stable machine-readable identifier of the failure category.
   final String code;
 

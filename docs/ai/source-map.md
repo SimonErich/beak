@@ -35,6 +35,9 @@ For coding agents. Humans: see [Libraries](../reference/libraries.md). Use this 
 | `BeakRelationship`; the four kinds (`BeakBelongsTo`, `BeakHasOne`, `BeakHasMany`, `BeakBelongsToMany`) and `BeakOnDelete` sit next to it in `relations/` | `package:beak/beak.dart` | `packages/beak_core/lib/src/relations/beak_relationship.dart` | `packages/beak_core/test/src/relations/relations_registry_test.dart` |
 | `BeakModelBehavior`, `BeakModelAction`, `BeakValueBehavior` | `package:beak/beak.dart` | `packages/beak_core/lib/src/behavior/beak_model_behavior.dart` | `packages/beak_core/test/src/behavior/beak_model_behavior_test.dart` |
 | `BeakPermissions`, `BeakOperation` | `package:beak/beak.dart` | `packages/beak_core/lib/src/model/beak_permissions.dart` | `packages/beak_core/test/src/model/beak_permissions_test.dart` |
+| `BeakAccess`, `BeakPrincipal` | `package:beak/beak.dart`, `package:beak/server.dart` | `packages/beak_core/lib/src/auth/beak_access.dart` | `packages/beak_core/test/src/auth/beak_access_test.dart` |
+| `BeakDefinitions`, `BeakModelDefinition` | `package:beak/beak.dart` | `packages/beak_core/lib/src/model/beak_definitions.dart` | `packages/beak_core/test/src/model/beak_definitions_test.dart` |
+| `BeakAdmission`, `BeakTranslationSpec` | `package:beak/beak.dart` | `packages/beak_core/lib/src/model/beak_admission.dart` | `packages/beak_core/test/src/model/beak_admission_test.dart` |
 | `BeakAttributeDefinition` | `package:beak/beak.dart` | `packages/beak_core/lib/src/model/beak_attribute_definition.dart` | `packages/beak_core/test/src/model/beak_attribute_definition_test.dart` |
 | `BeakVariantMatrix` | `package:beak/beak.dart` | `packages/beak_core/lib/src/model/beak_variant_matrix.dart` | `packages/beak_core/test/src/model/beak_variant_matrix_test.dart` |
 | `BeakFormatPolicy`, `BeakValueFormat` | `package:beak/beak.dart` | `packages/beak_core/lib/src/formatting/beak_format_policy.dart` | `packages/beak_core/test/src/columns/beak_format_policy_test.dart` |
@@ -110,8 +113,7 @@ All of these import from `package:beak/panel.dart`. Add `package:beak/ui.dart` w
 | `BeakServer` | `package:beak/server.dart` | `packages/beak_backend/lib/src/server/beak_server.dart` | `packages/beak_backend/test/src/server/beak_server_test.dart` |
 | `BeakServerDefaults`, `BeakServeHost`, `defaults.build(...)` | `package:beak/server.dart` | `packages/beak_backend/lib/src/server/beak_serve_host.dart` | `packages/beak_backend/test/src/server/beak_serve_host_test.dart` |
 | `BeakPolicies`, `BeakModelRules` | `package:beak/server.dart` | `packages/beak_backend/lib/src/auth/beak_policies.dart` | `packages/beak_backend/test/src/auth/beak_policies_test.dart` |
-| `BeakAccess` | `package:beak/server.dart` | `packages/beak_backend/lib/src/auth/beak_access.dart` | `packages/beak_backend/test/src/auth/beak_policies_test.dart` |
-| `BeakPolicy`, `BeakAllowAllPolicy`, `BeakRowPolicy`, `BeakPrincipal` | `package:beak/server.dart` | `packages/beak_backend/lib/src/auth/beak_policy.dart` | `packages/beak_backend/test/src/auth/policy_test.dart` |
+| `BeakPolicy`, `BeakAllowAllPolicy`, `BeakRowPolicy` | `package:beak/server.dart` | `packages/beak_backend/lib/src/auth/beak_policy.dart` | `packages/beak_backend/test/src/auth/policy_test.dart` |
 | `BeakFieldPolicy` | `package:beak/server.dart` | `packages/beak_backend/lib/src/auth/beak_field_policy.dart` | `packages/beak_backend/test/src/auth/field_authorization_test.dart` |
 | `BeakAuthSessions`, `BeakUserAccount`, `hashBeakPassword` | `package:beak/server.dart` | `packages/beak_backend/lib/src/auth/auth_router.dart` | `packages/beak_backend/test/src/auth/auth_test.dart` |
 | `BeakAuthGuard`, `TokenSessionAuthGuard` | `package:beak/server.dart` | `packages/beak_backend/lib/src/auth/beak_auth_guard.dart` | `packages/beak_backend/test/src/auth/auth_test.dart` |

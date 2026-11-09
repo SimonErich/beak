@@ -39,9 +39,11 @@ const _nameField = BeakScalarField<String>(model: _menus, column: _name);
 const _aliasField = BeakScalarField<String>(model: _menus, column: _alias);
 const _nameRule = BeakSameAs<String>(_nameField, _aliasField);
 
+// --8<-- [start:definitionsSet]
 BeakDefinitions _definitions() => BeakDefinitions(const [
   BeakModelDefinition(_menus, behavior: _lockedBehavior, rules: [_nameRule]),
 ]);
+// --8<-- [end:definitionsSet]
 
 void main() {
   tearDown(BeakDefinitions.unbindForTesting);
@@ -232,6 +234,7 @@ void main() {
   });
 
   group('BeakModelRegistry.of', () {
+    // --8<-- [start:registryOf]
     test('binds the definitions, then registers the models', () {
       final registry = BeakModelRegistry.of(const [
         _menus,
@@ -241,6 +244,7 @@ void main() {
       expect(registry.byTableOrThrow('menus').behavior.actions, [_lock]);
       expect(registry.byTableOrThrow('orders').behavior.isEmpty, isTrue);
     });
+    // --8<-- [end:registryOf]
 
     test('a second registry over the same set binds nothing new', () {
       final definitions = _definitions();

@@ -311,6 +311,29 @@ A `BeakException` becomes a `BeakErr`. Any other `Exception` is offered to `mapE
 
 `BeakLocalizations.authError(BeakException)` turns an authentication failure into a fixed, localized sentence (English and German) and never shows the backend's message.
 
+## Mapping a host's own failures
+
+A host that has its own exception type, a Serverpod project for one, maps it to Beak's family at the edge. `BeakException.forCategory(category, message, {field})` picks the subtype from a `BeakErrorCategory`, so the mapper never names a Beak exception class:
+
+```dart title="packages/beak_core/lib/src/common/beak_exception.dart"
+--8<-- "packages/beak_core/lib/src/common/beak_exception.dart:BeakErrorCategory"
+```
+
+| Category | Becomes | HTTP |
+| --- | --- | --- |
+| `validation` | `BeakValidationException`, with `fieldErrors: {field: [message]}` when `field` is given | 422 |
+| `notFound` | `BeakNotFoundException` | 404 |
+| `unauthenticated` | `BeakAuthenticationException` | 401 |
+| `forbidden` | `BeakAuthorizationException` | 403 |
+| `conflict` | `BeakConflictException` | 409 |
+| `unexpected` | `BeakInternalException` | 500 |
+
+`field` only applies to `validation` and is ignored for the others. The message reaches the caller, except for `unexpected`, where the server replaces it with the fixed body. The package tests pin every row:
+
+```dart title="packages/beak_core/test/src/common/beak_exception_test.dart"
+--8<-- "packages/beak_core/test/src/common/beak_exception_test.dart:forCategoryTests"
+```
+
 ## Exceptions outside the family
 
 These are not `BeakException`s, because nothing maps them to an HTTP response.

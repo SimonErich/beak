@@ -465,6 +465,7 @@ void main() {
     expect(plan.arguments['price']?.raw, 5);
   });
 
+  // --8<-- [start:builtInRowsTests]
   group('builtInRows', () {
     const builtIn = BeakBoolColumn(key: 'is_system', label: 'System');
 
@@ -512,6 +513,7 @@ void main() {
       );
     });
   });
+  // --8<-- [end:builtInRowsTests]
 }
 
 final class _Other extends BeakModel {

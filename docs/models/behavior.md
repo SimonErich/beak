@@ -140,6 +140,14 @@ A guard also protects the rows a record owns. Editing, attaching or detaching a 
 
 A field that a `derived` value owns is treated more gently than one an action or snapshot owns. Submitting a model-level `derived` field is harmless: the server recomputes it and the sent value disappears. Submitting a field that a command's `values` or a `snapshot` owns is an error, because that field can only move through the command.
 
+### Built-in rows
+
+A system ships rows nobody should remove, such as the built-in roles of an account system. `BeakModelBehavior.builtInRows(column)` is the guard for them: a row whose flag column is `true` cannot be deleted, and with `lockEdits: true` it cannot be edited either. The column must be a `BeakBoolColumn` and server-owned, so leave it out of the writable columns. Rows without the flag stay ordinary:
+
+```dart title="packages/beak_core/test/src/behavior/beak_model_behavior_test.dart"
+--8<-- "packages/beak_core/test/src/behavior/beak_model_behavior_test.dart:builtInRowsTests"
+```
+
 ## Commands
 
 A command is a named transition on one stored record. The declaration carries everything the panel and the server need: the label, the state it is allowed in, the field changes it makes and, if it needs them, its typed inputs.
@@ -190,6 +198,27 @@ A command can ask for typed input with an `inputModel`, an ordinary `BeakModel` 
 ```
 
 The dialog and the API validate the same columns, so the rules are written once. A value behavior of the command reads the input with `state.argument(field)`, and a graph preparer reads it from `plan.arguments`: Foodio's preparer turns the note into a row of its own. Input models take belongs-to constraints only, and a relationship in the input must arrive as a selected identity.
+
+## Behavior on a generated model
+
+A generated model carries only facts a generator can know, and it imports no authored code. Its `behavior` and `validationRules` read from `BeakDefinitions`, a set of `BeakModelDefinition`s keyed by table, each holding the model, its `BeakModelBehavior` and its record rules:
+
+```dart title="packages/beak_core/test/src/model/beak_definitions_test.dart"
+--8<-- "packages/beak_core/test/src/model/beak_definitions_test.dart:definitionsSet"
+```
+
+`BeakModelRegistry.of(models, definitions: d)` binds the set once for the isolate and then registers the models, so registration already sees the bound behavior. A table with no definition gets the empty behavior and no rules:
+
+```dart title="packages/beak_core/test/src/model/beak_definitions_test.dart"
+--8<-- "packages/beak_core/test/src/model/beak_definitions_test.dart:registryOf"
+```
+
+Lookups are strict, because a model that silently ran without its guards would be worse than one that fails to start:
+
+- Before anything is bound, `BeakDefinitions.behaviorOf` and `rulesOf` throw a `BeakConfigurationException` that names the model and how to bind.
+- Binding the same set again changes nothing. Binding a different one throws, so build the definitions once, in a top-level `final`, and pass that instance everywhere. A behavior built at run time (a closure over a local) is a different value each time.
+- A definition for a table outside the model set is rejected, and so are two definitions for one table.
+- Tests unbind with `BeakDefinitions.unbindForTesting()`, or bind for the length of a body with `BeakDefinitions.withDefinitions(d, body)` (`withDefinitionsAsync` when the body awaits).
 
 ## What the server does with a save
 
@@ -278,6 +307,8 @@ For your own model, the pattern in `shop_api_test.dart` is the one to copy: star
 | `BeakValueLifecycle` | `initial`, `suggested`, `derived`, `snapshot` | [Behavior and actions](../reference/behavior-and-actions.md#value-behavior) |
 | `BeakValueContext` | `record`, `initial`, `arguments`; `read`, `original`, `argument` | [Behavior and actions](../reference/behavior-and-actions.md#value-behavior) |
 | `BeakModelAction` | `name`, `label`, `description`, `availableWhen`, `inputModel`, `allowOnCreate`, `values` | [Behavior and actions](../reference/behavior-and-actions.md#beakmodelaction) |
+| `BeakModelBehavior.builtInRows` | Refuses deleting (and optionally editing) rows flagged as built in | [Behavior and actions](../reference/behavior-and-actions.md#beakmodelbehavior) |
+| `BeakDefinitions`, `BeakModelDefinition` | The authored behavior and rules of generated models, bound once | [Generated code](generated-code.md) |
 | `BeakActionPolicy` | Server-side gate for who may run a command | [Auth and policies](../backend/auth-and-policies.md) |
 
 ## Continue reading

@@ -110,7 +110,7 @@ Anonymous, no token, deleted. That is right for a first run and wrong for a serv
 
 ### Hiding is presentation
 
-`BeakModel.permissions` is the panel's own switch, and its documentation says so plainly:
+`BeakModel.permissions` is constant data. The panel reads it to switch controls, and its documentation says plainly that this is all the panel does with it:
 
 ```dart title="packages/beak_core/lib/src/model/beak_permissions.dart"
 --8<-- "packages/beak_core/lib/src/model/beak_permissions.dart:BeakPermissions"

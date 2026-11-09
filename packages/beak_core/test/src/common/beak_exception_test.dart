@@ -95,6 +95,7 @@ void main() {
     expect(exception.toString(), contains('Validation failed.'));
   });
 
+  // --8<-- [start:forCategoryTests]
   group('forCategory', () {
     test('maps each category to its exception type', () {
       expect(
@@ -174,4 +175,5 @@ void main() {
       expect(exception.message, 'Taken.');
     });
   });
+  // --8<-- [end:forCategoryTests]
 }

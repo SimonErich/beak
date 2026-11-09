@@ -42,7 +42,7 @@ final class _BoundModel extends BeakModel {
 | --- | --- | --- | --- |
 | `dataSource` | `BeakDataSource?` | `null` | Routes every query and write for `table` to it. Return a stable instance. |
 | `capabilities` | `Set<BeakOperation>` | read, create, update, delete | Hides what the transport cannot do. Archive uses `delete`. |
-| `permissions` | `BeakPermissions` | `BeakPermissions.allowAll()` | Live yes-or-no callbacks per operation. Missing rules deny. |
+| `permissions` | `BeakPermissions` | `BeakPermissions.allowAll()` | A `BeakAccess` per operation, checked against the signed-in account's roles. Missing values deny. |
 | `createModel` | `BeakModel?` | `null` | The create form is built from it. |
 | `editModel` | `BeakModel?` | `null` | The edit form is built from it. |
 
@@ -163,11 +163,9 @@ The wrapper covers record reads, mutations, aggregates, uploads and edit-command
 `permissions` says whether the current account may use those operations. Use callbacks that read the account each time, so a refresh changes access without rebuilding anything:
 
 ```dart title="packages/beak_frontend/test/src/panel/beak_panel_test.dart"
-/// The notes model whose write permissions follow a live check.
+/// The notes model whose writes are open to the `writer` role.
 final class _WriteGatedNoteModel extends BeakModel {
-  const _WriteGatedNoteModel(this.canWrite);
-
-  final bool Function() canWrite;
+  const _WriteGatedNoteModel();
 
   @override
   String get table => 'notes';
@@ -179,10 +177,10 @@ final class _WriteGatedNoteModel extends BeakModel {
   List<BeakColumn> get columns => const NoteModel().columns;
 
   @override
-  BeakPermissions get permissions => BeakPermissions({
-    BeakOperation.read: () => true,
-    BeakOperation.create: canWrite,
-  });
+  BeakPermissions get permissions => const BeakPermissions(
+    read: BeakAccess.anyone,
+    write: BeakAccess.role('writer'),
+  );
 }
 ```
 
@@ -197,15 +195,17 @@ The resource combines the two with its own switches. Every column of the table i
 
 ```dart title="packages/beak_frontend/test/src/panel/model_configuration_test.dart"
 test('model permissions and supported operations govern every resource', () {
-  var canRead = true;
-  final resource = BeakResource(
+  final account = _Account({'reader'});
+  BeakPrincipalBridge.attach(account, owner: account);
+  addTearDown(() => BeakPrincipalBridge.detach(owner: account));
+  const resource = BeakResource(
     model: _BoundModel(
-      permissions: BeakPermissions({
-        BeakOperation.read: () => canRead,
-        BeakOperation.create: () => true,
-      }),
+      permissions: BeakPermissions(
+        read: BeakAccess.role('reader'),
+        create: BeakAccess.anyone,
+      ),
     ),
-    icon: const BeakIconToken(OiIcons.notebook),
+    icon: BeakIconToken(OiIcons.notebook),
   );
   expect(resource.isVisible, isTrue);
   expect(resource.allowsCreate, isFalse);
@@ -221,7 +221,7 @@ test('model permissions and supported operations govern every resource', () {
   );
   expect(custom.allowsCreate, isTrue);
   expect(custom.allowsEdit, isFalse);
-  canRead = false;
+  account.setRoles(const {});
   expect(resource.isVisible, isFalse);
   expect(custom.allowsCreate, isFalse);
 });
@@ -488,7 +488,7 @@ Archiving and browsing archived rows are separate capabilities. A transport can 
 | Bind in a hand-written `BeakModel` | Generator | A schema class cannot set `dataSource`, `createModel` or `editModel`. |
 | Return a stable `dataSource` | Client | The panel reads it when it registers the models, not per request. A getter that builds a new source on every call gets no second chance. |
 | An explicit `BeakPanel(dataSource:)` overrides bindings | Client | Useful for isolated widget tests, and wrong for a test that means to exercise the binding. |
-| Permissions and capabilities only hide UI | Client | The backend authorizes every call. `BeakPermissions` denies an operation with no rule. |
+| Permissions and capabilities only hide UI | Client | The backend authorizes every call. `BeakPermissions` denies an operation with no access value. |
 | The command model shares the `table` | Client | `createModel` and `editModel` describe the write shape of the same table. |
 | Command models stay out of the registry | Generator | `beak prepare` does not list a private or abstract class, nor a class another model returns from its `createModel` or `editModel` getter, so a command model can live in the project's `lib/`. It finds the class by the name in the getter body. A command model no getter names is listed like any other model, and the registry then refuses its shared `table`. |
 | Unsupported operations fail loudly | You | Throw `BeakValidationException` or `BeakConfigurationException` for a filter, sort or operation the transport cannot serve. The Serverpod bridge does this per operation. |
@@ -514,7 +514,7 @@ All tests passed!
 | --- | --- | --- |
 | `BeakModel.dataSource`, `capabilities`, `permissions`, `createModel`, `editModel` | `package:beak/beak.dart` | The five hooks. |
 | `BeakOperation` | `package:beak/beak.dart` | `read`, `create`, `update`, `delete`. |
-| `BeakPermissions(Map<BeakOperation, bool Function()>)`, `BeakPermissions.allowAll()` | `package:beak/beak.dart` | Live permission rules. |
+| `BeakPermissions(read:, write:, create:, update:, delete:, actions:)`, `BeakPermissions.allowAll()` | `package:beak/beak.dart` | Permissions as data, checked against a `BeakPrincipal`. |
 | `BeakEditDataSource`, `BeakCommitDataSource` | `package:beak/beak.dart` | Optional source capabilities the panel uses when present. |
 | `BeakPanelConfig.mapException` | `package:beak/panel.dart` | Maps recognised transport exceptions. |
 | `BeakResource.canCreate`, `canEdit`, `canDelete`, `deleteAction`, `screens` | `package:beak/panel.dart` | Resource-level narrowing and workflows. |

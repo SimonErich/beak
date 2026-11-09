@@ -34,26 +34,12 @@ sealed class BeakException implements Exception {
   /// The Beak exception for a failure of [category] described by [message].
   ///
   /// The mapping seam for a host whose own exceptions carry a category: map
-  /// each of them to a [BeakErrorCategory] and let Beak pick the type, so the
-  /// host never names a Beak exception subclass. [field] attaches a
-  /// validation failure to one column key and is ignored for every other
-  /// category. The [message] is shown to the caller, so keep it free of
-  /// internals.
+  /// each to a [BeakErrorCategory] and let Beak pick the type. [field] attaches
+  /// a validation failure to one column key and is ignored for every other
+  /// category. The [message] reaches the caller, so keep internals out of it.
   ///
   /// ```dart
-  /// BeakException? mapException(Object error, StackTrace stack) =>
-  ///     switch (error) {
-  ///       ShopException(:final kind, :final message) =>
-  ///         BeakException.forCategory(
-  ///           switch (kind) {
-  ///             ShopFailure.invalid => BeakErrorCategory.validation,
-  ///             ShopFailure.missing => BeakErrorCategory.notFound,
-  ///             ShopFailure.clash => BeakErrorCategory.conflict,
-  ///           },
-  ///           message,
-  ///         ),
-  ///       _ => null,
-  ///     };
+  /// throw BeakException.forCategory(BeakErrorCategory.conflict, 'Taken.');
   /// ```
   factory BeakException.forCategory(
     BeakErrorCategory category,
@@ -91,6 +77,7 @@ sealed class BeakException implements Exception {
 ///
 /// A deliberately small set: what a caller can act on, plus [unexpected] for
 /// everything else.
+// --8<-- [start:BeakErrorCategory]
 enum BeakErrorCategory {
   /// The input is invalid; becomes a [BeakValidationException].
   validation,
@@ -112,6 +99,7 @@ enum BeakErrorCategory {
   /// The failure is the server's own; becomes a [BeakInternalException].
   unexpected,
 }
+// --8<-- [end:BeakErrorCategory]
 
 // --8<-- [start:BeakValidationException]
 /// Raised when user-supplied data violates one or more column rules.

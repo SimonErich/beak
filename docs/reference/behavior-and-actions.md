@@ -82,6 +82,8 @@ const BeakModelBehavior({
 | `validateEdits(BeakRecord, {initial, actionName, isCreate})` | `void` | Rejects direct edits to locked fields and action-controlled state |
 | `validate(BeakModel model)` | `void` | Checks the declaration at registration |
 
+`BeakModelBehavior.builtInRows(BeakColumn isBuiltIn, {bool lockEdits = false})` builds a behavior whose `deletableWhen` refuses a row with the flag set, and whose `editableWhen` does too when `lockEdits` is `true`. It throws `builtInRows needs a boolean column, and "x" is <type>.` for any column but a `BeakBoolColumn`.
+
 `apply` runs the named action's `values` first, then the model's, each set in dependency order. `validateEdits` throws a `BeakValidationException` with the message `The record cannot be edited in this state.` and, per rejected field, `This field is controlled by the record workflow.`
 
 `validate` throws a `BeakConfigurationException` for these declaration errors:
