@@ -22,10 +22,12 @@ void main() => runApp(
   BeakPanel(
     title: 'Clean Beak Shop',
     // --8<-- [start:shopBranding]
-    theme: OiThemeData.fromBrand(color: const Color(0xFF315D91)),
-    darkTheme: OiThemeData.fromBrand(
-      color: const Color(0xFF82ACDF),
-      brightness: Brightness.dark,
+    theme: BeakTheme(
+      light: OiThemeData.fromBrand(color: const Color(0xFF315D91)),
+      dark: OiThemeData.fromBrand(
+        color: const Color(0xFF82ACDF),
+        brightness: Brightness.dark,
+      ),
     ),
     // --8<-- [start:shopFormatting]
     locale: const Locale('en'),

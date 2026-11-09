@@ -16,6 +16,7 @@ import 'beak_navigation.dart';
 import 'beak_resource.dart';
 import 'beak_screen.dart';
 import 'beak_resource_screen.dart';
+import 'beak_theme.dart';
 
 export 'beak_resource.dart';
 
@@ -74,7 +75,6 @@ final class BeakPanelConfig {
     this.auth,
     this.maintenance,
     this.theme,
-    this.darkTheme,
     this.initialThemeMode = OiThemeMode.system,
     this.locale,
     this.formatting,
@@ -119,11 +119,8 @@ final class BeakPanelConfig {
   /// Maintenance / coming-soon routes; `null` mounts neither.
   final BeakMaintenanceConfig? maintenance;
 
-  /// The light theme (defaults to `OiThemeData.light()`).
-  final OiThemeData? theme;
-
-  /// The dark theme (defaults to `OiThemeData.dark()`).
-  final OiThemeData? darkTheme;
+  /// The panel's light and dark themes (defaults to [BeakTheme.standard]).
+  final BeakTheme? theme;
 
   /// The theme mode the panel starts in; toggled live from the shell.
   final OiThemeMode initialThemeMode;
@@ -192,8 +189,7 @@ final class BeakPanelConfig {
     List<BeakScreen>? pages,
     BeakAuthConfig? auth,
     BeakMaintenanceConfig? maintenance,
-    OiThemeData? theme,
-    OiThemeData? darkTheme,
+    BeakTheme? theme,
     OiThemeMode? initialThemeMode,
     Locale? locale,
     BeakFormatting? formatting,
@@ -216,7 +212,6 @@ final class BeakPanelConfig {
     auth: auth ?? this.auth,
     maintenance: maintenance ?? this.maintenance,
     theme: theme ?? this.theme,
-    darkTheme: darkTheme ?? this.darkTheme,
     initialThemeMode: initialThemeMode ?? this.initialThemeMode,
     locale: locale ?? this.locale,
     formatting: formatting ?? this.formatting,

@@ -51,10 +51,12 @@ from the model. The panel is the list of resources plus one formatting policy:
 void main() => runApp(
   BeakPanel(
     title: 'Clean Beak Shop',
-    theme: OiThemeData.fromBrand(color: const Color(0xFF315D91)),
-    darkTheme: OiThemeData.fromBrand(
-      color: const Color(0xFF82ACDF),
-      brightness: Brightness.dark,
+    theme: BeakTheme(
+      light: OiThemeData.fromBrand(color: const Color(0xFF315D91)),
+      dark: OiThemeData.fromBrand(
+        color: const Color(0xFF82ACDF),
+        brightness: Brightness.dark,
+      ),
     ),
     locale: const Locale('en'),
     formatting: const BeakFormatting(
@@ -89,7 +91,7 @@ same `BeakPanel` from `lib/beak/panel.g.dart`. Both are supported, and
 ## Panel options
 
 `BeakPanel(title:, resources:, ...)` takes the everyday options: `theme`,
-`darkTheme`, `locale`, `formatting`, `pages`, `auth`, `navigation`,
+`locale`, `formatting`, `pages`, `auth`, `navigation`,
 `refreshPolicy`, `apiBaseUrl`, `home`, `maintenance` and `mapException`. The rest
 lives on `BeakPanelConfig`, which you pass as `BeakPanel(config: ...)` and never
 together with the options above: `notifications`, `shellActions`,

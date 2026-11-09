@@ -19,8 +19,7 @@ BeakPanelConfig foodioPanel({
   // --8<-- [start:foodioPanelConfig]
   title: 'Gabel Admin',
   // --8<-- [start:foodioThemes]
-  theme: gabelTheme(),
-  darkTheme: gabelTheme(dark: true),
+  theme: BeakTheme(light: gabelTheme(), dark: gabelTheme(dark: true)),
   // --8<-- [end:foodioThemes]
   apiBaseUrl: apiBaseUrl,
   locale: const Locale('en'),

@@ -21,6 +21,7 @@ import 'beak_destination.dart';
 import 'beak_maintenance_config.dart';
 import 'beak_screen.dart';
 import 'beak_navigation.dart';
+import 'beak_theme.dart';
 
 /// The Beak admin panel: give it resources (or a full [BeakPanelConfig]) and
 /// it stands up the whole app — obers_ui theming, a go_router over every
@@ -64,7 +65,6 @@ class BeakPanel extends HookWidget {
     List<BeakResource>? resources,
     this.title,
     this.theme,
-    this.darkTheme,
     this.apiBaseUrl,
     this.pages = const [],
     this.auth,
@@ -90,11 +90,8 @@ class BeakPanel extends HookWidget {
   /// Application title; `Beak` when null.
   final String? title;
 
-  /// Light theme.
-  final OiThemeData? theme;
-
-  /// Dark theme.
-  final OiThemeData? darkTheme;
+  /// Light and dark theme; [BeakTheme.standard] when null.
+  final BeakTheme? theme;
 
   /// Backend origin; the `BEAK_API_BASE_URL` compile-time variable, else
   /// `http://localhost:8080`, when null.
@@ -151,7 +148,6 @@ class BeakPanel extends HookWidget {
       title: title ?? 'Beak',
       resources: resources,
       theme: theme,
-      darkTheme: darkTheme,
       apiBaseUrl:
           apiBaseUrl ??
           const String.fromEnvironment(
@@ -174,7 +170,6 @@ class BeakPanel extends HookWidget {
     if (resources.isNotEmpty) 'resources',
     if (title != null) 'title',
     if (theme != null) 'theme',
-    if (darkTheme != null) 'darkTheme',
     if (apiBaseUrl != null) 'apiBaseUrl',
     if (pages.isNotEmpty) 'pages',
     if (auth != null) 'auth',
@@ -202,7 +197,6 @@ class BeakPanel extends HookWidget {
       resources,
       title,
       theme,
-      darkTheme,
       apiBaseUrl,
       pages,
       auth,
@@ -262,6 +256,13 @@ class BeakPanel extends HookWidget {
       [routing],
     );
     final themeController = routing.container<BeakThemeController>();
+    final panelTheme = useMemoized(() => config.theme ?? BeakTheme.standard(), [
+      config.theme,
+    ]);
+    useEffect(() {
+      panelTheme.registerLicenses();
+      return null;
+    }, [panelTheme]);
     final panel = BeakDependencyScope(
       container: routing.container,
       child: ValueListenableBuilder<OiThemeMode>(
@@ -269,8 +270,8 @@ class BeakPanel extends HookWidget {
         builder: (context, themeMode, _) => OiApp.router(
           routerConfig: router,
           title: config.title,
-          theme: config.theme ?? OiThemeData.light(),
-          darkTheme: config.darkTheme ?? OiThemeData.dark(),
+          theme: panelTheme.light,
+          darkTheme: panelTheme.dark,
           themeMode: themeMode,
           debugShowCheckedModeBanner: false,
           locale: config.locale,
