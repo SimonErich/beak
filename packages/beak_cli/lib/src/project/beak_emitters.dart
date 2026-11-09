@@ -3,6 +3,7 @@ import 'package:pub_semver/pub_semver.dart';
 
 import 'beak_discovery.dart';
 import 'beak_project_config.dart';
+import 'beak_theme_preset.dart';
 
 /// One file `beak prepare` writes, and whether the project commits it.
 final class BeakGeneratedFile {
@@ -166,6 +167,11 @@ abstract final class BeakEmitters {
     required BeakDiscovery discovery,
   }) {
     final List<BeakDiscoveredSymbol> defaults = _shownModels(config, discovery);
+    final BeakDiscoveredSymbol? themeOverride =
+        discovery.overrides[BeakOverrideKind.theme];
+    final BeakThemePreset preset = themeOverride == null
+        ? config.themePreset
+        : BeakThemePreset.standard;
     final buffer = StringBuffer(header)
       ..writeln('library;')
       ..writeln()
@@ -174,6 +180,9 @@ abstract final class BeakEmitters {
     // names one: a project with no model yet would import it for nothing.
     if (defaults.isNotEmpty) {
       buffer.writeln("import 'package:beak/ui.dart';");
+    }
+    if (preset.importUri case final String uri) {
+      buffer.writeln("import '$uri' show ${preset.className};");
     }
     if (config.api.isAuto) {
       buffer.writeln("import 'package:flutter/foundation.dart';");
@@ -193,8 +202,6 @@ abstract final class BeakEmitters {
     if (panelOverride != null) {
       buffer.writeln("import '../${panelOverride.importPath}' as panel;");
     }
-    final BeakDiscoveredSymbol? themeOverride =
-        discovery.overrides[BeakOverrideKind.theme];
     if (themeOverride != null) {
       buffer.writeln("import '../${themeOverride.importPath}' as theme;");
     }
@@ -243,9 +250,9 @@ abstract final class BeakEmitters {
         '    sidebarDefaultCollapsed: ${config.sidebarStartCollapsed},',
       );
     if (themeOverride != null) {
-      buffer
-        ..writeln('    theme: theme.beakLightTheme(),')
-        ..writeln('    darkTheme: theme.beakDarkTheme(),');
+      buffer.writeln('    theme: theme.beakTheme(),');
+    } else if (preset.expression case final String expression) {
+      buffer.writeln('    theme: $expression,');
     }
     if (authOverride != null) {
       buffer.writeln('    auth: auth.beakAuth(),');
@@ -329,6 +336,9 @@ abstract final class BeakEmitters {
         discovery.overrides[BeakOverrideKind.panel];
     final BeakDiscoveredSymbol? themeOverride =
         discovery.overrides[BeakOverrideKind.theme];
+    final BeakThemePreset preset = themeOverride == null
+        ? config.themePreset
+        : BeakThemePreset.standard;
     final BeakDiscoveredSymbol? authOverride =
         discovery.overrides[BeakOverrideKind.auth];
     final bool defaultSidebar =
@@ -340,12 +350,16 @@ abstract final class BeakEmitters {
         asConfig &&
         !config.api.isAuto &&
         themeOverride == null &&
+        preset.expression == null &&
         authOverride == null &&
         usedResources.every((resource) => resource.isConst) &&
         discovery.screens.every((screen) => screen.isConstVariable);
     final buffer = StringBuffer()..writeln("import 'package:beak/panel.dart';");
     if (defaultModels.isNotEmpty) {
       buffer.writeln("import 'package:beak/ui.dart';");
+    }
+    if (preset.importUri case final String uri) {
+      buffer.writeln("import '$uri' show ${preset.className};");
     }
     if (config.api.isAuto) {
       buffer.writeln("import 'package:flutter/foundation.dart';");
@@ -378,10 +392,10 @@ abstract final class BeakEmitters {
         'apiBaseUrl: ${inConfig(config.api.expression)}',
       if (!config.sidebarCollapsible) 'sidebarCollapsible: false',
       if (config.sidebarStartCollapsed) 'sidebarDefaultCollapsed: true',
-      if (themeOverride != null) ...[
-        'theme: theme.beakLightTheme()',
-        'darkTheme: theme.beakDarkTheme()',
-      ],
+      if (themeOverride != null)
+        'theme: theme.beakTheme()'
+      else if (preset.expression case final String expression)
+        'theme: $expression',
       if (authOverride != null) 'auth: auth.beakAuth()',
       'resources: [${_argumentList(entries.map(inConfig))}]',
       if (discovery.screens.isNotEmpty)

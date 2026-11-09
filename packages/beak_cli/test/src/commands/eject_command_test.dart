@@ -131,7 +131,7 @@ final class Note extends BeakSchema {
       expect(await eject(['theme', '--force']), 0);
       expect(
         file('lib/theme.dart').readAsStringSync(),
-        contains('OiThemeData'),
+        contains('BeakTheme beakTheme()'),
       );
     });
   });
@@ -515,7 +515,7 @@ final class NoteResource extends BeakResource {
       final String main = file('lib/main.dart').readAsStringSync();
       expect(main, isNot(contains('const BeakPanelConfig(')));
       expect(main, contains('BeakPanelConfig('));
-      expect(main, contains('theme: theme.beakLightTheme()'));
+      expect(main, contains('theme: theme.beakTheme()'));
       expect(main, contains('const NoteResource()'));
       expect(main, contains('const String.fromEnvironment'));
     });
@@ -594,8 +594,8 @@ final class AuditResource extends BeakResource {
         expect(main, contains("import 'package:flutter/foundation.dart';"));
         expect(main, contains('kIsWeb ? Uri.base.origin'));
         expect(main, contains("import 'theme.dart' as theme;"));
-        expect(main, contains('theme: theme.beakLightTheme(),'));
-        expect(main, contains('darkTheme: theme.beakDarkTheme(),'));
+        expect(main, contains('theme: theme.beakTheme(),'));
+        expect(main, isNot(contains('darkTheme')));
         expect(main, contains("import 'auth.dart' as auth;"));
         expect(main, contains('auth: auth.beakAuth(),'));
         expect(main, contains("import 'screens/reports.dart';"));

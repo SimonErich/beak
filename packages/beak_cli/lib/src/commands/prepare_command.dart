@@ -9,6 +9,7 @@ import '../project/beak_authored_main.dart';
 import '../project/beak_discovery.dart';
 import '../project/beak_emitters.dart';
 import '../project/beak_project_config.dart';
+import '../project/beak_theme_preset.dart';
 import '../schema/beak_migration_emitter.dart';
 import '../schema/beak_migration_order.dart';
 import '../schema/beak_schema_emitter.dart';
@@ -277,6 +278,7 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
     ...schemaIssues,
     ...discovery.issues,
     ...beakConfigIssues(config, discovery),
+    ...beakThemeIssues(config, discovery, root: root),
   ];
 
   if (allIssues.isNotEmpty) {

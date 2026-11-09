@@ -5,6 +5,7 @@ import 'package:yaml/yaml.dart';
 import '../agents/beak_skill_installer.dart';
 import 'beak_discovery.dart';
 import 'beak_emitters.dart' show BeakEmitters;
+import 'beak_theme_preset.dart';
 
 /// Thrown when `beak.yaml` cannot be understood.
 ///
@@ -181,6 +182,7 @@ final class BeakProjectConfig {
     this.resources = const {},
     this.sidebarCollapsible = true,
     this.sidebarStartCollapsed = false,
+    this.themePreset = BeakThemePreset.standard,
   });
 
   /// The defaults applied when a project has no `beak.yaml` at all.
@@ -237,7 +239,7 @@ final class BeakProjectConfig {
     }
     final YamlMap? theme = _optionalMap(root['theme'], 'theme');
     if (theme != null) {
-      _rejectUnknownKeys(theme, const {'sidebar'}, 'theme.');
+      _rejectUnknownKeys(theme, const {'preset', 'sidebar'}, 'theme.');
     }
     final YamlMap? sidebar = _optionalMap(theme?['sidebar'], 'theme.sidebar');
     if (sidebar != null) {
@@ -312,6 +314,7 @@ final class BeakProjectConfig {
             'theme.sidebar.startCollapsed',
           ) ??
           false,
+      themePreset: _themePresetOf(theme?['preset']),
     );
   }
 
@@ -353,6 +356,9 @@ final class BeakProjectConfig {
 
   /// Whether the sidebar starts collapsed.
   final bool sidebarStartCollapsed;
+
+  /// The built-in look the panel uses (`theme.preset`).
+  final BeakThemePreset themePreset;
 
   /// [yamlSource] as a YAML document.
   ///
@@ -455,6 +461,23 @@ final class BeakProjectConfig {
   }
 
   /// The `agents.instructions` choice; `all` when it is not written.
+  static BeakThemePreset _themePresetOf(Object? value) {
+    final Object? raw = value is YamlNode ? value.value : value;
+    if (raw == null) {
+      return BeakThemePreset.standard;
+    }
+    for (final choice in BeakThemePreset.values) {
+      if (raw == choice.name) {
+        return choice;
+      }
+    }
+    throw BeakProjectConfigException(
+      'theme.preset must be one of: '
+      '${BeakThemePreset.values.map((choice) => choice.name).join(', ')} '
+      '(got "$raw").',
+    );
+  }
+
   static BeakAgentInstructions _instructionsOf(Object? value) {
     final Object? raw = value is YamlNode ? value.value : value;
     if (raw == null) {
