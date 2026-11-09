@@ -118,7 +118,17 @@ Pure Dart. No Flutter, no worm. The shared vocabulary both sides speak.
 - `BeakModel` (@immutable abstract base): abstract `table`, `displayColumnKey`,
   `columns`; overridable `relationships`, `softDeletes`, `primaryKey`; methods
   `primaryKeyOf`, `columnsFor`, `columnByKey`, `relationshipByKey`.
-- `BeakModelRegistry`: `register`, `byTable`, `byTableOrThrow`, `all`.
+- `BeakModelRegistry`: `register`, `byTable`, `byTableOrThrow`, `all`, and
+  `BeakModelRegistry.of(models, {definitions})`, which binds the definitions and
+  then registers.
+- `BeakDefinitions`, `BeakModelDefinition` (`src/model/beak_definitions.dart`):
+  the authored behavior and rules of generated models, bound once per isolate;
+  `bind`, `behaviorOf`, `rulesOf`, `unbindForTesting`, `withDefinitions`.
+- `BeakAdmission`, `BeakTranslationSpec` (`src/model/beak_admission.dart`): the
+  constant facts a generator records on `BeakModel.admission`.
+- `BeakPermissions` (`src/model/beak_permissions.dart`): a `BeakAccess` per
+  operation and per action, checked with `allows` and `allowsAction` against a
+  `BeakPrincipal`. `BeakAccess` and `BeakPrincipal` live in `src/auth/`.
 - `BeakDataSource` (interface): `query`, `getOne`, `create`, `update`,
   `delete({force})`, `batchGet`, `attach`, `detach`, `aggregate`.
 - `BeakUploadClient`: `upload(table, columnKey, BeakUpload)`.
@@ -342,7 +352,7 @@ Shelf server. The only package that imports worm.
   `DELETE /<id>`, `POST /<id>/relations/<relationKey>/attach|detach`.
 - Auth (`src/auth/`): `BeakPolicy` (`canView/canCreate/canUpdate/canDelete/
   canDeleteUpload`), `BeakRowPolicy`, `BeakUploadReadPolicy.canViewUpload`,
-  `BeakAllowAllPolicy`, `enforcePolicyDecision`, `BeakPrincipal`,
+  `BeakAllowAllPolicy`, `enforcePolicyDecision`, `BeakPrincipal` (from `beak_core`),
   `BeakAuthGuard`, `TokenSessionAuthGuard`, `BeakAuthSessions`, `BeakUserAccount`,
   `hashBeakPassword`, `BeakAuthHandlers`, `beakAuthRouter`, `TokenSessionStore`,
   `InMemoryTokenSessionStore`, `beakAuthMiddleware`, `beakPrincipal`.
