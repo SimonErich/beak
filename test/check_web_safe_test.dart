@@ -211,6 +211,16 @@ const String rule = 'package:shelf/shelf.dart';
       );
     });
 
+    test('include the Gabel theme libraries a panel imports', () {
+      expect(
+        panelEntrypoints,
+        containsAll(<String>[
+          'packages/beak_theme_gabel/lib/beak_theme_gabel.dart',
+          'packages/beak_theme_gabel/lib/testing.dart',
+        ]),
+      );
+    });
+
     test('leave no public library unclassified', () {
       // A library added under lib/ is either panel-side, and walked, or
       // deliberately server-side, and listed. One that is neither is a
@@ -221,6 +231,7 @@ const String rule = 'package:shelf/shelf.dart';
         'beak_frontend',
         'beak_serverpod',
         'beak_serverpod_flutter',
+        'beak_theme_gabel',
       ];
       final unclassified = <String>[];
       for (final package in packages) {

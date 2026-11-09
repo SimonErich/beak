@@ -189,6 +189,7 @@ few opt-in extras.
 | [`beak_test`](packages/beak_test) | `InMemoryBeakDataSource`, `BeakRecordingDataSource`, the executable data-source contract, record factories. |
 | [`beak_image`](packages/beak_image) | The image transform runner behind image columns. |
 | [`beak_storage_s3`](packages/beak_storage_s3), [`beak_storage_ftp`](packages/beak_storage_ftp) | Storage drivers for S3 or MinIO and for FTP. `memory` and `local` ship in `beak_core`. |
+| [`beak_theme_gabel`](packages/beak_theme_gabel) | The official Gabel theme: tokens, type ramp, component themes, icons and the Mona Sans and JetBrains Mono fonts. Opt in with `theme: GabelTheme()`. |
 | [`beak_serverpod_server`](packages/beak_serverpod_server) | Runs Beak's API inside a Serverpod 4 server, behind one gated endpoint, on Serverpod's own database. |
 | [`beak_serverpod`](packages/beak_serverpod) | The tunnel envelope and HTTP client behind the admin app, and the client bridge: `ServerpodResource` and codecs over an existing Serverpod client. |
 | [`beak_serverpod_flutter`](packages/beak_serverpod_flutter) | The Serverpod side of the panel: the tunnel client and Beak's login, registration and recovery screens over Serverpod's email sign-in. |

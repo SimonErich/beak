@@ -81,6 +81,8 @@ All of these import from `package:beak/panel.dart`. Add `package:beak/ui.dart` w
 | `BeakSessionStore` | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/auth/beak_session_store.dart` | `packages/beak_frontend/test/src/auth/beak_session_store_test.dart` |
 | `BeakMaintenanceConfig` | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/panel/beak_maintenance_config.dart` | `packages/beak_frontend/test/src/panel/beak_screen_routing_test.dart` |
 | `BeakThemeController` | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/panel/beak_theme_controller.dart` | `packages/beak_frontend/test/src/panel/beak_screen_routing_test.dart` |
+| `BeakTheme`, `BeakTheme.standard()`, `BeakPanelConfig.theme` | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/panel/beak_theme.dart` | `packages/beak_frontend/test/src/panel/beak_theme_test.dart` |
+| `GabelTheme`, `GabelLight`, `GabelDark`, `gabelNumericMetricStyle`, `gabelIconSources` | `package:beak_theme_gabel/beak_theme_gabel.dart`, an opt-in package | `packages/beak_theme_gabel/lib/src/gabel_theme.dart` | `packages/beak_theme_gabel/test/gabel_theme_test.dart` |
 | `BeakFormatting` | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/formatting/beak_formatting.dart` | `packages/beak_frontend/test/src/form/date_input_format_test.dart` |
 | `BeakFormLayout`, `BeakFormSections`, `BeakDraftScope`, `X.name.inputText()` | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/form/beak_form_layout.dart` | `packages/beak_frontend/test/src/form/beak_form_layout_test.dart` |
 | `BeakConfiguredForm` | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/form/beak_configured_form.dart` | `packages/beak_frontend/test/src/form/beak_configured_form_test.dart` |

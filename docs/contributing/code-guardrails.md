@@ -92,6 +92,8 @@ const List<String> panelEntrypoints = [
   'packages/beak_serverpod/lib/wire.dart',
   'packages/beak_serverpod_flutter/lib/beak_serverpod_flutter.dart',
   'packages/beak_serverpod_flutter/lib/tunnel.dart',
+  'packages/beak_theme_gabel/lib/beak_theme_gabel.dart',
+  'packages/beak_theme_gabel/lib/testing.dart',
 ];
 ```
 

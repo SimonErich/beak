@@ -235,8 +235,7 @@ Give `BeakPanelConfig.notifications` a `BeakNotificationSource` and the top bar 
 
 ```dart title="examples/foodio-adminpanel/lib/main.dart"
 title: 'Gabel Admin',
-theme: gabelTheme(),
-darkTheme: gabelTheme(dark: true),
+theme: GabelTheme(),
 apiBaseUrl: apiBaseUrl,
 locale: const Locale('en'),
 formatting: const BeakFormatting(

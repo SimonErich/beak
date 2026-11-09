@@ -112,7 +112,7 @@ Cannot generate: fix these first:
 --8<-- "packages/beak_cli/lib/src/project/beak_discovery.dart:beakOverrideKind"
 ```
 
-An override applies only when its file declares the named top-level function. `beakPanel(BeakPanelConfig)` has the last word on the panel config. `beakLightTheme` and `beakDarkTheme` set the themes, `beakAuth` the auth config, and `beakServer` configures the host. A `beakStorageRegistry` function in `lib/server.dart` registers storage drivers without replacing the default server.
+An override applies only when its file declares the named top-level function. `beakPanel(BeakPanelConfig)` has the last word on the panel config. `beakTheme` sets the theme, `beakAuth` the auth config, and `beakServer` configures the host. A `beakStorageRegistry` function in `lib/server.dart` registers storage drivers without replacing the default server.
 
 A hidden resource (`beak.yaml`) keeps its model and its API and drops out of `panel.g.dart`.
 

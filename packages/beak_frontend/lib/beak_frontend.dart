@@ -50,6 +50,7 @@ export 'src/panel/beak_resource.dart';
 export 'src/panel/beak_router.dart';
 export 'src/panel/beak_routes.dart';
 export 'src/panel/beak_screen.dart';
+export 'src/panel/beak_theme.dart';
 export 'src/panel/beak_theme_controller.dart';
 export 'src/state/beak_view_model.dart';
 export 'src/table/beak_data_table.dart';

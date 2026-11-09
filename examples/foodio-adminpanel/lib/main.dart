@@ -1,10 +1,10 @@
 import 'package:beak/panel.dart';
+import 'package:beak_theme_gabel/beak_theme_gabel.dart';
 import 'package:flutter/widgets.dart';
 import 'foodio_resources.dart';
 import 'navigation.dart';
 import 'models/models.dart';
 import 'pages/operations.dart';
-import 'theme/gabel_theme.dart';
 
 /// The application is one themed panel and declarative resource definitions.
 void main() => runApp(BeakPanel(config: foodioPanel()));
@@ -18,10 +18,9 @@ BeakPanelConfig foodioPanel({
 }) => BeakPanelConfig(
   // --8<-- [start:foodioPanelConfig]
   title: 'Gabel Admin',
-  // --8<-- [start:foodioThemes]
-  theme: gabelTheme(),
-  darkTheme: gabelTheme(dark: true),
-  // --8<-- [end:foodioThemes]
+  // --8<-- [start:foodioTheme]
+  theme: GabelTheme(),
+  // --8<-- [end:foodioTheme]
   apiBaseUrl: apiBaseUrl,
   locale: const Locale('en'),
   // --8<-- [start:foodioFormatting]

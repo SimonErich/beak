@@ -1,8 +1,8 @@
 import 'package:beak/panel.dart';
 import 'package:beak/ui.dart';
+import 'package:beak_theme_gabel/beak_theme_gabel.dart';
 import 'package:flutter/widgets.dart';
 
-import '../../../theme/gabel_tokens.dart';
 import 'order_identity_tokens.dart';
 
 /// Reusable categorical dish roles shared by catalog and compact records.

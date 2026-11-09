@@ -134,6 +134,7 @@ start-here/project-structure.md
 start-here/quickstart.md
 start-here/what-is-beak.md
 start-here/why-beak.md
+theming/built-in-themes.md
 theming/colors-and-tokens.md
 theming/index.md
 theming/the-shell.md

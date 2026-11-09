@@ -207,10 +207,12 @@ void main() => runApp(buildPanel(auth: const BeakAuthConfig()));
 BeakPanel buildPanel({BeakDataSource? dataSource, BeakAuthConfig? auth}) =>
     BeakPanel(
       title: 'Shop',
-      theme: OiThemeData.fromBrand(color: const Color(0xFF315D91)),
-      darkTheme: OiThemeData.fromBrand(
-        color: const Color(0xFF82ACDF),
-        brightness: Brightness.dark,
+      theme: BeakTheme(
+        light: OiThemeData.fromBrand(color: const Color(0xFF315D91)),
+        dark: OiThemeData.fromBrand(
+          color: const Color(0xFF82ACDF),
+          brightness: Brightness.dark,
+        ),
       ),
       locale: const Locale('en'),
       formatting: const BeakFormatting(

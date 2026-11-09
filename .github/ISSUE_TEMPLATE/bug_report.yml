@@ -21,6 +21,7 @@ body:
         - beak_image
         - beak_storage_s3
         - beak_storage_ftp
+        - beak_theme_gabel
         - beak_serverpod
         - beak_serverpod_flutter
         - beak_serverpod_generator

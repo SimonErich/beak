@@ -145,7 +145,7 @@ To run an example, follow its tour page or the run table on [Examples](index.md)
 | Custom navigation | [Foodio](foodio.md) | `examples/foodio-adminpanel/lib/navigation.dart` | [Navigation](../panel/navigation.md) |
 | Notifications and refresh policy | [Foodio](foodio.md) | `examples/foodio-adminpanel/lib/main.dart` | [Panel and resource options](../reference/panel-options.md) |
 | Theme from a brand color | [Shop](clean-shop.md) | `examples/clean_beak_config/lib/main.dart` | [Theming basics](../theming/theming-basics.md) |
-| A complete custom theme | [Foodio](foodio.md) | `examples/foodio-adminpanel/lib/theme/gabel_theme.dart` | [Colors and tokens](../theming/colors-and-tokens.md), [Typography and icons](../theming/typography-and-icons.md) |
+| A complete built-in theme | [Foodio](foodio.md) | `examples/foodio-adminpanel/lib/main.dart` | [Built-in themes](../theming/built-in-themes.md), [Colors and tokens](../theming/colors-and-tokens.md), [Typography and icons](../theming/typography-and-icons.md) |
 | Locale, currency and date formats | [Shop](clean-shop.md) | `examples/clean_beak_config/lib/main.dart` | [Formatting and localization](../theming/formatting-and-localization.md) |
 | Sign-in screens over an auth adapter | [Serverpod](serverpod-admin.md) | `examples/serverpod/bookshop_admin/lib/src/bookshop_admin.dart` | [Auth and idle-lock](../panel/auth-and-idle-lock.md) |
 

@@ -415,7 +415,7 @@ void main() {
       final panel = BeakPanel(
         config: config,
         title: 'Other',
-        theme: OiThemeData.light(),
+        theme: BeakTheme.standard(),
         mapException: mapper,
       );
 

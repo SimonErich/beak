@@ -107,7 +107,8 @@ snapshot contracts and the six disjoint chart populations.
 
 | Concern | Authored source |
 | --- | --- |
-| Panel, navigation and global formatting | `lib/main.dart`, `lib/navigation.dart`, `lib/theme/` |
+| Panel, navigation and global formatting | `lib/main.dart`, `lib/navigation.dart` |
+| Theme: tokens, type ramp, components, icons, fonts | `packages/beak_theme_gabel`, selected in `lib/main.dart` |
 | Resource registration | `lib/foodio_resources.dart` |
 | Typed fields, relationships, validation, labels and badges | `lib/models/` |
 | Order list, filters, presets and table columns | `lib/resources/orders/list/` |

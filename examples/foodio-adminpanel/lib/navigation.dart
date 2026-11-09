@@ -1,10 +1,10 @@
 import 'package:beak/panel.dart';
 import 'package:beak/ui.dart';
+import 'package:beak_theme_gabel/beak_theme_gabel.dart';
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'models/models.dart';
 import 'pages/operations.dart';
-import 'theme/gabel_tokens.dart';
 
 /// Each workspace has a compact rail destination and contextual navigation.
 final foodioNavigation = BeakNavigation(

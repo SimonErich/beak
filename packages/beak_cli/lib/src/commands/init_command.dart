@@ -258,6 +258,7 @@ final class InitCommand extends Command<int> {
       config: config,
       dryRun: dryRun,
     );
+    _noteThemePackage(config, pubspecSource);
     final bool example = argResults?['example'] == true;
     _writeEntrypoint(
       entrypoint,
@@ -326,6 +327,24 @@ final class InitCommand extends Command<int> {
         !main.existsSync() ||
         main.readAsStringSync().startsWith(BeakAuthoredMain.generatedMarker);
     return isFree ? BeakPanelSettings.defaultEntrypoint : adminEntrypoint;
+  }
+
+  /// Says which package a `theme.preset` in an existing `beak.yaml` needs,
+  /// when the pubspec does not have it yet.
+  ///
+  /// `init` adds `beak` itself and nothing else, and the preset's package
+  /// comes from the same repository, so it names the entry to add rather
+  /// than guessing at a ref or a path that may not match.
+  void _noteThemePackage(BeakProjectConfig config, String pubspecSource) {
+    final String? package = config.themePreset.package;
+    if (package == null || config.themePreset.isAvailableIn(pubspecSource)) {
+      return;
+    }
+    environment.out.writeln(
+      '  beak.yaml sets theme.preset: ${config.themePreset.name}: add '
+      '$package to pubspec.yaml next to beak (same git ref, '
+      '`path: packages/$package`)',
+    );
   }
 
   /// Adds the `beak` dependency to the pubspec, leaving the rest of it as it

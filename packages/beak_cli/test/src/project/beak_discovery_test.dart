@@ -634,7 +634,7 @@ int add(int a, int b) => a + b;
     test('are detected only when the expected symbol is declared', () {
       final discovery = BeakProjectScanner(
         projectWith({
-          'lib/theme.dart': 'OiThemeData beakLightTheme() => OiThemeData();',
+          'lib/theme.dart': 'BeakTheme beakTheme() => BeakTheme.standard();',
           // Present but does not declare `beakPanel` — not an override.
           'lib/panel.dart': 'const String unrelated = "x";',
         }),
@@ -1116,7 +1116,7 @@ final class CreateWidgetsTable extends Migration {
       final discovery = BeakProjectScanner(
         projectWith({
           'lib/models/product.dart': model('ProductModel', 'products'),
-          'lib/theme.dart': 'OiThemeData beakLightTheme() => OiThemeData();',
+          'lib/theme.dart': 'BeakTheme beakTheme() => BeakTheme.standard();',
         }),
       ).scan();
 

@@ -30,10 +30,12 @@ void main() {
 BeakPanel buildPanel({BeakDataSource? dataSource}) => BeakPanel(
   title: 'The Aviary',
   // --8<-- [start:aviaryTheme]
-  theme: OiThemeData.fromBrand(color: const Color(0xFF2F7D6B)),
-  darkTheme: OiThemeData.fromBrand(
-    color: const Color(0xFF7FC4B2),
-    brightness: Brightness.dark,
+  theme: BeakTheme(
+    light: OiThemeData.fromBrand(color: const Color(0xFF2F7D6B)),
+    dark: OiThemeData.fromBrand(
+      color: const Color(0xFF7FC4B2),
+      brightness: Brightness.dark,
+    ),
   ),
   // --8<-- [end:aviaryTheme]
   // --8<-- [start:aviaryFormatting]

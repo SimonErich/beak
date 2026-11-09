@@ -713,7 +713,7 @@ resource(
   'lib/resources/<table>/<name>_resource.dart (takes a table name)',
 ),
 
-/// `lib/theme.dart` — the light and dark themes.
+/// `lib/theme.dart` — the panel's `BeakTheme`.
 theme('theme', 'lib/theme.dart'),
 
 /// `lib/auth.dart` — which auth routes exist and what they call.
@@ -730,7 +730,7 @@ server('server', 'lib/server.dart');
 | `main` | `lib/main.dart` as an authored `BeakPanel(resources: [...])` listing every resource the generated panel showed, and removes `/lib/main.dart` from `.gitignore` | `prepare` never rewrites it again |
 | `panel` | `lib/panel.dart`: `BeakPanelConfig beakPanel(BeakPanelConfig defaults) => defaults;` | the generated `panel.g.dart` |
 | `resource <table>` | `lib/resources/<table>/<name>_resource.dart`, a `BeakResource` subclass for the model of that table, with the `beak.yaml` icon, label and section written in | the generated panel, in place of the default resource |
-| `theme` | `lib/theme.dart`: `beakLightTheme()` and `beakDarkTheme()` | `panel.g.dart` |
+| `theme` | `lib/theme.dart`: `BeakTheme beakTheme()` | `panel.g.dart` |
 | `auth` | `lib/auth.dart`: `BeakAuthConfig beakAuth()` | `panel.g.dart` |
 | `server` | `lib/server.dart`: `BeakServer beakServer(BeakServerDefaults defaults)` with the options documented in its comment | `server.g.dart` |
 
@@ -745,8 +745,8 @@ enum BeakOverrideKind {
   /// `lib/panel.dart` — the whole panel config, last word.
   panel(path: 'panel.dart', symbol: 'beakPanel'),
 
-  /// `lib/theme.dart` — light and dark themes.
-  theme(path: 'theme.dart', symbol: 'beakLightTheme'),
+  /// `lib/theme.dart` — the panel's `BeakTheme`.
+  theme(path: 'theme.dart', symbol: 'beakTheme'),
 
   /// `lib/auth.dart` — auth routes and callbacks.
   auth(path: 'auth.dart', symbol: 'beakAuth'),

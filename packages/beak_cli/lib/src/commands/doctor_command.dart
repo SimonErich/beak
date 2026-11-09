@@ -19,6 +19,7 @@ import '../project/beak_authored_main.dart';
 import '../project/beak_discovery.dart';
 import '../project/beak_emitters.dart';
 import '../project/beak_project_config.dart';
+import '../project/beak_theme_preset.dart';
 import '../schema/beak_drift_migration_emitter.dart';
 import '../schema/beak_migration_emitter.dart';
 import '../schema/beak_migration_order.dart';
@@ -210,6 +211,7 @@ Future<List<BeakCheck>> diagnose(
   for (final issue in [
     ...discovery.issues,
     ...beakConfigIssues(config, discovery),
+    ...beakThemeIssues(config, discovery, root: root),
   ]) {
     checks.add(
       BeakCheck(

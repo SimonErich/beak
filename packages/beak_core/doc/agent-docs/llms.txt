@@ -33,7 +33,7 @@
 - [Examples](examples/index.md): Five runnable Beak projects compared by domain, models, ports, auth and run command, with a guide to which one to read for what you are building.
 - [Quickstart scaffold](examples/quickstart.md): Tour the project that beak create writes, file by file, and see which files you author, which Beak generates and which Beak writes once.
 - [Clean shop](examples/clean-shop.md): Tour the clean shop, the teaching example: 20 models, exact money, invoice actions, a server-side preparer, custom pages, tests and limits.
-- [Foodio admin](examples/foodio.md): Tour Gabel, the Foodio example: composed order lists, a five-step wizard, named actions, a transactional preparer, durable effects and a custom theme.
+- [Foodio admin](examples/foodio.md): Tour Gabel, the Foodio example: composed order lists, a five-step wizard, named actions, a transactional preparer, durable effects and the Gabel theme.
 - [Showcase](examples/showcase.md): Tour the Aviary, the example that uses every column kind, relationship kind and block type, and the tests that keep it complete when Beak grows.
 - [Serverpod admin](examples/serverpod-admin.md): A card for the Serverpod example: a bookshop workspace whose Beak admin runs behind one gated endpoint, with its tests and its limits.
 - [Feature map](examples/feature-map.md): Find the example, the file and the docs page for a Beak feature, from column kinds to graph preparers, in one table per area.
@@ -92,9 +92,10 @@
 - [Module blocks](blocks/module-blocks.md): Chat, inbox, file manager, media, profile, invoice, pricing and FAQ views bound to your models, and the row limits, read failures and writes they come with.
 - [Charts](blocks/charts.md): Draw a query as a line, bar, pie, donut, area, radar or funnel chart, or as a bubble, candlestick or heat map, by mapping records to typed points.
 - [Maps](blocks/maps.md): Shade countries by a value with the vector map block, or pin rows by latitude and longitude on an OpenStreetMap tile map.
-- [Theming and formatting](theming/index.md): Style the panel with one theme, resolve semantic colors, set type and icons, and choose how numbers, money, dates and built-in text are written.
-- [Theming basics](theming/theming-basics.md): Give the panel a light and a dark theme from one brand color, choose the starting mode, and read theme tokens in your own widgets.
-- [Colors and tokens](theming/colors-and-tokens.md): How the seven BeakColor names resolve to theme colors on badges, buttons, boards and charts, and how to build a full palette from a design system.
+- [Theming and formatting](theming/index.md): Style the panel with one theme or a built-in one, resolve semantic colors, set type and icons, and choose how numbers, money and dates are written.
+- [Theming basics](theming/theming-basics.md): Give the panel a light and a dark theme from one brand color, pick a built-in theme, choose the starting mode, and read theme tokens in your own widgets.
+- [Built-in themes](theming/built-in-themes.md): Select the stock theme or the Gabel design with one line, add the package that ships it, and write a built-in theme of your own.
+- [Colors and tokens](theming/colors-and-tokens.md): How the seven BeakColor names resolve to theme colors on badges, buttons, boards and charts, and how Gabel builds a full palette from a design system.
 - [Typography and icons](theming/typography-and-icons.md): Set the panel's fonts and type ramp, know which text styles Beak's blocks use, and re-skin every icon the framework draws through one theme entry.
 - [Formatting and localization](theming/formatting-and-localization.md): Set number, money and date conventions once, keep CSV exports in step with the screen, and see which built-in strings Beak translates (English and German).
 - [The backend](backend/index.md): See what the generated Shelf server gives you for every registered model, how its three layers are stacked, and which page configures each part.

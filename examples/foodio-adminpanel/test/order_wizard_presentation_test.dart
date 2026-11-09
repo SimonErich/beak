@@ -10,12 +10,12 @@ import 'package:foodio_adminpanel/main.dart';
 import 'package:go_router/go_router.dart';
 import 'package:foodio_adminpanel/resources/orders/forms/order_wizard_screen.dart';
 import 'package:foodio_adminpanel/seeders/foodio_seeder.dart';
-import 'package:foodio_adminpanel/theme/gabel_theme.dart';
+import 'package:beak_theme_gabel/beak_theme_gabel.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shelf/shelf.dart' as shelf;
 
-import 'support/gabel_fonts.dart';
+import 'package:beak_theme_gabel/testing.dart';
 
 void main() {
   late DatabaseAdapter adapter;
@@ -185,7 +185,7 @@ void main() {
       BeakRecord? saved;
       await tester.pumpWidget(
         OiApp(
-          theme: gabelTheme(),
+          theme: GabelTheme().light,
           home: BeakConfiguredForm(
             model: const OrderModel(),
             dataSource: source,

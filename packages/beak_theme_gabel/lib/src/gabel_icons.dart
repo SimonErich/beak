@@ -1,7 +1,11 @@
-import 'package:beak/ui.dart';
 import 'package:flutter/widgets.dart';
+import 'package:obers_ui/obers_ui.dart';
 
-/// The prototype stroke icons, resolved by Obers for every framework control.
+/// The prototype stroke icons, resolved by obers_ui for every framework
+/// control.
+///
+/// Each token is redrawn as a 1.5 px stroke SVG in the current color, so the
+/// icons follow the theme mode and the size of whichever widget draws them.
 final gabelIconSources = <IconData, OiIconSource>{
   OiIcons.layoutDashboard: const OiIconSource.svg(
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect></svg>',

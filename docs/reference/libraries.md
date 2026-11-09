@@ -236,6 +236,8 @@ These are the imports that do not go through `package:beak`. An app rarely needs
 | `package:beak_storage_s3/beak_storage_s3.dart` | `beak_storage_s3` | `http`, `crypto` | `S3StorageDriver`, `S3ObjectClient`, `HttpS3ObjectClient`, `S3ResponseException`, `registerS3Storage`, `beakStorageS3Version` |
 | `package:beak_storage_ftp/beak_storage_ftp.dart` | `beak_storage_ftp` | plain sockets | `FtpStorageDriver`, `FtpTransport`, `SocketFtpTransport`, `FtpProtocolException`, `registerFtpStorage`, `beakStorageFtpVersion` |
 | `package:beak_image/beak_image.dart` | `beak_image` | `package:image` | `ImageTransformRunner`, `beakImageVersion` |
+| `package:beak_theme_gabel/beak_theme_gabel.dart` | `beak_theme_gabel` | Flutter, `obers_ui` | `GabelTheme`, `GabelLight`, `GabelDark`, `gabelNumericBodyStyle` and its siblings, `gabelIconSources`, the `gabelSansFamily` and `gabelMonoFamily` constants |
+| `package:beak_theme_gabel/testing.dart` | `beak_theme_gabel` | Flutter | `loadGabelFonts` |
 | `package:beak_serverpod/beak_serverpod.dart` | `beak_serverpod` | pure Dart | `ServerpodResource`, `ServerpodModel`, `ServerpodField`, `ServerpodDataSource`, the codecs and exception mapper |
 | `package:beak_serverpod/wire.dart` | `beak_serverpod` | pure Dart | `BeakWireRequest`, `BeakWireResponse`, `BeakTunnelHttpClient`, `BeakTunnelDispatch`, the tunnel fault types |
 | `package:beak_serverpod_flutter/beak_serverpod_flutter.dart` | `beak_serverpod_flutter` | Flutter, `serverpod_client` | `ServerpodAuthAdapter`, `serverpodBeakDataSource`, `ServerpodAuthExceptionMapper`, and everything in `tunnel.dart` |

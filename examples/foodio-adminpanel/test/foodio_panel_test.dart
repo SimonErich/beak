@@ -10,7 +10,7 @@ import 'package:foodio_adminpanel/main.dart';
 import 'package:foodio_adminpanel/models/models.dart';
 import 'package:foodio_adminpanel/seeders/foodio_seeder.dart';
 
-import 'support/gabel_fonts.dart';
+import 'package:beak_theme_gabel/testing.dart';
 
 void main() {
   late DatabaseAdapter adapter;

@@ -38,11 +38,11 @@ packages/beak_core/pubspec.yaml:version: 0.9.0
 ...
 ```
 
-Thirteen files print a line, all of them equal. The pubspecs are not the only place, because the version is also a constant in code:
+Fourteen files print a line, all of them equal. The pubspecs are not the only place, because the version is also a constant in code:
 
 | Where | What to change | Guarded by |
 | --- | --- | --- |
-| `packages/beak*/pubspec.yaml`, thirteen files | `version:` | nothing; compare them with the command above |
+| `packages/beak*/pubspec.yaml`, fourteen files | `version:` | nothing; compare them with the command above |
 | `packages/beak_core/lib/beak_core.dart`, `beak_backend.dart`, `beak_frontend.dart`, `beak_image.dart`, `beak_storage_s3.dart`, `beak_storage_ftp.dart` | `beak<Package>Version` | a smoke test, except `beak_image` |
 | `packages/beak_cli/lib/src/version.dart` | `beakCliVersion`, which also sets the tag `beakReleaseRef` | `version_test.dart`, which compares it with the pubspec |
 | `test/smoke_test.dart` in `beak_core`, `beak_backend`, `beak_frontend`, `beak_storage_s3`, `beak_storage_ftp` | the literal the constant is compared with | they fail until it matches |
@@ -143,7 +143,7 @@ Published skills check passed.
 - A stale bundle fails `analyze`. `check-agent-docs` is part of `melos run analyze` and of the docs workflow, so a bump, a `CHANGELOG.md` edit or a docs change turns both red until `melos run agent-docs` has regenerated the bundle and you have committed it.
 - The pre-1.0 promise. The package changelogs say the API is not frozen and the wire format is. Breaking an API is allowed, and it goes in `CHANGELOG.md` under the release. Changing the wire format is not.
 - The root changelog names the version in prose too. Its opening notes say the packages share `0.9.0` and that nothing is tagged yet. Update both sentences when you tag.
-- Every package has a changelog. All thirteen `packages/beak*/CHANGELOG.md` files point back to the root one, so step 3 touches fourteen files.
+- Every package has a changelog. All fourteen `packages/beak*/CHANGELOG.md` files point back to the root one, so step 3 touches fifteen files.
 - No pub.dev. Every package is `publish_to: none`, so there is no publish step, dry run or score to check.
 
 ## Verify it

@@ -190,7 +190,7 @@ BeakPanel buildPanel({BeakDataSource? dataSource}) => BeakPanel(
 );
 ```
 
-`theme` and `darkTheme` are made from one brand colour each, and the panel follows the system setting to choose between them. `locale` is the language of the panel's own text. `formatting` is separate on purpose: it says how numbers, currency and dates read, and here that is Austrian German (`12,50`, `dd.MM.yyyy`) around an English interface.
+`theme` is a `BeakTheme` that holds a light and a dark theme, each made from one brand colour, and the panel follows the system setting to choose between them. `locale` is the language of the panel's own text. `formatting` is separate on purpose: it says how numbers, currency and dates read, and here that is Austrian German (`12,50`, `dd.MM.yyyy`) around an English interface.
 
 ## Run it
 

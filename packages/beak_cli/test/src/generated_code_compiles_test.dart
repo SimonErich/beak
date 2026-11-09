@@ -127,7 +127,7 @@ dev_dependencies:
       final String themed = File(
         '${temp.path}/lib/main.dart',
       ).readAsStringSync();
-      expect(themed, contains('theme: theme.beakLightTheme()'));
+      expect(themed, contains('theme: theme.beakTheme()'));
       expect(themed, isNot(contains('const BeakPanelConfig(')));
       expect(themed, contains('const WidgetResource()'));
       final ProcessResult themedAnalyze = await run([

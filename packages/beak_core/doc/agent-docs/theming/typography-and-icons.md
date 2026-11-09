@@ -51,46 +51,49 @@ enum BeakTextVariant {
 }
 ```
 
-For `smallStrong`, `tiny`, `code`, `overline` or `link`, put an `OiLabel` in a `BeakWidgetBlock`. In `display`, `h1` and `h2`, obers_ui scales sizes up on wide screens (a factor of 1.0 on compact widths, 1.1 on medium and 1.2 beyond) unless the theme pins them with `headingScale`. A design with an exact type scale pins it, as Foodio does.
+For `smallStrong`, `tiny`, `code`, `overline` or `link`, put an `OiLabel` in a `BeakWidgetBlock`. In `display`, `h1` and `h2`, obers_ui scales sizes up on wide screens (a factor of 1.0 on compact widths, 1.1 on medium and 1.2 beyond) unless the theme pins them with `headingScale`. A design with an exact type scale pins it, as Gabel does.
 
-## A full type ramp: Foodio
+## A full type ramp: Gabel
 
-Foodio's design is set in Mona Sans with JetBrains Mono for code. The fonts are declared as assets like any Flutter font:
+The Gabel design is set in Mona Sans with JetBrains Mono for code. Its package declares the fonts like any Flutter font, in its own `pubspec.yaml`, so an app that selects the theme declares none ([Built-in themes](built-in-themes.md)):
 
-```yaml title="examples/foodio-adminpanel/pubspec.yaml"
+```yaml title="packages/beak_theme_gabel/pubspec.yaml"
   fonts:
     - family: Mona Sans
       fonts:
-        - asset: assets/fonts/MonaSans.ttf
+        - asset: lib/fonts/MonaSans.ttf
     - family: Mona Sans Extended
       fonts:
-        - asset: assets/fonts/MonaSansExtended.ttf
+        - asset: lib/fonts/MonaSansExtended.ttf
     - family: JetBrains Mono
       fonts:
-        - asset: assets/fonts/JetBrainsMono.ttf
+        - asset: lib/fonts/JetBrainsMono.ttf
     - family: JetBrains Mono Extended
       fonts:
-        - asset: assets/fonts/JetBrainsMonoExtended.ttf
+        - asset: lib/fonts/JetBrainsMonoExtended.ttf
 ```
+
+A font a package declares reaches the app as `packages/<package>/<family>`, so the theme names `packages/beak_theme_gabel/Mona Sans`, fallbacks included. An app that declares its own fonts uses the plain family name.
 
 The theme starts from a stock light or dark theme and hands it the two families, which sets them across the ramp:
 
-```dart title="examples/foodio-adminpanel/lib/theme/gabel_theme.dart"
+```dart title="packages/beak_theme_gabel/lib/src/gabel_theme_data.dart"
 final base = dark
     ? OiThemeData.dark(
-        fontFamily: 'Mona Sans',
-        monoFontFamily: 'JetBrains Mono',
+        fontFamily: gabelSansFamily,
+        monoFontFamily: gabelMonoFamily,
       )
     : OiThemeData.light(
-        fontFamily: 'Mona Sans',
-        monoFontFamily: 'JetBrains Mono',
+        fontFamily: gabelSansFamily,
+        monoFontFamily: gabelMonoFamily,
       );
 ```
 
-Then a small helper builds every style the design specifies, from its size, its line height in pixels, a weight and a width:
+Then a small helper builds every style the design specifies, from its size, its line height in pixels, a weight and a width. An instance of `GabelText` is that helper, so a component theme reads `text(14, 20, weight: 500)`:
 
-```dart title="examples/foodio-adminpanel/lib/theme/gabel_theme.dart"
-TextStyle text(
+```dart title="packages/beak_theme_gabel/lib/src/gabel_text.dart"
+/// A style of [size] on a [height]-pixel line.
+TextStyle call(
   double size,
   double height, {
   double weight = 400,
@@ -98,12 +101,12 @@ TextStyle text(
   double? tracking,
   Color? foreground,
 }) => TextStyle(
-  fontFamily: 'Mona Sans',
-  fontFamilyFallback: const ['Mona Sans Extended'],
+  fontFamily: gabelSansFamily,
+  fontFamilyFallback: gabelSansFallbackFamilies,
   fontSize: size,
   fontWeight: FontWeight.values[(weight / 100).round().clamp(1, 9) - 1],
   height: height / size,
-  color: foreground ?? ink,
+  color: foreground ?? palette.ink,
   fontVariations: [
     // Native hundred-step weights must remain overridable by components.
     // A fixed wght axis otherwise silently defeats copyWith(fontWeight: ...).
@@ -116,47 +119,57 @@ TextStyle text(
 
 And the ramp itself replaces the stock one, with `headingScale` pinned to 1 so `display`, `h1` and `h2` do not grow on a wide screen:
 
-```dart title="examples/foodio-adminpanel/lib/theme/gabel_theme.dart"
-textTheme: base.textTheme.copyWith(
+```dart title="packages/beak_theme_gabel/lib/src/gabel_text.dart"
+/// Replaces every role of [base] with the design's type scale.
+///
+/// `headingScale` is pinned to 1 so `display`, `h1` and `h2` do not grow on
+/// a wide screen.
+OiTextTheme apply(OiTextTheme base) => base.copyWith(
   headingScale: const OiResponsive<double>(1),
-  display: text(40, 48, weight: 560, width: 106, tracking: -.8),
-  h1: text(34, 40, weight: 560, width: 106, tracking: -.68),
-  h2: gabelHeading2Style.copyWith(color: ink),
-  h3: text(18, 24, weight: 580),
-  h4: text(16, 24, weight: 580),
+  display: this(40, 48, weight: 560, width: 106, tracking: -.8),
+  h1: this(34, 40, weight: 560, width: 106, tracking: -.68),
+  h2: gabelHeading2Style.copyWith(color: palette.ink),
+  h3: this(18, 24, weight: 580),
+  h4: this(16, 24, weight: 580),
   body: body,
-  bodyStrong: text(14, 20, weight: 580),
+  bodyStrong: this(14, 20, weight: 580),
   small: small,
-  smallStrong: text(13, 18, weight: 580),
-  tiny: text(12, 16, weight: 500, tracking: .12),
-  caption: text(12, 16, weight: 500, tracking: .12, foreground: muted),
+  smallStrong: this(13, 18, weight: 580),
+  tiny: this(12, 16, weight: 500, tracking: .12, foreground: palette.subtle),
+  caption: fieldLabel,
   code: const TextStyle(
-    fontFamily: 'JetBrains Mono',
-    fontFamilyFallback: ['JetBrains Mono Extended'],
+    fontFamily: gabelMonoFamily,
+    fontFamilyFallback: gabelMonoFallbackFamilies,
     fontSize: 13,
     height: 18 / 13,
     fontWeight: FontWeight.w500,
   ),
-  overline: text(11, 16, weight: 600, tracking: .5, foreground: muted),
-  link: text(14, 20, foreground: primaryInk),
-),
+  overline: this(
+    11,
+    16,
+    weight: 600,
+    tracking: .5,
+    foreground: palette.subtle,
+  ),
+  link: this(14, 20, foreground: palette.primaryInk),
+);
 ```
 
 ### The variable-font trap
 
 The comment inside the helper is the lesson. A variable font has axes, and `fontVariations: [FontVariation('wght', 500)]` sets one. A component that wants emphasis calls `style.copyWith(fontWeight: FontWeight.w600)`, and if the style also carries a fixed `wght` variation, the variation wins and the emphasis silently does nothing. So the helper sets the `wght` variation only for weights that are not a multiple of 100 (the design's 560 and 580) and leaves the 400, 500 and 600 to `fontWeight`, where components can still override them.
 
-Foodio keeps a test for exactly this. It rasterizes the body style at four weights, once through `fontWeight` and once through the axis, and asserts the glyphs are identical and that each weight differs from the previous:
+The Gabel package keeps a test for exactly this. It rasterizes the body style at four weights, once through `fontWeight` and once through the axis, and asserts the glyphs are identical and that each weight differs from the previous:
 
 ```console
-$ cd examples/foodio-adminpanel
+$ cd packages/beak_theme_gabel
 $ flutter test --no-pub test/gabel_typography_test.dart
-native hundred weights rasterize exactly as their variable font axes
+native hundred weights rasterize exactly as their variable axes
 ...
 All tests passed!
 ```
 
-The same test file pins tabular figures. Money that changes digits should not jitter, so Foodio's numeric styles switch on `FontFeature.tabularFigures()`.
+A second test file pins tabular figures. Money that changes digits should not jitter, so the package's amount styles (`gabelNumericMetricStyle` and its siblings) switch on `FontFeature.tabularFigures()`.
 
 ## Icons
 
@@ -196,15 +209,17 @@ BeakBlock _icons() => const BeakCardBlock(
 
 ### Replace the icon set
 
-A theme can redraw any token. `OiIconThemeData.sources` maps a token to a different source, and every widget that draws that token, Beak's controls included, uses the new drawing. Tokens you do not map keep their Lucide glyph, so a partial set is fine. Foodio maps the 26 icons its design draws and sets the default size:
+A theme can redraw any token. `OiIconThemeData.sources` maps a token to a different source, and every widget that draws that token, Beak's controls included, uses the new drawing. Tokens you do not map keep their Lucide glyph, so a partial set is fine. Gabel maps the 26 icons its design draws and sets the default size:
 
-```dart title="examples/foodio-adminpanel/lib/theme/gabel_theme.dart"
-icon: OiIconThemeData(sources: gabelIconSources, size: 18),
+```dart title="packages/beak_theme_gabel/lib/src/components/gabel_shell_components.dart"
+/// The Gabel theme for every icon.
+OiIconThemeData gabelIconTheme() =>
+    OiIconThemeData(sources: gabelIconSources, size: 18);
 ```
 
 Each entry is a token and an SVG string:
 
-```dart title="examples/foodio-adminpanel/lib/theme/gabel_icons.dart"
+```dart title="packages/beak_theme_gabel/lib/src/gabel_icons.dart"
 OiIcons.plus: const OiIconSource.svg(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>',
 ),
@@ -215,7 +230,7 @@ The `stroke="currentColor"` in the markup is what makes it themable: the icon ta
 ## Rules and limits
 
 - Nine of 14 text variants in blocks. The rest exist in the theme and are reachable through `OiLabel`.
-- Declare fonts as assets. A family that is not in `pubspec.yaml` falls back to the platform font without a warning, and web builds also need the font files served.
+- Declare fonts as assets. A family that is not in `pubspec.yaml` falls back to the platform font without a warning, and web builds also need the font files served. A font a package declares carries the `packages/<package>/` prefix wherever you name it.
 - Keep the `wght` variation off hundred weights. See the trap above.
 - Text is `OiLabel`, not `Text`. A raw `Text` ignores the ramp and the mode's text color.
 - Icons are tokens. Swapping the set needs no screen change, and adding a new token to the design needs a `sources` entry only if the design draws it.
@@ -224,7 +239,7 @@ The `stroke="currentColor"` in the markup is what makes it themable: the icon ta
 
 ## Verify it
 
-Change `body` in your theme and run the panel: table cells, form labels and block text change together. For icons, map one token, say `OiIcons.search`, to any SVG and reload. The search button in the top bar and in the command bar both change. Foodio's typography tests cover the weight behavior, as shown above.
+Change `body` in your theme and run the panel: table cells, form labels and block text change together. For icons, map one token, say `OiIcons.search`, to any SVG and reload. The search button in the top bar and in the command bar both change. The Gabel package's typography tests cover the weight behavior, as shown above.
 
 ## Reference
 
@@ -241,6 +256,7 @@ Change `body` in your theme and run the panel: table cells, form labels and bloc
 ## Continue reading
 
 - [Colors and tokens](colors-and-tokens.md) the color half of the same theme.
+- [Built-in themes](built-in-themes.md) select Gabel, fonts and licences included.
 - [Formatting and localization](formatting-and-localization.md) numbers, dates, currency and the UI language.
 - [Content blocks](../blocks/content-blocks.md) the text, badge and icon blocks that read this theme.
 - [Navigation](../panel/navigation.md) where icons show up in the shell.

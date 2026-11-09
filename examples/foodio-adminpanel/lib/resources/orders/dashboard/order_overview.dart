@@ -1,8 +1,8 @@
 import 'package:beak/panel.dart';
 import 'package:beak/ui.dart' show OiIcons;
+import 'package:beak_theme_gabel/beak_theme_gabel.dart';
 import 'package:flutter/widgets.dart' show LayoutBuilder;
 import '../../../models/models.dart';
-import '../../../theme/gabel_tokens.dart';
 
 /// Stable operating date for reproducible demo workflows.
 const foodioToday = BeakDate(2026, 9, 28);

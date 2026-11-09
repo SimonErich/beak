@@ -25,6 +25,7 @@ reading.
 | packages/beak_cli | The `beak` CLI, including `beak agents` and `beak docs` |
 | packages/beak_serverpod* | The Serverpod bridge: wire types, server engine, Flutter client and auth, generator |
 | packages/beak_test, beak_image, beak_storage_* | Testing toolkit, image transforms, storage drivers |
+| packages/beak_theme_gabel | The official Gabel theme (`GabelTheme`) with its fonts. Opt-in: `beak` does not depend on it |
 | packages/worm* | Vendored ORM, outside the melos scope (`melos run test-worm`) |
 | examples/quickstart | Byte-identical to `beak create quickstart` (`quickstart_parity_test`) |
 | examples/clean_beak_config | The golden-path shop the docs quote |

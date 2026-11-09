@@ -2,7 +2,7 @@ import 'package:beak/migrations.dart';
 import 'package:beak/panel.dart';
 import 'package:beak/ui.dart';
 import 'package:flutter/widgets.dart';
-import 'package:foodio_adminpanel/theme/gabel_theme.dart';
+import 'package:beak_theme_gabel/beak_theme_gabel.dart';
 import 'package:foodio_adminpanel/resources/orders/forms/order_items_table.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodio_adminpanel/beak/registry.g.dart';
@@ -47,7 +47,7 @@ void main() {
       Future<void> pump(bool review) async {
         await tester.pumpWidget(
           OiApp(
-            theme: gabelTheme(),
+            theme: GabelTheme().light,
             home: BeakFormattingScope(
               formatting: const BeakFormatting(
                 locale: 'en_AT',

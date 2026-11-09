@@ -143,7 +143,7 @@ The shop registers 11 resources for 20 models. Related models register themselve
 
 | Option | `BeakPanel(...)` | `BeakPanelConfig` |
 | --- | --- | --- |
-| `title`, `resources`, `pages`, `apiBaseUrl`, `theme`, `darkTheme`, `locale`, `formatting`, `auth`, `navigation`, `refreshPolicy`, `home`, `maintenance`, `mapException` | yes | yes |
+| `title`, `resources`, `pages`, `apiBaseUrl`, `theme`, `locale`, `formatting`, `auth`, `navigation`, `refreshPolicy`, `home`, `maintenance`, `mapException` | yes | yes |
 | `notifications`, `shellActions` | no | yes |
 | `initialThemeMode`, `supportedLocales`, `localizationsDelegates` | no | yes |
 | `sidebarCollapsible`, `sidebarDefaultCollapsed` | no | yes |
