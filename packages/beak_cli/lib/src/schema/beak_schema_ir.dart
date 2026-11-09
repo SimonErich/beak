@@ -240,6 +240,10 @@ final class BeakSchemaIr {
     required this.softDeletes,
     required this.timestamps,
     required this.managesSchema,
+    this.createdAtColumnKey = 'created_at',
+    this.updatedAtColumnKey = 'updated_at',
+    this.deletedAtColumnKey = 'deleted_at',
+    this.isDeletedColumnKey,
     this.hasValidationRules = false,
     this.hasBehavior = false,
     this.hasPermissions = false,
@@ -270,6 +274,18 @@ final class BeakSchemaIr {
 
   /// Whether the schema carries created/updated stamps.
   final bool timestamps;
+
+  /// Physical creation timestamp key.
+  final String createdAtColumnKey;
+
+  /// Physical revision timestamp key.
+  final String updatedAtColumnKey;
+
+  /// Physical soft-delete timestamp key.
+  final String deletedAtColumnKey;
+
+  /// Optional boolean visibility flag.
+  final String? isDeletedColumnKey;
 
   /// Whether Beak owns this resource's schema.
   final bool managesSchema;

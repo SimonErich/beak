@@ -322,6 +322,21 @@ abstract final class BeakSchemaEmitter {
         ..writeln('  @override')
         ..writeln('  bool get softDeletes => true;');
     }
+    for (final entry in {
+      if (schema.createdAtColumnKey != 'created_at')
+        'createdAtColumnKey': schema.createdAtColumnKey,
+      if (schema.updatedAtColumnKey != 'updated_at')
+        'updatedAtColumnKey': schema.updatedAtColumnKey,
+      if (schema.deletedAtColumnKey != 'deleted_at')
+        'deletedAtColumnKey': schema.deletedAtColumnKey,
+      if (schema.isDeletedColumnKey != null)
+        'isDeletedColumnKey': schema.isDeletedColumnKey!,
+    }.entries) {
+      buffer
+        ..writeln()
+        ..writeln('  @override')
+        ..writeln("  String get ${entry.key} => '${_escape(entry.value)}';");
+    }
     buffer
       ..writeln()
       ..writeln('  @override')
@@ -636,7 +651,16 @@ abstract final class BeakSchemaEmitter {
     // Non-nullable means required; the rule is derived, never written twice.
     final allowsEmpty =
         column.valueType.startsWith('List<') ||
-        column.valueType == 'BeakJsonObject';
+        column.valueType == 'BeakJsonObject' ||
+        ((column.kind == BeakColumnKind.string ||
+                column.kind == BeakColumnKind.text ||
+                column.kind == BeakColumnKind.richText) &&
+            const {
+              "''",
+              '""',
+              "r''",
+              'r""',
+            }.contains(declared['defaultValue']));
     final String required = column.isRequired
         ? (allowsEmpty ? 'BeakRequired(allowEmpty: true)' : 'BeakRequired()')
         : '';

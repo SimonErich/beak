@@ -210,6 +210,10 @@ final class BeakSchemaReader {
           displayColumnKey: schema.displayColumnKey,
           softDeletes: schema.softDeletes,
           timestamps: schema.timestamps,
+          createdAtColumnKey: schema.createdAtColumnKey,
+          updatedAtColumnKey: schema.updatedAtColumnKey,
+          deletedAtColumnKey: schema.deletedAtColumnKey,
+          isDeletedColumnKey: schema.isDeletedColumnKey,
           managesSchema: schema.managesSchema,
           hasValidationRules: schema.hasValidationRules,
           hasBehavior: schema.hasBehavior,
@@ -359,12 +363,24 @@ final class BeakSchemaReader {
       );
     }
 
+    final createdAtKey =
+        _unquote(options['createdAtColumnKey']) ?? 'created_at';
+    final updatedAtKey =
+        _unquote(options['updatedAtColumnKey']) ?? 'updated_at';
+    final deletedAtKey =
+        _unquote(options['deletedAtColumnKey']) ?? 'deleted_at';
+    final isDeletedKey = _unquote(options['isDeletedColumnKey']);
     final bool timestamps = options['timestamps'] == 'true';
     final bool softDeletes = options['softDeletes'] == 'true';
     for (final column in columns) {
       final String? annotation = switch (column.columnKey) {
-        'created_at' || 'updated_at' when timestamps => 'timestamps: true',
-        'deleted_at' when softDeletes => 'softDeletes: true',
+        'created_at' || 'updated_at'
+            when timestamps &&
+                createdAtKey == 'created_at' &&
+                updatedAtKey == 'updated_at' =>
+          'timestamps: true',
+        'deleted_at' when softDeletes && deletedAtKey == 'deleted_at' =>
+          'softDeletes: true',
         _ => null,
       };
       if (annotation != null) {
@@ -410,39 +426,60 @@ final class BeakSchemaReader {
             arguments: const {'visibleOn': '{BeakContext.form}'},
             docComment: 'Foreign key backing [${relation.fieldName}].',
           ),
-      if (timestamps) ...const [
-        BeakColumnIr(
-          fieldName: 'createdAt',
-          columnKey: 'created_at',
-          label: 'Created',
-          kind: BeakColumnKind.dateTime,
-          isRequired: false,
-          arguments: {'sortable': 'true', 'visibleOn': '{BeakContext.detail}'},
-          docComment: 'When the record was created.',
-        ),
-        BeakColumnIr(
-          fieldName: 'updatedAt',
-          columnKey: 'updated_at',
-          label: 'Updated',
-          kind: BeakColumnKind.dateTime,
-          isRequired: false,
-          arguments: {
-            'sortable': 'true',
-            'format': 'BeakDateFormat.relative',
-            'visibleOn': '{BeakContext.table, BeakContext.detail}',
-          },
-          docComment: 'When the record was last updated.',
-        ),
+      if (timestamps) ...[
+        if (!columns.any((column) => column.columnKey == createdAtKey))
+          BeakColumnIr(
+            fieldName: 'createdAt',
+            columnKey: createdAtKey,
+            label: 'Created',
+            kind: BeakColumnKind.dateTime,
+            isRequired: false,
+            arguments: {
+              'sortable': 'true',
+              'visibleOn': '{BeakContext.detail}',
+            },
+            docComment: 'When the record was created.',
+          ),
+        if (!columns.any((column) => column.columnKey == updatedAtKey))
+          BeakColumnIr(
+            fieldName: 'updatedAt',
+            columnKey: updatedAtKey,
+            label: 'Updated',
+            kind: BeakColumnKind.dateTime,
+            isRequired: false,
+            arguments: {
+              'sortable': 'true',
+              'format': 'BeakDateFormat.relative',
+              'visibleOn': '{BeakContext.table, BeakContext.detail}',
+            },
+            docComment: 'When the record was last updated.',
+          ),
       ],
-      if (softDeletes)
-        const BeakColumnIr(
+      if (softDeletes &&
+          !columns.any((column) => column.columnKey == deletedAtKey))
+        BeakColumnIr(
           fieldName: 'deletedAt',
-          columnKey: 'deleted_at',
+          columnKey: deletedAtKey,
           label: 'Deleted',
           kind: BeakColumnKind.dateTime,
           isRequired: false,
           arguments: {'visibleOn': '{BeakContext.detail}'},
           docComment: 'When the record was soft-deleted, if it was.',
+        ),
+      if (softDeletes &&
+          isDeletedKey != null &&
+          !columns.any((column) => column.columnKey == isDeletedKey))
+        BeakColumnIr(
+          fieldName: 'isDeleted',
+          columnKey: isDeletedKey,
+          label: 'Deleted',
+          kind: BeakColumnKind.boolean,
+          isRequired: false,
+          arguments: const {
+            'visibleOn': '{BeakContext.detail}',
+            'defaultValue': 'false',
+          },
+          docComment: 'Whether the record is soft-deleted.',
         ),
     ];
 
@@ -484,7 +521,12 @@ final class BeakSchemaReader {
 
     // Only worth saying when nothing else already explains the emptiness:
     // a field that failed to map has already been reported by name.
-    if (displayColumnKey == null && columns.isEmpty && issues.isEmpty) {
+    if (displayColumnKey == null &&
+        columns.isEmpty &&
+        !relations.any(
+          (relation) => relation.kind == BeakRelationKind.belongsTo,
+        ) &&
+        issues.isEmpty) {
       issues.add(
         BeakDiscoveryIssue(
           path: 'lib/$path',
@@ -506,6 +548,10 @@ final class BeakSchemaReader {
         displayColumnKey: display,
         softDeletes: softDeletes,
         timestamps: timestamps,
+        createdAtColumnKey: createdAtKey,
+        updatedAtColumnKey: updatedAtKey,
+        deletedAtColumnKey: deletedAtKey,
+        isDeletedColumnKey: isDeletedKey,
         managesSchema: options['managesSchema'] != 'false',
         hasValidationRules: _declaresStaticGetter(
           declaration,
