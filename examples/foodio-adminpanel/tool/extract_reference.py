@@ -3,6 +3,12 @@
 Run with fonttools[brotli] available. The HTML remains the design source of truth.
 Self-contained reference snapshots are written to .artifacts/reference for QA.
 Scripts are removed; fonts and other assets are embedded without network access.
+
+The Gabel theme lives in packages/beak_theme_gabel. Without --references-only
+this script rewrites that package's four font subsets, and writes the extracted
+color tokens to .artifacts/gabel_tokens.dart. The package's token files group
+and document the tokens by hand, so compare the artifact with them rather than
+copying it over.
 """
 from pathlib import Path
 import base64
@@ -15,6 +21,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'design/food-ordering-shop.html'
+THEME_PACKAGE = ROOT.parents[1] / 'packages/beak_theme_gabel'
 
 def script(html, kind):
     return json.loads(re.search(r'<script type="__bundler/' + kind + r'">(.*?)</script>', html, re.S).group(1))
@@ -75,7 +82,7 @@ font_names = {
 for key, name in font_names.items():
     font = TTFont(io.BytesIO(decode(assets[key])))
     font.flavor = None
-    font.save(ROOT / 'assets/fonts' / f'{name}.ttf')
+    font.save(THEME_PACKAGE / 'lib/fonts' / f'{name}.ttf')
 
 # OKLCH to sRGB; colors are clipped only at the final display gamut boundary.
 def color(value):
@@ -107,5 +114,5 @@ for mode in ['light', 'dark']:
         name = re.sub(r'-([a-z0-9])', lambda m:m[1].upper(), key)
         lines += [f'  /// Prototype `{key}` token.', f'  static const {name} = Color({color(value)});']
     lines += ['}', '']
-(ROOT / 'lib/theme/gabel_tokens.dart').write_text('\n'.join(lines))
+(reference_dir.parent / 'gabel_tokens.dart').write_text('\n'.join(lines))
 print('Extracted four font subsets, light/dark tokens, and ten review templates.')

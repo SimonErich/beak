@@ -1,10 +1,10 @@
 import 'package:beak/panel.dart';
+import 'package:beak_theme_gabel/beak_theme_gabel.dart';
 import 'package:flutter/widgets.dart'
     show FontWeight, TextAlign, TextOverflow, TextStyle;
 
 import '../../../domain/order_behavior.dart';
 import '../../../models/models.dart';
-import '../../../theme/gabel_theme.dart';
 import '../dashboard/order_overview.dart';
 import '../presentations/order_presentations.dart';
 

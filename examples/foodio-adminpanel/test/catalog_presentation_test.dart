@@ -1,22 +1,19 @@
 import 'package:beak/panel.dart';
 import 'package:beak/ui.dart';
+import 'package:beak_theme_gabel/beak_theme_gabel.dart';
+import 'package:beak_theme_gabel/testing.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodio_adminpanel/resources/orders/presentations/order_presentations.dart';
 import 'package:foodio_adminpanel/resources/orders/forms/order_items_table.dart';
 import 'package:foodio_adminpanel/resources/orders/forms/order_review_step.dart';
-import 'package:foodio_adminpanel/theme/gabel_theme.dart';
-import 'package:foodio_adminpanel/theme/gabel_tokens.dart';
 
 void main() {
   testWidgets('review actor retains its full truthful caption in one line', (
     tester,
   ) async {
-    await (FontLoader(
-      'Mona Sans',
-    )..addFont(rootBundle.load('assets/fonts/MonaSans.ttf'))).load();
+    await loadGabelFonts();
     final progress = orderReviewAside().children
         .whereType<BeakSection>()
         .first
@@ -49,7 +46,7 @@ void main() {
     final semantics = tester.ensureSemantics();
     await tester.pumpWidget(
       OiApp(
-        theme: gabelTheme(),
+        theme: GabelTheme().light,
         home: Center(
           child: SizedBox(
             width: 246,
@@ -88,7 +85,7 @@ void main() {
         ).advancedForm!.children.whereType<BeakRelationTable>().single;
         await tester.pumpWidget(
           OiApp(
-            theme: gabelTheme(),
+            theme: GabelTheme().light,
             home: BeakRecordTemplateView(
               template: table.catalog!.template,
               record: BeakRecord(
@@ -145,7 +142,7 @@ void main() {
       (tester) async {
         await tester.pumpWidget(
           OiApp(
-            theme: gabelTheme(),
+            theme: GabelTheme().light,
             home: SizedBox(
               width: 650,
               child: BeakRecordTemplateView(

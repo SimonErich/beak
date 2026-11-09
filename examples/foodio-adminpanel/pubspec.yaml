@@ -8,6 +8,8 @@ environment:
 dependencies:
   beak:
     path: ../../packages/beak
+  beak_theme_gabel:
+    path: ../../packages/beak_theme_gabel
   flutter:
     sdk: flutter
   go_router: ^17.3.0
@@ -20,21 +22,3 @@ dev_dependencies:
   lints: ^6.0.0
   http: ^1.2.0
   shelf: ^1.4.0
-
-flutter:
-  fonts:
-    - family: Mona Sans
-      fonts:
-        - asset: assets/fonts/MonaSans.ttf
-    - family: Mona Sans Extended
-      fonts:
-        - asset: assets/fonts/MonaSansExtended.ttf
-    - family: JetBrains Mono
-      fonts:
-        - asset: assets/fonts/JetBrainsMono.ttf
-    - family: JetBrains Mono Extended
-      fonts:
-        - asset: assets/fonts/JetBrainsMonoExtended.ttf
-  assets:
-    - assets/fonts/MonaSans-OFL.txt
-    - assets/fonts/JetBrainsMono-OFL.txt

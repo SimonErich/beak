@@ -1,7 +1,7 @@
 import 'package:beak/panel.dart';
+import 'package:beak_theme_gabel/beak_theme_gabel.dart';
 
 import '../../../domain/foodio_payment.dart';
-import '../../../theme/gabel_tokens.dart';
 
 /// Deterministic pastel identity colors shared by cards, search and tables.
 const identityPalette = [

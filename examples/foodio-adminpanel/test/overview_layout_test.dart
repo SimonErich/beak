@@ -8,7 +8,7 @@ import 'package:foodio_adminpanel/beak/server.g.dart';
 import 'package:foodio_adminpanel/main.dart';
 import 'package:go_router/go_router.dart';
 
-import 'support/gabel_fonts.dart';
+import 'package:beak_theme_gabel/testing.dart';
 
 /// A verified viewport and the height its delivery slot rows are given.
 typedef _Viewport = ({Size size, double slotRowsHeightInPixels});

@@ -168,8 +168,9 @@ comparison, pass the route:
 `npm exec --yes --package=playwright -- node tool/capture_screen.cjs /orders`.
 
 Without `--references-only`, the extractor also rewrites the four font subsets
-in `assets/fonts/` and the color tokens in `lib/theme/gabel_tokens.dart` from
-the prototype.
+in `packages/beak_theme_gabel/lib/fonts/` from the prototype and writes the
+extracted color tokens to `.artifacts/gabel_tokens.dart`, to compare with
+`packages/beak_theme_gabel/lib/src/tokens/`.
 
 ## Contracts checked
 
