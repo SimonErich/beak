@@ -86,6 +86,10 @@ end_of_record
     expect(thresholdFor('beak_frontend'), 85);
   });
 
+  test('beak_theme_gabel gates at the default threshold', () {
+    expect(thresholdFor('beak_theme_gabel'), defaultThresholdPct);
+  });
+
   test('the CLI and the examples gate at the default threshold', () {
     for (final package in const [
       'beak_cli',
