@@ -1,8 +1,6 @@
 import 'package:beak_core/beak_core.dart';
 import 'package:worm/worm.dart';
 
-import 'worm_data_source.dart';
-
 /// Derives a worm schema from a [BeakModel]'s typed columns and relationships.
 ///
 /// A migration that spells its columns out by hand is a second declaration of
@@ -91,8 +89,7 @@ abstract final class BeakBlueprint {
       // `softDeletes()` below owns the marker column. A model that declares
       // it — every generated model of a soft-deleting resource does — would
       // otherwise name it twice and the database would reject the table.
-      if (model.softDeletes &&
-          column.key == WormDataSource.softDeleteColumnKey) {
+      if (model.softDeletes && column.key == model.deletedAtColumnKey) {
         continue;
       }
       defineColumn(
@@ -134,7 +131,7 @@ abstract final class BeakBlueprint {
     }
 
     if (model.softDeletes) {
-      table.softDeletes();
+      table.dateTime(model.deletedAtColumnKey).makeNullable();
     }
   }
 

@@ -50,12 +50,6 @@ final class BeakResourceService {
   /// The validation boundary run before every write.
   static const ValidationService _validation = ValidationService();
 
-  /// The column key the service stamps on create.
-  static const String createdAtColumnKey = 'created_at';
-
-  /// The column key the service stamps on create and update.
-  static const String updatedAtColumnKey = 'updated_at';
-
   /// Validates a complete candidate while preserving partial-update semantics.
   /// The query seam applies caller policy to asynchronous checks and relation loads.
   Future<void> validateCandidate(
@@ -113,6 +107,7 @@ final class BeakResourceService {
       model,
       candidate,
       recordId: recordId,
+      initial: initial,
       query: query,
       registry: registry,
     );
@@ -273,7 +268,7 @@ final class BeakResourceService {
     // controls.
     final stored = await _requireInScope(id, scope);
     final stampsRevision =
-        model.columnByKey(updatedAtColumnKey) is BeakDateTimeColumn;
+        model.columnByKey(model.updatedAtColumnKey) is BeakDateTimeColumn;
     final current = stampsRevision || expectedUpdatedAt != null
         ? await getOne(id)
         : null;
@@ -302,10 +297,10 @@ final class BeakResourceService {
     if (stampsRevision) {
       values = {
         ...values,
-        updatedAtColumnKey: BeakDateTimeValue(
+        model.updatedAtColumnKey: BeakDateTimeValue(
           beakRevisionTimestamp(
             _now(),
-            previous: switch (current?[updatedAtColumnKey]) {
+            previous: switch (current?[model.updatedAtColumnKey]) {
               BeakDateTimeValue(:final value) => value,
               _ => null,
             },
@@ -327,13 +322,13 @@ final class BeakResourceService {
     BeakRecord current,
     Object id,
   ) {
-    final DateTime? stored = switch (current[updatedAtColumnKey]) {
+    final DateTime? stored = switch (current[model.updatedAtColumnKey]) {
       final BeakDateTimeValue value => value.value,
       _ => null,
     };
     if (stored == null) {
       throw BeakValidationException(
-        'Model "${model.table}" does not stamp "$updatedAtColumnKey", so a '
+        'Model "${model.table}" does not stamp "${model.updatedAtColumnKey}", so a '
         'record cannot be updated conditionally.',
       );
     }
@@ -526,7 +521,10 @@ final class BeakResourceService {
       values[primaryKey.key] = BeakStringValue(_generateId());
     }
     final stamp = BeakDateTimeValue(beakRevisionTimestamp(_now()));
-    for (final columnKey in const [createdAtColumnKey, updatedAtColumnKey]) {
+    for (final columnKey in [
+      model.createdAtColumnKey,
+      model.updatedAtColumnKey,
+    ]) {
       if (model.columnByKey(columnKey) is BeakDateTimeColumn &&
           _isUnset(values[columnKey])) {
         values[columnKey] = stamp;

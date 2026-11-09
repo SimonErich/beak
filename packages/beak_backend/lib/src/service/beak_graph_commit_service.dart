@@ -11,6 +11,7 @@ import '../auth/beak_policy.dart';
 import '../auth/beak_field_policy.dart';
 import '../auth/beak_query_authorizer.dart';
 import '../data/worm/worm_data_source.dart';
+import '../data/worm/beak_soft_delete.dart';
 import 'beak_adapter_errors.dart';
 import 'beak_commit_receipts_migration.dart';
 import 'beak_framework_tables.dart';
@@ -45,6 +46,74 @@ typedef BeakSavePlanFinalizer =
       WormDataSource transaction,
       BeakPrincipal? principal,
     );
+
+/// Delegates an authorized operation to an existing domain use case.
+///
+/// Runs only in the graph transaction, after policy, scope, field validation and
+/// revision checks. Return null to use ordinary persistence. A handled write
+/// skips ordinary SQL and remains subject to final graph validation and receipts.
+/// Network effects must be queued for after commit rather than performed here.
+typedef BeakSaveOperationExecutor =
+    Future<BeakSaveOperationWrite?> Function(BeakSaveOperationContext context);
+
+/// Context for one authorized, resolved operation inside its save transaction.
+final class BeakSaveOperationContext {
+  /// Supplies the operation and its resolved transaction-local data.
+  const BeakSaveOperationContext({
+    required this.plan,
+    required this.operation,
+    required this.model,
+    required this.values,
+    required this.existing,
+    required this.id,
+    required this.transaction,
+    required this.principal,
+  });
+
+  /// Prepared plan, including its named action when present.
+  final BeakSavePlan plan;
+
+  /// Operation being executed; use [values] for resolved foreign keys.
+  final BeakSaveOperation operation;
+
+  /// Authoritative metadata for the target model.
+  final BeakModel model;
+
+  /// Validated input with defaults, identities and references resolved.
+  final BeakRecord values;
+
+  /// Stored record before this operation, or null for a create.
+  final BeakRecord? existing;
+
+  /// Resolved target identity, or null for a create.
+  final Object? id;
+
+  /// Source bound to the same transaction as the graph and receipt.
+  final WormDataSource transaction;
+
+  /// Authenticated caller accepted by the server policy.
+  final BeakPrincipal? principal;
+}
+
+/// A completed domain write, or trusted scalar derivations for stock persistence.
+final class BeakSaveOperationWrite {
+  /// [record] is required for create/update and carries the persisted identity.
+  /// Deletes and link writes need no record.
+  const BeakSaveOperationWrite({this.record}) : values = null;
+
+  /// Merges trusted, registered scalar values into the authorized input before
+  /// ordinary persistence. Values are validated and cannot replace identity.
+  /// Use this for server-owned bookkeeping without duplicating stock writes.
+  const BeakSaveOperationWrite.withValues(BeakRecord values)
+    : values = values,
+      record = null;
+
+  /// Persisted record; the service rereads it before accepting the write.
+  final BeakRecord? record;
+
+  /// Server-derived fields, or null when the domain write already persisted.
+  final BeakRecord? values;
+}
 // --8<-- [end:BeakSavePlanHooks]
 
 /// Authenticated graph persistence with transactional or explicit staged receipts.
@@ -74,6 +143,7 @@ final class BeakGraphCommitService {
     this.policy = const BeakAllowAllPolicy(),
     this.preparePlan,
     this.finalizePlan,
+    this.executeOperation,
     this.receipts = BeakCommitReceiptTable.beak,
     this.maxStagedReceipts = defaultMaxStagedReceipts,
     DateTime Function()? now,
@@ -111,6 +181,9 @@ final class BeakGraphCommitService {
 
   /// Transactional post-validation writes, with resulting record identities.
   final BeakSavePlanFinalizer? finalizePlan;
+
+  /// Optional transactional persistence override for existing domain use cases.
+  final BeakSaveOperationExecutor? executeOperation;
 
   /// The durable receipt store (worm sources only).
   final BeakCommitReceiptTable receipts;
@@ -249,6 +322,7 @@ final class BeakGraphCommitService {
         transactional = WormDataSource(
           registry,
           adapter: adapter,
+          now: _now,
           authorizeRead: (ref) async {
             await _read(ref, const {}, transactional, principal);
           },
@@ -283,6 +357,7 @@ final class BeakGraphCommitService {
             ids,
             transactional,
             principal,
+            plan: prepared,
             input: plan.operations
                 .where((input) => input.id == op.id)
                 .firstOrNull,
@@ -402,6 +477,7 @@ final class BeakGraphCommitService {
     }
     if (preparePlan != null ||
         finalizePlan != null ||
+        executeOperation != null ||
         registry.all.any((model) => !model.behavior.isEmpty) ||
         registry.all.any(
           (model) => model.validationRules.any(
@@ -1310,6 +1386,7 @@ final class BeakGraphCommitService {
     BeakDataSource data,
     BeakPrincipal? principal, {
     BeakSaveOperation? input,
+    BeakSavePlan? plan,
   }) async {
     var dispatched = false;
     try {
@@ -1317,7 +1394,7 @@ final class BeakGraphCommitService {
       final model = registry.byTableOrThrow(op.target.table);
       final service = _service(model.table, data);
       final resolvedValues = op.resolveValues(registry, identities);
-      final values = op.kind == BeakSaveOperationKind.create
+      var values = op.kind == BeakSaveOperationKind.create
           ? service.prepareCreate(resolvedValues)
           : resolvedValues;
       final id = op.kind == BeakSaveOperationKind.create
@@ -1468,54 +1545,175 @@ final class BeakGraphCommitService {
           'Version preconditions require an update or delete.',
         );
       }
+      BeakSaveOperationWrite? delegated;
+      if (executeOperation != null && plan != null && data is WormDataSource) {
+        if (op.expectedUpdatedAt case final DateTime expected) {
+          // An exact no-op UPDATE locks the revision until commit without
+          // stamping over the domain use case's resulting write.
+          await _conditionalUpdate(
+            model,
+            id!,
+            const BeakRecord(values: {}),
+            expected,
+            data,
+          );
+        }
+        dispatched = true;
+        delegated = await executeOperation!(
+          BeakSaveOperationContext(
+            plan: plan,
+            operation: op,
+            model: model,
+            values: values,
+            existing: existing,
+            id: id,
+            transaction: data,
+            principal: principal,
+          ),
+        );
+      }
+      if (delegated?.values case final BeakRecord derived) {
+        if ((op.kind != BeakSaveOperationKind.create &&
+                op.kind != BeakSaveOperationKind.update) ||
+            derived.relations.isNotEmpty) {
+          throw const BeakInternalException(
+            'Derived values require a scalar create or update.',
+          );
+        }
+        final merged = BeakRecord(
+          values: {...values.values, ...derived.values},
+        );
+        final identity = model.primaryKeyOf(merged);
+        if (derived.values.containsKey(model.primaryKey.key) &&
+            identity != (id ?? model.primaryKeyOf(values))) {
+          throw const BeakInternalException(
+            'Derived values cannot replace record identity.',
+          );
+        }
+        _validation.validate(
+          model,
+          merged,
+          isCreate: op.kind == BeakSaveOperationKind.create,
+          includeRecordRules: false,
+        );
+        _requireWithinScope(
+          model,
+          existing,
+          merged,
+          _scope(model.table, principal),
+        );
+        for (final relation in model.relationships.whereType<BeakBelongsTo>()) {
+          if (!derived.values.containsKey(relation.foreignKey)) continue;
+          if (merged[relation.foreignKey]?.raw case final Object foreign) {
+            await _read(
+              BeakRecordRef.existing(relation.relatedTable, foreign),
+              identities,
+              data,
+              principal,
+            );
+          }
+        }
+        values = merged;
+        delegated = null;
+      }
       dispatched = true;
       BeakRecord? record;
       Object? resolvedId = id;
-      switch (op.kind) {
-        case BeakSaveOperationKind.create:
-          record = await service.create(values);
-          resolvedId = model.primaryKeyOf(record);
-        case BeakSaveOperationKind.update:
-          if (op.expectedUpdatedAt case final DateTime expected) {
-            record = await _conditionalUpdate(
-              model,
-              id!,
-              values,
-              expected,
-              _requireConditionalWrites(data),
-            );
-          } else if (values.values.entries.every(
-            (entry) => entry.value == existing?[entry.key],
-          )) {
-            // Populated forms also submit unchanged owned rows. Their receipt
-            // remains applied, but there is no new revision or snapshot write.
-            record = existing;
-          } else {
-            record = await service.update(
-              id!,
-              values,
-              scope: _scope(model.table, principal),
+      if (delegated != null) {
+        if (op.kind == BeakSaveOperationKind.create ||
+            op.kind == BeakSaveOperationKind.update) {
+          final persisted = delegated.record;
+          final identity = persisted == null
+              ? null
+              : model.primaryKeyOf(persisted);
+          if (identity == null ||
+              (op.kind == BeakSaveOperationKind.update && identity != id)) {
+            throw const BeakInternalException(
+              'A delegated save must return its persisted target record.',
             );
           }
-        case BeakSaveOperationKind.delete:
-          if (op.expectedUpdatedAt case final DateTime expected) {
-            await _conditionalDelete(
-              model,
-              id!,
-              expected,
-              _requireConditionalWrites(data),
-            );
-          } else {
-            await service.delete(id!, scope: _scope(model.table, principal));
+          resolvedId = identity;
+          record = await service.getOne(
+            identity,
+            scope: _scope(model.table, principal),
+          );
+          if (op.kind == BeakSaveOperationKind.update &&
+              model.columnByKey(model.updatedAtColumnKey)
+                  is BeakDateTimeColumn) {
+            final before = switch (existing?[model.updatedAtColumnKey]) {
+              BeakDateTimeValue(:final value) => value,
+              _ => null,
+            };
+            final after = switch (record[model.updatedAtColumnKey]) {
+              BeakDateTimeValue(:final value) => value,
+              _ => null,
+            };
+            if (after == null ||
+                before == null ||
+                after.millisecondsSinceEpoch <= before.millisecondsSinceEpoch) {
+              // Domain use cases may not own audit timestamps. Advance only
+              // the revision, preserving every calculated domain field.
+              record = await data.update(
+                model.table,
+                identity,
+                BeakRecord(
+                  values: {
+                    model.updatedAtColumnKey: BeakDateTimeValue(
+                      beakRevisionTimestamp(_now(), previous: before),
+                    ),
+                  },
+                ),
+              );
+            }
           }
-        case BeakSaveOperationKind.attach:
-          await service.attach(id!, op.relationKey!, [
-            op.related!.resolve(identities),
-          ]);
-        case BeakSaveOperationKind.detach:
-          await service.detach(id!, op.relationKey!, [
-            op.related!.resolve(identities),
-          ]);
+        }
+      } else {
+        switch (op.kind) {
+          case BeakSaveOperationKind.create:
+            record = await service.create(values);
+            resolvedId = model.primaryKeyOf(record);
+          case BeakSaveOperationKind.update:
+            if (op.expectedUpdatedAt case final DateTime expected) {
+              record = await _conditionalUpdate(
+                model,
+                id!,
+                values,
+                expected,
+                _requireConditionalWrites(data),
+              );
+            } else if (values.values.entries.every(
+              (entry) => entry.value == existing?[entry.key],
+            )) {
+              // Populated forms also submit unchanged owned rows. Their receipt
+              // remains applied, but there is no new revision or snapshot write.
+              record = existing;
+            } else {
+              record = await service.update(
+                id!,
+                values,
+                scope: _scope(model.table, principal),
+              );
+            }
+          case BeakSaveOperationKind.delete:
+            if (op.expectedUpdatedAt case final DateTime expected) {
+              await _conditionalDelete(
+                model,
+                id!,
+                expected,
+                _requireConditionalWrites(data),
+              );
+            } else {
+              await service.delete(id!, scope: _scope(model.table, principal));
+            }
+          case BeakSaveOperationKind.attach:
+            await service.attach(id!, op.relationKey!, [
+              op.related!.resolve(identities),
+            ]);
+          case BeakSaveOperationKind.detach:
+            await service.detach(id!, op.relationKey!, [
+              op.related!.resolve(identities),
+            ]);
+        }
       }
       return BeakOperationResult(
         id: op.id,
@@ -1578,7 +1776,7 @@ final class BeakGraphCommitService {
     DateTime expected,
     WormDataSource data,
   ) async {
-    if (model.columnByKey('updated_at') is! BeakDateTimeColumn) {
+    if (model.columnByKey(model.updatedAtColumnKey) is! BeakDateTimeColumn) {
       throw const _UnappliedWrite(
         BeakValidationException(
           'This model does not have an update timestamp.',
@@ -1587,7 +1785,7 @@ final class BeakGraphCommitService {
     }
     // --8<-- [start:requireRevision]
     final current = await data.getOne(model.table, id);
-    final stored = switch (current?['updated_at']) {
+    final stored = switch (current?[model.updatedAtColumnKey]) {
       BeakDateTimeValue(:final value) => value,
       _ => null,
     };
@@ -1609,13 +1807,13 @@ final class BeakGraphCommitService {
     final stored = await _requireRevision(model, id, expected, data);
     final where = Field<Object>(
       model.primaryKey.key,
-    ).eq(id).and(const Field<DateTime>('updated_at').eq(stored));
+    ).eq(id).and(Field<DateTime>(model.updatedAtColumnKey).eq(stored));
     final affected = model.softDeletes
         ? await data.adapter.update(
             UpdateDescriptor(
               table: model.table,
-              values: {'deleted_at': _now()},
-              where: where.and(const Field<DateTime>('deleted_at').isNull()),
+              values: beakSoftDeleteValues(model, _now()),
+              where: where.and(beakSoftDeletePredicate(model)),
             ),
           )
         : await data.adapter.delete(
@@ -1646,7 +1844,7 @@ final class BeakGraphCommitService {
     // --8<-- [start:conditionalUpdate]
     // A no-op still checks the exact revision in SQL, so a concurrent change
     // rejects the graph. Retaining the stamp avoids invalidating other editors.
-    values['updated_at'] = unchanged
+    values[model.updatedAtColumnKey] = unchanged
         ? stored
         : beakRevisionTimestamp(_now(), previous: stored);
     final affected = await data.adapter.update(
@@ -1655,7 +1853,7 @@ final class BeakGraphCommitService {
         values: values,
         where: Field<Object>(
           model.primaryKey.key,
-        ).eq(id).and(const Field<DateTime>('updated_at').eq(stored)),
+        ).eq(id).and(Field<DateTime>(model.updatedAtColumnKey).eq(stored)),
       ),
     );
     // --8<-- [end:conditionalUpdate]
@@ -1667,9 +1865,9 @@ final class BeakGraphCommitService {
         if (data.adapter case final CurrentReadCapable currentReads) {
           var where = Field<Object>(
             model.primaryKey.key,
-          ).eq(id).and(const Field<DateTime>('updated_at').eq(stored));
+          ).eq(id).and(Field<DateTime>(model.updatedAtColumnKey).eq(stored));
           if (model.softDeletes) {
-            where = where.and(const Field<DateTime>('deleted_at').isNull());
+            where = where.and(beakSoftDeletePredicate(model));
           }
           final matched = await currentReads.selectOneCurrent(
             QueryDescriptor(table: model.table, where: where),

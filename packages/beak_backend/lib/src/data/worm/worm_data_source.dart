@@ -1,3 +1,4 @@
+import 'beak_soft_delete.dart';
 import 'package:beak_core/beak_core.dart';
 import 'package:worm/worm.dart';
 
@@ -70,9 +71,6 @@ final class WormDataSource implements BeakDataSource, BeakSummaryDataSource {
   final DateTime Function() _now;
   final WormQueryTranslator _translator;
 
-  /// The column worm's soft-delete scope filters on.
-  static const String softDeleteColumnKey = 'deleted_at';
-
   @override
   // --8<-- [start:query]
   Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) => _read(() async {
@@ -130,10 +128,13 @@ final class WormDataSource implements BeakDataSource, BeakSummaryDataSource {
         ),
       ),
     );
-    return BeakRecord.fromRow({
-      for (final MapEntry(:key, :value) in row.entries)
-        if (keys.contains(key)) key: value,
-    });
+    return BeakRecord(
+      values: {
+        for (final MapEntry(:key, :value) in row.entries)
+          if (keys.contains(key))
+            key: beakValueForColumn(model.columnByKey(key), value),
+      },
+    );
   }
 
   @override
@@ -177,17 +178,13 @@ final class WormDataSource implements BeakDataSource, BeakSummaryDataSource {
       () => _adapter.update(
         UpdateDescriptor(
           table: table,
-          values: const {softDeleteColumnKey: null},
+          values: beakSoftDeleteValues(model, null),
           // Deliberately the trashed rows only: restoring a live record would
           // report success for something that never happened.
-          where: _primaryKeyPredicate(model, id).and(
-            const LeafNode(
-              Predicate(
-                fieldName: softDeleteColumnKey,
-                operator: Operator.isNotNull,
-              ),
-            ),
-          ),
+          where: _primaryKeyPredicate(
+            model,
+            id,
+          ).and(beakSoftDeletePredicate(model, deleted: true)),
         ),
       ),
     );
@@ -210,7 +207,7 @@ final class WormDataSource implements BeakDataSource, BeakSummaryDataSource {
         () => _adapter.update(
           UpdateDescriptor(
             table: table,
-            values: {softDeleteColumnKey: _now().toUtc()},
+            values: beakSoftDeleteValues(model, _now()),
             where: _visibleRowPredicate(model, id),
           ),
         ),
@@ -362,9 +359,10 @@ final class WormDataSource implements BeakDataSource, BeakSummaryDataSource {
     if (_keyValue(model, id) == null) {
       throw BeakNotFoundException(_missingRecord(model, id));
     }
-    final found = await _scopedBuilder(
-      model,
-    ).withTrashed().where(_primaryKeyPredicate(model, id)).first();
+    final found = await _scopedBuilder(model)
+        .withoutGlobalScope<BeakSoftDeleteScope>()
+        .where(_primaryKeyPredicate(model, id))
+        .first();
     if (found == null) {
       throw BeakNotFoundException(_missingRecord(model, id));
     }
@@ -559,9 +557,7 @@ final class WormDataSource implements BeakDataSource, BeakSummaryDataSource {
         model,
       );
       if (model.softDeletes && !spec.withTrashed) {
-        const visible = LeafNode(
-          Predicate(fieldName: softDeleteColumnKey, operator: Operator.isNull),
-        );
+        final visible = beakSoftDeletePredicate(model);
         predicate = predicate == null ? visible : predicate.and(visible);
       }
       final groups = await _adapter.aggregateGrouped(
@@ -630,11 +626,7 @@ final class WormDataSource implements BeakDataSource, BeakSummaryDataSource {
     if (!model.softDeletes) {
       return byId;
     }
-    return byId.and(
-      const LeafNode(
-        Predicate(fieldName: softDeleteColumnKey, operator: Operator.isNull),
-      ),
-    );
+    return byId.and(beakSoftDeletePredicate(model));
   }
 
   PredicateTree _pivotPredicate(

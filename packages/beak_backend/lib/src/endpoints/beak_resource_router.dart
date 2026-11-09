@@ -141,6 +141,7 @@ Handler beakApiRouter({
   String Function()? generateId,
   BeakSavePlanPreparer? preparePlan,
   BeakSavePlanFinalizer? finalizePlan,
+  BeakSaveOperationExecutor? executeOperation,
   List<BeakModel> graphOnly = const [],
   BeakCommitReceiptTable commitReceipts = BeakCommitReceiptTable.beak,
   int? maxStagedReceipts,
@@ -151,7 +152,9 @@ Handler beakApiRouter({
   final graphOnlyTables = {
     for (final model in graphOnly) registry.byTableOrThrow(model.table).table,
   };
-  if ((preparePlan != null || finalizePlan != null) &&
+  if ((preparePlan != null ||
+          finalizePlan != null ||
+          executeOperation != null) &&
       dataSource is! WormDataSource) {
     throw const BeakConfigurationException(
       'Graph preparation requires a Worm data source.',
@@ -235,6 +238,7 @@ Handler beakApiRouter({
       policy: policy,
       preparePlan: preparePlan,
       finalizePlan: finalizePlan,
+      executeOperation: executeOperation,
       receipts: commitReceipts,
       maxStagedReceipts:
           maxStagedReceipts ?? BeakGraphCommitService.defaultMaxStagedReceipts,
