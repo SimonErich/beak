@@ -118,6 +118,11 @@ Future<InMemoryAdapter> createBookshopDatabase() async {
         SchemaColumn(name: 'requestHash', type: ColumnType.text),
         SchemaColumn(name: 'requestJson', type: ColumnType.text),
         SchemaColumn(name: 'resultJson', type: ColumnType.text),
+        SchemaColumn(
+          name: 'createdAt',
+          type: ColumnType.dateTime,
+          nullable: true,
+        ),
       ],
     ),
   ]) {

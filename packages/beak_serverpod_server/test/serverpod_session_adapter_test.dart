@@ -228,6 +228,27 @@ void main() {
       expect(grouped, {'a': 2, 'b': 5});
     });
 
+    test('grouped sums preserve PostgreSQL numeric strings', () async {
+      database.queryReplies.add([
+        {'group': 'a', 'value': '6'},
+        {'group': 'b', 'value': '3.5'},
+        {'group': 'c', 'value': null},
+      ]);
+
+      final grouped = await inSession(
+        () => adapter.aggregateGrouped(
+          const AggregateDescriptor(
+            table: 'book',
+            function: AggregateFunction.sum,
+            column: 'quantity',
+            groupBy: 'author',
+          ),
+        ),
+      );
+
+      expect(grouped, {'a': 6, 'b': 3.5});
+    });
+
     test('raw statements pass through', () async {
       database.queryReplies.add([
         {'one': 1},

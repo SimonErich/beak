@@ -18,12 +18,26 @@ import 'serverpod_session_adapter.dart';
 /// Turns the signed-in Serverpod user into the principal Beak's policies
 /// decide on, or `null` to refuse the request (403).
 ///
-/// It only runs for a user who holds [BeakScopes.admin].
+/// It runs after the configured admission rule accepts the session.
 ///
 /// Throw a [BeakAuthenticationException] or [BeakAuthorizationException] to
 /// refuse with 401 or 403 and a message.
 typedef BeakServerpodPrincipalResolver =
     FutureOr<BeakPrincipal?> Function(Session session, AuthenticationInfo auth);
+
+/// Resolves live access to the tunnel before the principal or database is used.
+///
+/// It runs on every authenticated request. Return false or throw a typed
+/// authentication/authorization exception to refuse admission.
+typedef BeakServerpodAdmission =
+    FutureOr<bool> Function(Session session, AuthenticationInfo auth);
+
+/// Stock admission rules.
+abstract final class BeakServerpodAdmissionRules {
+  /// Requires the standard admin scope, preserving the default gate.
+  static bool adminScope(Session session, AuthenticationInfo auth) =>
+      auth.scopes.contains(BeakScopes.admin);
+}
 
 /// Stock principal resolvers.
 abstract final class BeakServerpodPrincipal {
@@ -61,17 +75,16 @@ abstract final class BeakServerpodPrincipal {
 /// 1. decodes envelope v1 and refuses any path outside `/api/**` (see
 ///    [beakTunnelUrl]) with 404;
 /// 2. drops every header but [beakWireRequestHeaders];
-/// 3. refuses a session that is not signed in (401) or does not hold
-///    [BeakScopes.admin] (403), even when the endpoint forgot
-///    [BeakAdminGate], then resolves the principal from
+/// 3. refuses a session that is not signed in (401) or fails [admit] (403),
+///    which defaults to [BeakScopes.admin], then resolves the principal from
 ///    `session.authenticated` alone and hands it to Beak's auth middleware
 ///    through a context value only this library can create, so no header
 ///    can forge an identity;
 /// 4. runs the pipeline inside [BeakServerpod.runInSession], so every
 ///    statement Beak issues uses the request's Serverpod session, pool and
 ///    (in a graph commit) one Serverpod transaction;
-/// 5. logs `beak <method> <path> -> <status>` and unexpected errors to
-///    `session.log`.
+/// 5. logs requests and unexpected errors through the configured callbacks,
+///    which default to `session.log`.
 final class BeakServerpodEngine {
   /// Builds the pipeline once; [policy] is required on purpose, there is no
   /// allow-all default.
@@ -89,27 +102,42 @@ final class BeakServerpodEngine {
     required this.registry,
     required BeakPolicy policy,
     this.principal = BeakServerpodPrincipal.fromScopes,
+    this.admit = BeakServerpodAdmissionRules.adminScope,
+    this.onUnexpectedError = _logError,
+    void Function(BeakRequestLogEntry) onRequest = _logRequest,
+    String Function()? generateId,
     BeakSavePlanPreparer? preparePlan,
     BeakSavePlanFinalizer? finalizePlan,
+    BeakSaveOperationExecutor? executeOperation,
     List<BeakModel> graphOnly = const [],
     int statementTimeoutInSeconds = 30,
     this.frameworkTables = beakServerpodFrameworkTables,
     DateTime Function()? now,
     DatabaseAdapter? adapter,
-  }) : _handler = _pipeline(
-         registry: registry,
-         policy: policy,
-         preparePlan: preparePlan,
-         finalizePlan: finalizePlan,
-         graphOnly: graphOnly,
-         frameworkTables: frameworkTables,
-         now: now,
+  }) : _source = WormDataSource(
+         registry,
          adapter:
              adapter ??
              ServerpodSessionAdapter(
                statementTimeoutInSeconds: statementTimeoutInSeconds,
              ),
-       );
+         now: now,
+       ) {
+    _handler = _pipeline(
+      registry: registry,
+      policy: policy,
+      preparePlan: preparePlan,
+      finalizePlan: finalizePlan,
+      executeOperation: executeOperation,
+      graphOnly: graphOnly,
+      frameworkTables: frameworkTables,
+      now: now,
+      generateId: generateId,
+      onUnexpectedError: onUnexpectedError,
+      onRequest: onRequest,
+      dataSource: _source,
+    );
+  }
 
   /// The models this engine serves.
   final BeakModelRegistry registry;
@@ -117,36 +145,65 @@ final class BeakServerpodEngine {
   /// Maps the signed-in Serverpod user to a Beak principal.
   final BeakServerpodPrincipalResolver principal;
 
+  /// Live admission checked for every authenticated request.
+  final BeakServerpodAdmission admit;
+
+  /// Receives opaque unexpected failures, including admission failures.
+  final BeakUnexpectedErrorListener onUnexpectedError;
+
   /// Where the graph-commit receipts live.
   final BeakFrameworkTables frameworkTables;
 
-  final shelf.Handler _handler;
+  final WormDataSource _source;
+  late final shelf.Handler _handler;
+
+  /// Deletes durable receipts strictly older than [olderThan], using the mapped
+  /// receipt table and the maintenance session. Schedule this in the host.
+  /// Removing a receipt ends its replay protection; retain it longer than any
+  /// supported client retry window. No endpoint exposes this operation.
+  Future<int> pruneReceipts(Session session, {required DateTime olderThan}) =>
+      BeakServerpod.runInSession(
+        session,
+        () => BeakGraphCommitService(
+          registry: registry,
+          source: _source,
+          receipts: frameworkTables.receipts,
+        ).pruneReceipts(olderThan: Duration.zero, now: () => olderThan),
+      );
 
   static shelf.Handler _pipeline({
     required BeakModelRegistry registry,
     required BeakPolicy policy,
     required BeakSavePlanPreparer? preparePlan,
     required BeakSavePlanFinalizer? finalizePlan,
+    required BeakSaveOperationExecutor? executeOperation,
     required List<BeakModel> graphOnly,
     required BeakFrameworkTables frameworkTables,
     required DateTime Function()? now,
-    required DatabaseAdapter adapter,
+    required WormDataSource dataSource,
+    required String Function()? generateId,
+    required BeakUnexpectedErrorListener onUnexpectedError,
+    required void Function(BeakRequestLogEntry) onRequest,
   }) => const shelf.Pipeline()
-      .addMiddleware(beakRequestLogMiddleware(onRequest: _logRequest))
+      .addMiddleware(beakRequestLogMiddleware(onRequest: onRequest))
       .addMiddleware(beakJsonMiddleware())
-      .addMiddleware(beakErrorMappingMiddleware(onUnexpectedError: _logError))
+      .addMiddleware(
+        beakErrorMappingMiddleware(onUnexpectedError: onUnexpectedError),
+      )
       .addMiddleware(beakAuthMiddleware(guard: const _TrustedGuard()))
       .addHandler(
         beakApiRouter(
           registry: registry,
-          dataSource: WormDataSource(registry, adapter: adapter, now: now),
+          dataSource: dataSource,
           policy: policy,
           preparePlan: preparePlan,
           finalizePlan: finalizePlan,
+          executeOperation: executeOperation,
           graphOnly: graphOnly,
           commitReceipts: frameworkTables.receipts,
           now: now,
-          onUnexpectedError: _logError,
+          generateId: generateId,
+          onUnexpectedError: onUnexpectedError,
         ),
       );
 
@@ -183,19 +240,19 @@ final class BeakServerpodEngine {
         const BeakAuthenticationException('Sign in to use the Beak admin.'),
       );
     }
-    if (!auth.scopes.contains(BeakScopes.admin)) {
-      // The endpoint gate already refuses this; the engine repeats it so an
-      // endpoint that forgot BeakAdminGate cannot open the tunnel to every
-      // signed-in user whose roles a policy rule happens to accept.
-      return _error(403, const BeakAuthorizationException(_notAllowed));
-    }
     final BeakPrincipal? resolved;
     try {
+      if (!await admit(session, auth)) {
+        return _error(403, const BeakAuthorizationException(_notAllowed));
+      }
       resolved = await principal(session, auth);
     } on BeakAuthenticationException catch (error) {
       return _error(401, error);
     } on BeakAuthorizationException catch (error) {
       return _error(403, error);
+    } on Object catch (error, stackTrace) {
+      onUnexpectedError(error, stackTrace);
+      return _error(500, const BeakInternalException('Internal server error.'));
     }
     if (resolved == null) {
       return _error(403, const BeakAuthorizationException(_notAllowed));
