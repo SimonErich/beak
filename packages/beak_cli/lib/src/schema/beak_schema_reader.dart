@@ -1,9 +1,7 @@
 import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:analyzer/dart/analysis/utilities.dart';
-import 'package:analyzer/dart/ast/ast.dart';
-
+import '../analyzer_syntax.dart';
 import '../field_spec.dart';
 import '../project/beak_discovery.dart';
 import 'beak_reserved_names.dart';
@@ -59,14 +57,11 @@ final class BeakSchemaReader {
 
     final units = <(String, CompilationUnit)>[];
     for (final file in files) {
-      final unit = parseString(
-        content: file.readAsStringSync(),
-        throwIfDiagnostics: false,
-      ).unit;
+      final unit = parseDart(file.readAsStringSync());
       units.add((_libRelative(file), unit));
       for (final declaration in unit.declarations) {
         if (declaration is EnumDeclaration) {
-          enums.add(declaration.name.lexeme);
+          enums.add(declaration.enumName);
         }
       }
     }
@@ -169,12 +164,11 @@ final class BeakSchemaReader {
       final String partName = BeakSchemaEmitter.partFileNameOf(
         schema.libraryPath,
       );
-      final unit = parseString(
-        content: File(
+      final unit = parseDart(
+        File(
           '${projectRoot.path}/lib/${schema.libraryPath}',
         ).readAsStringSync(),
-        throwIfDiagnostics: false,
-      ).unit;
+      );
       final bool declared = unit.directives.whereType<PartDirective>().any(
         (directive) => directive.uri.stringValue == partName,
       );
@@ -262,7 +256,7 @@ final class BeakSchemaReader {
     Set<String> enums,
   ) {
     final issues = <BeakDiscoveryIssue>[];
-    final String className = declaration.name.lexeme;
+    final String className = declaration.className;
     final Map<String, String> options = _namedArguments(resource);
     if (BeakReservedNames.generatedCodeTypes.contains(className)) {
       issues.add(
@@ -294,7 +288,7 @@ final class BeakSchemaReader {
     final displayFields = <String>[];
     String? displayColumnKey;
 
-    for (final member in declaration.members) {
+    for (final member in declaration.classMembers) {
       if (member is! FieldDeclaration || member.isStatic) {
         continue;
       }
@@ -571,7 +565,7 @@ final class BeakSchemaReader {
   static bool _declaresStaticGetter(
     ClassDeclaration declaration,
     String name,
-  ) => declaration.members.whereType<MethodDeclaration>().any(
+  ) => declaration.classMembers.whereType<MethodDeclaration>().any(
     (member) =>
         member.isStatic && member.isGetter && member.name.lexeme == name,
   );
@@ -1106,19 +1100,19 @@ final class BeakSchemaReader {
   /// Named arguments as source text, keyed by parameter name.
   Map<String, String> _namedArguments(Annotation annotation) => {
     for (final argument in _argumentsOf(annotation))
-      if (argument is NamedExpression)
-        argument.name.label.name: argument.expression.toSource(),
+      if (argument.argumentName case final String name)
+        name: argument.argumentExpression.toSource(),
   };
 
   /// The annotation's argument expressions, or none when it takes no
   /// arguments.
-  List<Expression> _argumentsOf(Annotation annotation) =>
-      annotation.arguments?.arguments.toList() ?? const <Expression>[];
+  List<Argument> _argumentsOf(Annotation annotation) =>
+      annotation.arguments?.arguments.toList() ?? const <Argument>[];
 
   /// Positional arguments as source text.
   List<String> _positionalArguments(Annotation annotation) => [
     for (final argument in _argumentsOf(annotation))
-      if (argument is! NamedExpression) argument.toSource(),
+      if (argument.argumentName == null) argument.toSource(),
   ];
 
   /// The doc comment text of [node], without the `///` markers.

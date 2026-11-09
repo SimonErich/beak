@@ -1,14 +1,23 @@
-import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
-import 'package:analyzer/dart/analysis/results.dart';
-import 'package:analyzer/dart/element/element.dart';
-import 'package:analyzer/dart/element/nullability_suffix.dart';
-import 'package:analyzer/dart/element/type.dart';
 import 'package:dart_style/dart_style.dart';
 import 'package:path/path.dart' as p;
+import 'package:pub_semver/pub_semver.dart';
+
+import 'analyzer_shim.dart';
 
 part 'resource_generator.dart';
 
+/// The language version generated code is formatted for when a caller names
+/// none.
+///
+/// Pinned rather than taken from the installed formatter's newest version:
+/// the same input must give the same file whichever `dart_style` a project
+/// resolves.
+final Version defaultGeneratedLanguageVersion = Version(3, 13, 0);
+
 /// Resolves [types] from [library] in the consumer's [packageRoot].
+///
+/// The output is formatted for [languageVersion], which is
+/// [defaultGeneratedLanguageVersion] when omitted.
 ///
 /// Generation never modifies models or database migrations. Unsupported source
 /// shapes fail explicitly instead of becoming stringly typed JSON payloads.
@@ -18,40 +27,39 @@ Future<String> generateServerpodCompanions({
   required List<String> types,
   List<String> models = const [],
   String client = 'Client',
-}) async {
+  Version? languageVersion,
+}) {
   final root = p.normalize(p.absolute(packageRoot));
-  final contexts = AnalysisContextCollection(includedPaths: [root]);
-  try {
-    final session = contexts.contextFor(root).currentSession;
-    final result = await session.getLibraryByUri(library);
-    if (result is! LibraryElementResult) {
-      throw FormatException('Cannot resolve library $library from $root.');
-    }
-    final emitter = _Emitter(result.element);
-    for (final name in {...types, ...models}) {
-      final element = result.element.exportNamespace.get2(name);
-      if (element is! ClassElement) {
-        throw FormatException('$library does not export a model named $name.');
+  return withResolvedLibrary(
+    packageRoot: root,
+    library: library,
+    use: (publicLibrary) {
+      final emitter = _Emitter(publicLibrary);
+      for (final name in {...types, ...models}) {
+        final element = exportedElement(publicLibrary, name);
+        if (element is! ClassElement) {
+          throw FormatException(
+            '$library does not export a model named $name.',
+          );
+        }
+        emitter.collect(element);
       }
-      emitter.collect(element);
-    }
-    if (models.isNotEmpty) {
-      final clientType = result.element.exportNamespace.get2(client);
-      if (clientType is! ClassElement) {
-        throw FormatException('$library does not export client $client.');
+      if (models.isNotEmpty) {
+        final clientType = exportedElement(publicLibrary, client);
+        if (clientType is! ClassElement) {
+          throw FormatException('$library does not export client $client.');
+        }
+        for (final name in models) {
+          emitter.resources.add(
+            _ResourceEmitter(emitter, emitter.models[name]!, clientType),
+          );
+        }
       }
-      for (final name in models) {
-        emitter.resources.add(
-          _ResourceEmitter(emitter, emitter.models[name]!, clientType),
-        );
-      }
-    }
-    return DartFormatter(
-      languageVersion: DartFormatter.latestLanguageVersion,
-    ).format(emitter.emit());
-  } finally {
-    await contexts.dispose();
-  }
+      return DartFormatter(
+        languageVersion: languageVersion ?? defaultGeneratedLanguageVersion,
+      ).format(emitter.emit());
+    },
+  );
 }
 
 final class _Emitter {
@@ -149,7 +157,7 @@ final class _Emitter {
     final name = element.name;
     final exported = name == null
         ? null
-        : _publicLibrary.exportNamespace.get2(name);
+        : exportedElement(_publicLibrary, name);
     return exported == element ? _publicLibrary.uri.toString() : declaring;
   }
 
