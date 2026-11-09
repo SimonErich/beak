@@ -1,0 +1,57 @@
+name: beak_theme_gabel
+description: >-
+  The Gabel design for a Beak panel: color tokens, type ramp, component themes,
+  icons and the bundled Mona Sans and JetBrains Mono fonts, selected with
+  `theme: GabelTheme()`.
+version: 0.9.0
+publish_to: none
+repository: https://github.com/SimonErich/beak/tree/main/packages/beak_theme_gabel
+homepage: https://github.com/SimonErich/beak
+issue_tracker: https://github.com/SimonErich/beak/issues
+topics: [admin-panel, flutter, theme, design-system]
+
+environment:
+  sdk: ^3.11.0
+  flutter: '>=3.41.0'
+
+dependencies:
+  beak_frontend:
+    path: ../beak_frontend
+  flutter:
+    sdk: flutter
+  # Pinned by commit like every other package. Keep the ref identical
+  # everywhere; test/obers_ui_pin_test.dart enforces it. To work against a
+  # local obers_ui checkout, run `melos run link-obers-ui`.
+  obers_ui:
+    git:
+      url: https://github.com/SimonErich/obers_ui
+      ref: c956d25634c93e23847ec5a4150c1d62fe3a7c90
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^6.0.0
+  yaml: ^3.1.3
+
+flutter:
+  # Declared here, so an app that depends on this package bundles the fonts
+  # as `packages/beak_theme_gabel/<family>` without declaring any itself. The
+  # theme refers to them by that name.
+  fonts:
+    - family: Mona Sans
+      fonts:
+        - asset: lib/fonts/MonaSans.ttf
+    - family: Mona Sans Extended
+      fonts:
+        - asset: lib/fonts/MonaSansExtended.ttf
+    - family: JetBrains Mono
+      fonts:
+        - asset: lib/fonts/JetBrainsMono.ttf
+    - family: JetBrains Mono Extended
+      fonts:
+        - asset: lib/fonts/JetBrainsMonoExtended.ttf
+  # The SIL Open Font Licence texts the fonts ship under. The theme adds them
+  # to the app's licence page.
+  assets:
+    - lib/fonts/MonaSans-OFL.txt
+    - lib/fonts/JetBrainsMono-OFL.txt
