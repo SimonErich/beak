@@ -5,6 +5,7 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 
 import '../auth/auth_router.dart';
+import '../auth/beak_capability_policy.dart';
 import '../auth/beak_policy.dart';
 import '../data/worm/worm_data_source.dart';
 import '../export/csv_export_service.dart';
@@ -87,6 +88,11 @@ Router beakResourceRouter(
 /// [maxPerPage] is the largest page a query is served; a larger request is
 /// answered at this size (default: `BeakPagination.maxPerPage`, 200).
 ///
+/// Whatever [policy] allows, an operation outside a model's
+/// `BeakModel.capabilities` is refused (`canView`, `canCreate`, `canUpdate`
+/// and `canDelete` are all asked through a wrapper that checks them first), so
+/// a permissive policy cannot enable what the model does not support.
+///
 /// [transformRunner] overrides the image pipeline behind the uploads (default:
 /// the real `beak_image` runner), and [signedUrlLifetime] is how long the
 /// links `GET /api/{table}/{column}/upload?key=` returns stay valid on
@@ -148,6 +154,9 @@ Handler beakApiRouter({
   int maxPerPage = BeakPagination.maxPerPage,
   BeakUnexpectedErrorListener? onUnexpectedError,
 }) {
+  // Whatever [policy] says, an operation a model's capabilities leave out is
+  // refused: every route below consults this one wrapper.
+  final BeakPolicy enforced = BeakCapabilityPolicy.enforcing(policy);
   // --8<-- [start:graphOnlyGuards]
   final graphOnlyTables = {
     for (final model in graphOnly) registry.byTableOrThrow(model.table).table,
@@ -235,7 +244,7 @@ Handler beakApiRouter({
     BeakGraphCommitService(
       registry: registry,
       source: dataSource,
-      policy: policy,
+      policy: enforced,
       preparePlan: preparePlan,
       finalizePlan: finalizePlan,
       executeOperation: executeOperation,
@@ -267,7 +276,7 @@ Handler beakApiRouter({
     );
     final resourceRouter = beakResourceRouter(
       service,
-      policy: policy,
+      policy: enforced,
       registry: registry,
       graphOnly: constrainedTables.contains(model.table),
       maxPerPage: maxPerPage,
@@ -276,14 +285,14 @@ Handler beakApiRouter({
       resourceRouter,
       model: model,
       service: exportService,
-      policy: policy,
+      policy: enforced,
     );
     if (uploads != null) {
       registerUploadRoutes(
         resourceRouter,
         model: model,
         service: uploads,
-        policy: policy,
+        policy: enforced,
         dataSource: dataSource,
       );
     }

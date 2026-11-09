@@ -2,8 +2,10 @@ import 'package:beak_core/beak_core.dart';
 import 'package:meta/meta.dart';
 
 import 'beak_action_policy.dart';
+import 'beak_admitted_rules.dart';
 import 'beak_field_policy.dart';
 import 'beak_policy.dart';
+import 'beak_row_scope.dart';
 
 /// The access rules of one model: who reads it, who writes it, who deletes
 /// it, which rows a principal sees, and which fields the server owns.
@@ -27,25 +29,96 @@ import 'beak_policy.dart';
 final class BeakModelRules {
   /// Creates the rules of [model].
   ///
+  /// [create] and [update] narrow [write] for one operation; each falls back
+  /// to [write] when it is `null`.
+  ///
   /// Throws a [BeakConfigurationException] when a [readOnlyFields] or
   /// [hiddenFields] entry is not a direct field of [model], or when [actions]
   /// names a command the model does not declare: a rule that could never
   /// apply is a mistake worth failing on at startup.
   BeakModelRules(
+    BeakModel model, {
+    BeakAccess? read,
+    BeakAccess? write,
+    BeakAccess? create,
+    BeakAccess? update,
+    BeakAccess? delete,
+    BeakFilter? Function(BeakPrincipal principal)? rowScope,
+    Set<BeakFieldRef<Object>> readOnlyFields = const {},
+    Map<BeakFieldRef<Object>, BeakAccess> hiddenFields = const {},
+    Map<BeakModelAction, BeakAccess> actions = const {},
+  }) : this._(
+         model,
+         read: read,
+         write: write,
+         create: create,
+         update: update,
+         delete: delete,
+         rowScope: rowScope,
+         readOnlyFields: readOnlyFields,
+         hiddenFields: hiddenFields,
+         actions: actions,
+       );
+
+  /// The rules a generated model describes about itself: who may do what
+  /// comes from [BeakModel.permissions], which columns a client may write and
+  /// which never leave the server from [BeakModel.admission], and every
+  /// operation the model's [BeakModel.capabilities] leave out is closed.
+  ///
+  /// - `read`, `create`, `update` and `delete` are the model's permission for
+  ///   that operation, when its capabilities include the operation.
+  /// - A model whose admission has no write binding is read only: nothing
+  ///   writes, whatever its permissions say.
+  /// - Every column outside [BeakAdmission.writable] is a read-only field,
+  ///   every column in [BeakAdmission.hidden] is hidden from everyone.
+  /// - Each command of the model's behavior is allowed to whoever
+  ///   [BeakPermissions.allowsAction] admits.
+  /// - Removing an uploaded file is allowed for writable upload columns only.
+  ///
+  /// [rowScope] narrows the rows of the model, see [BeakRowScope].
+  ///
+  /// Throws a [BeakConfigurationException] when [model] has no admission.
+  BeakModelRules.admitted(
+    BeakModel model, {
+    BeakFilter? Function(BeakPrincipal principal)? rowScope,
+  }) : this._admitted(model, BeakAdmittedRules.of(model), rowScope);
+
+  BeakModelRules._admitted(
+    BeakModel model,
+    BeakAdmittedRules admitted,
+    BeakFilter? Function(BeakPrincipal principal)? rowScope,
+  ) : this._(
+        model,
+        read: admitted.read,
+        create: admitted.create,
+        update: admitted.update,
+        delete: admitted.delete,
+        rowScope: rowScope,
+        readOnlyFields: admitted.readOnlyFields,
+        hiddenFields: admitted.hiddenFields,
+        actions: admitted.actions,
+        removableUploadKeys: admitted.removableUploadKeys,
+      );
+
+  BeakModelRules._(
     this.model, {
     this.read,
     this.write,
+    this.create,
+    this.update,
     this.delete,
     this.rowScope,
     Set<BeakFieldRef<Object>> readOnlyFields = const {},
     Map<BeakFieldRef<Object>, BeakAccess> hiddenFields = const {},
     Map<BeakModelAction, BeakAccess> actions = const {},
+    Set<String>? removableUploadKeys,
   }) : readOnlyFields = Set.unmodifiable(readOnlyFields),
        hiddenFields = Map.unmodifiable(hiddenFields),
        actions = Map.unmodifiable(actions),
        _readOnlyKeys = _readOnlyKeysOf(model, readOnlyFields),
        _hiddenAccessByKey = _hiddenAccessOf(model, hiddenFields),
-       _actionAccessByName = _actionAccessOf(model, actions);
+       _actionAccessByName = _actionAccessOf(model, actions),
+       _removableUploadKeys = removableUploadKeys;
 
   /// The model these rules govern.
   final BeakModel model;
@@ -58,8 +131,16 @@ final class BeakModelRules {
   /// Who may create and update records of [model], attach and detach its
   /// relationships and upload its files.
   ///
-  /// `null` grants nobody.
+  /// [create] and [update] take over for their own operation. `null` grants
+  /// nobody.
   final BeakAccess? write;
+
+  /// Who may create records of [model], instead of [write].
+  final BeakAccess? create;
+
+  /// Who may update records of [model], restore them, and attach and detach
+  /// their relationships, instead of [write].
+  final BeakAccess? update;
 
   /// Who may delete records of [model], and remove its uploaded files.
   ///
@@ -103,6 +184,12 @@ final class BeakModelRules {
   final Set<String> _readOnlyKeys;
   final Map<String, BeakAccess> _hiddenAccessByKey;
   final Map<String, BeakAccess> _actionAccessByName;
+
+  // The upload columns whose files `delete` may remove, or null for all.
+  final Set<String>? _removableUploadKeys;
+
+  BeakAccess? get _createAccess => create ?? write;
+  BeakAccess? get _updateAccess => update ?? write;
 
   static Set<String> _readOnlyKeysOf(
     BeakModel model,
@@ -201,6 +288,44 @@ final class BeakPolicies
     : rules = List.unmodifiable(rules),
       _rulesByTable = _index(rules);
 
+  /// The policy the models of [registry] describe about themselves, closed
+  /// to everything they do not admit.
+  ///
+  /// One [BeakModelRules.admitted] per model: access comes from
+  /// [BeakModel.permissions] checked against the principal, writable columns
+  /// and hidden columns from [BeakModel.admission], and an operation outside
+  /// [BeakModel.capabilities] is refused even when the role allows it. A
+  /// model without an admission has no rule and stays closed. [scopes] narrow
+  /// the rows of the models they name.
+  ///
+  /// ```dart
+  /// final policy = BeakPolicies.admitted(
+  ///   registry,
+  ///   scopes: [
+  ///     BeakRowScope(
+  ///       const OrderModel(),
+  ///       (principal) => OrderModel.cancelledAt.eq(null),
+  ///     ),
+  ///   ],
+  /// );
+  /// ```
+  ///
+  /// Throws a [BeakConfigurationException] when a scope names a model outside
+  /// [registry], or two scopes name the same model.
+  factory BeakPolicies.admitted(
+    BeakModelRegistry registry, {
+    List<BeakRowScope> scopes = const [],
+  }) {
+    final byTable = beakRowScopesByTable(registry, scopes);
+    return BeakPolicies(
+      rules: [
+        for (final model in registry.all)
+          if (model.admission != null)
+            BeakModelRules.admitted(model, rowScope: byTable[model.table]),
+      ],
+    );
+  }
+
   /// The rules, one per governed model.
   final List<BeakModelRules> rules;
 
@@ -225,11 +350,11 @@ final class BeakPolicies
 
   @override
   bool canCreate(BeakPrincipal? principal, BeakModel model) =>
-      _canWrite(principal, model);
+      _canCreate(principal, model);
 
   @override
   bool canUpdate(BeakPrincipal? principal, BeakModel model, Object id) =>
-      _canWrite(principal, model);
+      _canUpdate(principal, model);
 
   @override
   bool canDelete(BeakPrincipal? principal, BeakModel model, Object id) =>
@@ -241,7 +366,10 @@ final class BeakPolicies
     BeakModel model,
     BeakUploadColumn column,
     String storageKey,
-  ) => _canDelete(principal, model);
+  ) =>
+      _canDelete(principal, model) &&
+      (_rulesByTable[model.table]?._removableUploadKeys?.contains(column.key) ??
+          true);
 
   @override
   BeakFilter? scopeFor(BeakPrincipal? principal, BeakModel model) {
@@ -264,7 +392,9 @@ final class BeakPolicies
     BeakPrincipal? principal,
     BeakModel model,
     BeakFieldRef<Object> field,
-  ) => _canWrite(principal, model) && !_isHidden(principal, model, field);
+  ) =>
+      (_canCreate(principal, model) || _canUpdate(principal, model)) &&
+      !_isHidden(principal, model, field);
 
   @override
   bool isFieldReadOnly(
@@ -298,8 +428,11 @@ final class BeakPolicies
               ?.allows(principal) ??
           false);
 
-  bool _canWrite(BeakPrincipal? principal, BeakModel model) =>
-      _rulesByTable[model.table]?.write?.allows(principal) ?? false;
+  bool _canCreate(BeakPrincipal? principal, BeakModel model) =>
+      _rulesByTable[model.table]?._createAccess?.allows(principal) ?? false;
+
+  bool _canUpdate(BeakPrincipal? principal, BeakModel model) =>
+      _rulesByTable[model.table]?._updateAccess?.allows(principal) ?? false;
 
   bool _canDelete(BeakPrincipal? principal, BeakModel model) =>
       _rulesByTable[model.table]?.delete?.allows(principal) ?? false;
