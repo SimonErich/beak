@@ -186,29 +186,38 @@ final class BeakModelBehavior {
   /// [lockEdits] it cannot be edited either; without it only the delete is
   /// refused. Rows without the flag, or with it `false`, stay ordinary.
   ///
-  /// [isBuiltIn] must be a boolean column, and a server-owned one: leave it
-  /// out of the model's writable columns so a client cannot flip it.
+  /// The flag is server-owned: the behavior derives it from the stored row on
+  /// every save (and as `false` on a new row), so a value a client sends for
+  /// it is replaced and a custom row can never turn itself into a built-in
+  /// one, or the other way round. Keep the column out of the model's writable
+  /// columns as well, so a form does not offer it.
   ///
   /// ```dart
   /// @override
   /// BeakModelBehavior get behavior =>
-  ///     BeakModelBehavior.builtInRows(RoleColumns.isSystem, lockEdits: true);
+  ///     BeakModelBehavior.builtInRows(RoleModel.isSystem, lockEdits: true);
   /// ```
   ///
   /// Throws a [BeakConfigurationException] when [isBuiltIn] is not a boolean
   /// column.
   factory BeakModelBehavior.builtInRows(
-    BeakColumn isBuiltIn, {
+    BeakScalarField<bool> isBuiltIn, {
     bool lockEdits = false,
   }) {
-    if (isBuiltIn is! BeakBoolColumn) {
+    if (isBuiltIn.column is! BeakBoolColumn) {
       throw BeakConfigurationException(
         'builtInRows needs a boolean column, and "${isBuiltIn.key}" is '
-        '${isBuiltIn.valueType}.',
+        '${isBuiltIn.column.valueType}.',
       );
     }
     bool builtIn(BeakRecord record) => isBuiltIn.readFrom(record) == true;
     return BeakModelBehavior(
+      values: [
+        BeakValueBehavior<bool>.derived(
+          field: isBuiltIn,
+          resolve: (state) => state.original(isBuiltIn) ?? false,
+        ),
+      ],
       editableWhen: lockEdits ? (record) => !builtIn(record) : null,
       deletableWhen: (record) => !builtIn(record),
     );
