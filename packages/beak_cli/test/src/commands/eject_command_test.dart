@@ -1,24 +1,24 @@
 import 'dart:io';
 
-import 'package:analyzer/dart/analysis/utilities.dart';
-import 'package:analyzer/dart/ast/ast.dart';
 import 'package:args/command_runner.dart';
-import '../../support/beak_cli_internals.dart';
+import 'package:beak_cli/src/analyzer_syntax.dart';
 import 'package:test/test.dart';
+
+import '../../support/beak_cli_internals.dart';
 
 /// The named parameters `BeakServerDefaults.build` declares today, read from
 /// the backend's source so the ejected template cannot describe an API that
 /// has moved on.
 Set<String> buildParametersInBackend() {
-  final unit = parseString(
-    content: File(
+  final unit = parseDart(
+    File(
       '../beak_backend/lib/src/server/beak_serve_host.dart',
     ).readAsStringSync(),
-  ).unit;
-  final defaults = unit.declarations.whereType<ClassDeclaration>().firstWhere(
-    (declaration) => declaration.name.lexeme == 'BeakServerDefaults',
   );
-  final build = defaults.members.whereType<MethodDeclaration>().firstWhere(
+  final defaults = unit.declarations.whereType<ClassDeclaration>().firstWhere(
+    (declaration) => declaration.className == 'BeakServerDefaults',
+  );
+  final build = defaults.classMembers.whereType<MethodDeclaration>().firstWhere(
     (method) => method.name.lexeme == 'build',
   );
   return {

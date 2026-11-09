@@ -1,8 +1,6 @@
 import 'dart:io';
 
-import 'package:analyzer/dart/analysis/utilities.dart';
-import 'package:analyzer/dart/ast/ast.dart';
-import 'package:analyzer/dart/ast/visitor.dart';
+import '../analyzer_syntax.dart';
 
 /// One declaration Beak found in a project, and where it lives.
 ///
@@ -435,7 +433,7 @@ final class BeakProjectScanner {
         if (declaration is! ClassDeclaration) {
           continue;
         }
-        for (final member in declaration.members) {
+        for (final member in declaration.classMembers) {
           if (member is MethodDeclaration &&
               member.isGetter &&
               _commandModelGetters.contains(member.name.lexeme)) {
@@ -490,7 +488,7 @@ final class BeakProjectScanner {
           if (extended == null || !directBases.contains(extended)) {
             continue;
           }
-          final String name = declaration.name.lexeme;
+          final String name = declaration.className;
           if (!visited.add('$path#$name')) {
             continue;
           }
@@ -571,7 +569,7 @@ final class BeakProjectScanner {
         }
         _collectCreatedTables(declaration, tables);
         if (tables.isNotEmpty) {
-          created[declaration.name.lexeme] = tables;
+          created[declaration.className] = tables;
         }
       }
     }
@@ -585,7 +583,7 @@ final class BeakProjectScanner {
       for (final declaration in _parse(file).declarations) {
         if (declaration is ClassDeclaration &&
             _callsMethod(declaration, 'defineForeignKeys')) {
-          declaring.add(declaration.name.lexeme);
+          declaring.add(declaration.className);
         }
       }
     }
@@ -675,7 +673,7 @@ final class BeakProjectScanner {
     Set<String> into,
     Map<String, String> tableOfModel,
   ) {
-    for (final member in declaration.members) {
+    for (final member in declaration.classMembers) {
       if (member is! MethodDeclaration || !member.isGetter) {
         continue;
       }
@@ -719,7 +717,7 @@ final class BeakProjectScanner {
     ClassDeclaration declaration,
     String getter,
   ) {
-    for (final member in declaration.members) {
+    for (final member in declaration.classMembers) {
       if (member is! MethodDeclaration || !member.isGetter) {
         continue;
       }
@@ -861,7 +859,7 @@ final class BeakProjectScanner {
           }
           final String? extended =
               declaration.extendsClause?.superclass.name.lexeme;
-          final String name = declaration.name.lexeme;
+          final String name = declaration.className;
           if (extended == null ||
               !bases.contains(extended) ||
               !visited.add('$path#$name')) {
@@ -878,7 +876,7 @@ final class BeakProjectScanner {
           // class declares no constructor at all and so gets the implicit
           // one; declaring only named constructors removes it.
           final bool buildable = constructor == null
-              ? !declaration.members.any(
+              ? !declaration.classMembers.any(
                   (member) => member is ConstructorDeclaration,
                 )
               : !constructor.parameters.parameters.any(
@@ -931,7 +929,7 @@ final class BeakProjectScanner {
   static ConstructorDeclaration? _unnamedConstructorOf(
     ClassDeclaration declaration,
   ) {
-    for (final member in declaration.members) {
+    for (final member in declaration.classMembers) {
       if (member is ConstructorDeclaration && member.name == null) {
         return member;
       }
@@ -947,16 +945,14 @@ final class BeakProjectScanner {
         continue;
       }
       for (final argument in initializer.argumentList.arguments) {
-        if (argument is NamedExpression &&
-            argument.name.label.name == 'model') {
-          return _constructedClassOf(argument.expression);
+        if (argument.argumentName == 'model') {
+          return _constructedClassOf(argument.argumentExpression);
         }
       }
     }
     for (final parameter in constructor.parameters.parameters) {
-      if (parameter is DefaultFormalParameter &&
-          parameter.parameter is SuperFormalParameter &&
-          parameter.name?.lexeme == 'model') {
+      if (parameter is SuperFormalParameter &&
+          parameter.name.lexeme == 'model') {
         if (parameter.defaultValue case final Expression value) {
           return _constructedClassOf(value);
         }
@@ -1051,7 +1047,7 @@ final class BeakProjectScanner {
   /// Whether [declaration] has a zero-argument `const` unnamed constructor,
   /// or no constructor at all (Dart's implicit one, which is not const).
   bool _hasConstDefaultConstructor(ClassDeclaration declaration) {
-    for (final member in declaration.members) {
+    for (final member in declaration.classMembers) {
       if (member is! ConstructorDeclaration || member.name != null) {
         continue;
       }
@@ -1066,10 +1062,7 @@ final class BeakProjectScanner {
   String? _typeName(TypeAnnotation? type) =>
       type is NamedType ? type.name.lexeme : null;
 
-  CompilationUnit _parse(File file) => parseString(
-    content: file.readAsStringSync(),
-    throwIfDiagnostics: false,
-  ).unit;
+  CompilationUnit _parse(File file) => parseDart(file.readAsStringSync());
 
   /// The import path declarations in [file] should be attributed to.
   ///

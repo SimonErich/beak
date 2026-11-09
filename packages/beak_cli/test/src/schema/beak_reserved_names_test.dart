@@ -1,7 +1,6 @@
 import 'dart:io';
 
-import 'package:analyzer/dart/analysis/utilities.dart';
-import 'package:analyzer/dart/ast/ast.dart';
+import 'package:beak_cli/src/analyzer_syntax.dart';
 import 'package:test/test.dart';
 
 import '../../support/beak_cli_internals.dart';
@@ -11,21 +10,18 @@ import 'beak_schema_test.dart' show categorySchema, readSchemas, schemaNamed;
 /// `beak_core`, read from source so a new member cannot go unnoticed.
 Set<String> publicMembersOf(String relativePath, String className) {
   final file = File('../beak_core/lib/src/$relativePath');
-  final unit = parseString(
-    content: file.readAsStringSync(),
-    throwIfDiagnostics: false,
-  ).unit;
+  final unit = parseDart(file.readAsStringSync());
   final declaration = unit.declarations
       .whereType<ClassDeclaration>()
-      .singleWhere((candidate) => candidate.name.lexeme == className);
+      .singleWhere((candidate) => candidate.className == className);
   return {
-    for (final member in declaration.members)
+    for (final member in declaration.classMembers)
       if (member is MethodDeclaration &&
           !member.isStatic &&
           !member.isOperator &&
           !member.name.lexeme.startsWith('_'))
         member.name.lexeme,
-    for (final member in declaration.members)
+    for (final member in declaration.classMembers)
       if (member is FieldDeclaration && !member.isStatic)
         for (final variable in member.fields.variables)
           if (!variable.name.lexeme.startsWith('_')) variable.name.lexeme,

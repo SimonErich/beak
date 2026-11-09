@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:beak_serverpod_generator/beak_serverpod_generator.dart';
 import 'package:path/path.dart' as p;
+import 'package:pub_semver/pub_semver.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -119,6 +120,24 @@ void main() {
     );
     expect(output, isNot(contains('src/thing.dart')));
   });
+
+  test('formats for Dart 3.13 unless a language version is given', () async {
+    Future<String> generate({Version? languageVersion}) =>
+        generateServerpodCompanions(
+          packageRoot: Directory.current.path,
+          library: Uri.file(p.absolute('test/fixtures/models.dart')).toString(),
+          types: ['View'],
+          languageVersion: languageVersion,
+        );
+
+    final defaults = await generate();
+    final older = await generate(languageVersion: Version(3, 11, 0));
+
+    expect(defaultGeneratedLanguageVersion, Version(3, 13, 0));
+    expect(defaults, contains("beak_serverpod.dart';\n\nimport"));
+    expect(older, contains("beak_serverpod.dart';\nimport"));
+    expect(older, isNot(defaults));
+  }, timeout: const Timeout(Duration(minutes: 2)));
 
   test('the header names the tool without a dash and silences the lint the '
       'collision names trip', () async {

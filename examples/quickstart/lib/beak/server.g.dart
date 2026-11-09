@@ -3,6 +3,7 @@
 library;
 
 import 'package:beak/server.dart';
+
 import '../migrations/create_notes_table.dart';
 import 'registry.g.dart';
 

@@ -3,6 +3,7 @@
 library;
 
 import 'package:beak/beak.dart';
+
 import '../resources/notes/models/note.dart';
 
 /// Every model discovered under `lib/`, in path order.

@@ -67,7 +67,7 @@ dependencies:
 | Package | Dart | Serverpod constraint | Other floors |
 | --- | --- | --- | --- |
 | `beak_serverpod` | `^3.11.0` | None. It is pure Dart and imports no Serverpod package | `http ^1.6.0`, `uuid ^4.5.3` |
-| `beak_serverpod_generator` | `^3.11.0` | None. It reads your client's Dart types | `analyzer ^10.0.1`, `dart_style ^3.1.0` |
+| `beak_serverpod_generator` | `^3.11.0` | None. It reads your client's Dart types | `analyzer >=13.1.0 <15.0.0`, `dart_style ^3.1.14` |
 | `beak_serverpod_flutter` | `^3.11.0` | `serverpod_auth_core_flutter`, `serverpod_auth_idp_client`, `serverpod_client`: `>=4.0.3 <5.0.0` | Flutter `>=3.41.0`, `signals ^6.3.0` |
 | `beak_serverpod_server` | `^3.12.2` | `serverpod: '>=4.0.3 <5.0.0'` | `worm`, `worm_postgres`, `beak_backend` from the same Beak ref |
 | Example server | `^3.12.2` | `serverpod`, `serverpod_auth_idp_server`, `serverpod_cloud_storage`: `4.0.4`. Dev: `serverpod_test: 4.0.4` | |
