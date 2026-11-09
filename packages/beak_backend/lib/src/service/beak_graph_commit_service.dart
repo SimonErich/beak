@@ -5,7 +5,6 @@ import 'package:beak_core/beak_core.dart';
 import 'package:crypto/crypto.dart';
 import 'package:worm/worm.dart';
 
-import '../auth/beak_auth_guard.dart';
 import '../auth/beak_action_policy.dart';
 import '../auth/beak_policy.dart';
 import '../auth/beak_field_policy.dart';

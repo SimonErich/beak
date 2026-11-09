@@ -1,7 +1,6 @@
 import 'package:beak_core/beak_core.dart';
 
 import 'beak_action_policy.dart';
-import 'beak_auth_guard.dart';
 import 'beak_policy.dart';
 
 /// Adds principal-scoped field access to resource and row policies.

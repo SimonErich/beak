@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import 'beak_auth_guard.dart';
+import 'package:beak_core/beak_core.dart';
 
 /// Server-side storage for opaque session tokens — swappable so a
 /// database-backed implementation can replace the in-memory default.

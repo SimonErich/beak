@@ -9,7 +9,6 @@
 library;
 
 export 'src/auth/auth_router.dart';
-export 'src/auth/beak_access.dart';
 export 'src/auth/beak_auth_guard.dart';
 export 'src/auth/beak_policies.dart';
 export 'src/auth/beak_policy.dart' hide beakRowScope;
@@ -39,6 +38,10 @@ export 'src/service/beak_commit_receipts_migration.dart';
 export 'src/service/beak_framework_tables.dart';
 export 'src/service/beak_outbox.dart';
 export 'src/service/beak_revision_timestamp.dart' show beakRevisionTimestamp;
+
+// Who a request is and who may do what live in beak_core, where the panel
+// shares them. They stay importable from here, so a server needs one import.
+export 'package:beak_core/beak_core.dart' show BeakAccess, BeakPrincipal;
 
 // The Shelf types a `lib/server.dart` names when it adds middleware or routes,
 // so a project depending on `beak` alone never has to import `shelf` itself.

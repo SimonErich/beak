@@ -1,6 +1,5 @@
 import 'package:beak_core/beak_core.dart';
 
-import 'beak_auth_guard.dart';
 import 'beak_field_policy.dart';
 import 'beak_policy.dart';
 
