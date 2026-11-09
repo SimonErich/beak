@@ -109,6 +109,21 @@ abstract base class BeakModel {
   /// instead of physical row removal. Defaults to `false`.
   bool get softDeletes => false;
 
+  /// Creation timestamp key, stamped when the model declares this column.
+  String get createdAtColumnKey => 'created_at';
+
+  /// Revision timestamp key, stamped and compared on conditional writes.
+  String get updatedAtColumnKey => 'updated_at';
+
+  /// Nullable timestamp set on soft delete and cleared on restore.
+  String get deletedAtColumnKey => 'deleted_at';
+
+  /// Optional boolean soft-delete flag used instead of timestamp visibility.
+  ///
+  /// When present, false means live and true means deleted. Both the flag and
+  /// [deletedAtColumnKey] are updated together by delete and restore.
+  String? get isDeletedColumnKey => null;
+
   /// The pool of enum values this model's forms take a field slot from, or
   /// `null` for Beak's default pool.
   ///
@@ -384,8 +399,12 @@ abstract base class BeakModel {
 BeakValue beakValueForColumn(BeakColumn? column, Object? raw) {
   if (column is BeakJsonColumn &&
       !column.semantic.hasCodec &&
-      raw is BeakJson) {
-    return BeakStringValue(raw.encode());
+      (raw is BeakJson ||
+          raw is Map<Object?, Object?> ||
+          raw is List<Object?>)) {
+    return BeakStringValue(
+      (raw is BeakJson ? raw : BeakJson.fromEncodable(raw)).encode(),
+    );
   }
   if (column != null && column.semantic.hasCodec) {
     // Typed callers and drivers meet at the same canonical primitive shape.

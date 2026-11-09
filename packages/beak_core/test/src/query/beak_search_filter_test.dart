@@ -54,6 +54,34 @@ void main() {
       ]),
     );
   });
+  test('UUID identifiers use canonical equality without text patterns', () {
+    const uuid = '12345678-abcd-4000-8000-123456789abc';
+    for (final path in ['uuid', 'parent.uuid']) {
+      expect(
+        search(uuid.toUpperCase(), [path]),
+        BeakOrFilter([
+          BeakFieldFilter.forKey(
+            path,
+            BeakOperator.eq,
+            const BeakStringValue(uuid),
+          ),
+        ]),
+      );
+    }
+  });
+  test('non-UUID terms skip identifier fields but retain text search', () {
+    for (final term in ['Tea', '12345678', '%_', 'not-a-uuid']) {
+      expect(search(term, ['uuid', 'name']), search(term, ['name']));
+      expect(
+        search(term, ['uuid']),
+        const BeakFieldFilter.forKey(
+          'id',
+          BeakOperator.inList,
+          BeakListValue([]),
+        ),
+      );
+    }
+  });
   test('semantic searches normalize exact amounts and calendar values', () {
     for (final (key, term, value) in <(String, String, BeakValue)>[
       ('amount', '12.345', const BeakIntValue(12345)),
@@ -126,6 +154,7 @@ final class _SearchModel extends BeakModel {
   @override
   List<BeakColumn> get columns => const [
     BeakIntColumn(key: 'id', label: 'ID'),
+    BeakStringColumn(key: 'uuid', label: 'UUID', semantic: BeakSemantic.uuid()),
     BeakIntColumn(
       key: 'amount',
       label: 'Amount',

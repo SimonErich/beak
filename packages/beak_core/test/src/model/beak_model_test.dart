@@ -85,6 +85,24 @@ final class _CustomKeyModel extends BeakModel {
 }
 
 void main() {
+  test('JSON driver objects and arrays use the canonical document text', () {
+    const column = BeakJsonColumn(key: 'data', label: 'Data');
+    final object = beakValueForColumn(column, {
+      'name': 'nested',
+      'items': [
+        {'id': 2},
+      ],
+    });
+    expect(
+      column.readDocument(object),
+      BeakJson.decode('{"name":"nested","items":[{"id":2}]}'),
+    );
+    final list = beakValueForColumn(column, [
+      {'id': 2},
+    ]);
+    expect(column.readDocument(list), BeakJson.decode('[{"id":2}]'));
+  });
+
   const model = _ProductModel();
 
   test('exposes its declared metadata', () {

@@ -80,6 +80,19 @@ BeakModelBehavior _behavior() => BeakModelBehavior(
 
 void main() {
   test(
+    'creation bypasses record edit locks but retains server-owned fields',
+    () {
+      final behavior = _behavior();
+      final locked = BeakRecord.fromRow({'state': 'issued'});
+      expect(behavior.canEdit('quantity', locked), isFalse);
+      expect(behavior.canEdit('quantity', locked, isCreate: true), isTrue);
+      for (final key in ['total', 'snapshot', 'state']) {
+        expect(behavior.canEdit(key, locked, isCreate: true), isFalse);
+      }
+    },
+  );
+
+  test(
     'dependency order, initial defaults, suggestions, and read-only derivation',
     () {
       final behavior = _behavior();

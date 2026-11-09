@@ -213,13 +213,7 @@ final class BeakValidation {
         value is String && RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(value)
             ? null
             : 'Use lowercase letters, numbers and single hyphens.',
-      BeakSemanticKind.uuid =>
-        value is String &&
-                RegExp(
-                  r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
-                ).hasMatch(value)
-            ? null
-            : 'Must be a UUID.',
+      BeakSemanticKind.uuid => beakIsUuid(value) ? null : 'Must be a UUID.',
       BeakSemanticKind.fileSize =>
         value is int && value >= 0
             ? null

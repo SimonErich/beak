@@ -231,8 +231,9 @@ final class BeakModelBehavior {
   );
 
   /// Whether an ordinary editor may author this field.
-  bool canEdit(String key, BeakRecord record) =>
-      (editableWhen?.call(record) ?? true) &&
+  /// Record edit locks apply after creation; server-owned fields stay locked.
+  bool canEdit(String key, BeakRecord record, {bool isCreate = false}) =>
+      (isCreate || (editableWhen?.call(record) ?? true)) &&
       !values.any(
         (value) =>
             value.field.key == key &&
