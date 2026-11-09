@@ -31,6 +31,50 @@ sealed class BeakException implements Exception {
   /// Creates an exception carrying a stable [code] and a [message].
   const BeakException({required this.code, required this.message});
 
+  /// The Beak exception for a failure of [category] described by [message].
+  ///
+  /// The mapping seam for a host whose own exceptions carry a category: map
+  /// each of them to a [BeakErrorCategory] and let Beak pick the type, so the
+  /// host never names a Beak exception subclass. [field] attaches a
+  /// validation failure to one column key and is ignored for every other
+  /// category. The [message] is shown to the caller, so keep it free of
+  /// internals.
+  ///
+  /// ```dart
+  /// BeakException? mapException(Object error, StackTrace stack) =>
+  ///     switch (error) {
+  ///       ShopException(:final kind, :final message) =>
+  ///         BeakException.forCategory(
+  ///           switch (kind) {
+  ///             ShopFailure.invalid => BeakErrorCategory.validation,
+  ///             ShopFailure.missing => BeakErrorCategory.notFound,
+  ///             ShopFailure.clash => BeakErrorCategory.conflict,
+  ///           },
+  ///           message,
+  ///         ),
+  ///       _ => null,
+  ///     };
+  /// ```
+  factory BeakException.forCategory(
+    BeakErrorCategory category,
+    String message, {
+    String? field,
+  }) => switch (category) {
+    BeakErrorCategory.validation => BeakValidationException(
+      message,
+      fieldErrors: field == null
+          ? const {}
+          : {
+              field: [message],
+            },
+    ),
+    BeakErrorCategory.notFound => BeakNotFoundException(message),
+    BeakErrorCategory.unauthenticated => BeakAuthenticationException(message),
+    BeakErrorCategory.forbidden => BeakAuthorizationException(message),
+    BeakErrorCategory.conflict => BeakConflictException(message),
+    BeakErrorCategory.unexpected => BeakInternalException(message),
+  };
+
   /// Stable machine-readable identifier of the failure category.
   final String code;
 
@@ -41,6 +85,33 @@ sealed class BeakException implements Exception {
   String toString() => '$runtimeType($code): $message';
 }
 // --8<-- [end:BeakException]
+
+/// The kinds of failure a host reports when it maps its own exceptions to
+/// Beak's, through [BeakException.forCategory].
+///
+/// A deliberately small set: what a caller can act on, plus [unexpected] for
+/// everything else.
+enum BeakErrorCategory {
+  /// The input is invalid; becomes a [BeakValidationException].
+  validation,
+
+  /// The record or resource does not exist; becomes a
+  /// [BeakNotFoundException].
+  notFound,
+
+  /// There is no valid identity; becomes a [BeakAuthenticationException].
+  unauthenticated,
+
+  /// The identity may not do this; becomes a [BeakAuthorizationException].
+  forbidden,
+
+  /// The request conflicts with existing state; becomes a
+  /// [BeakConflictException].
+  conflict,
+
+  /// The failure is the server's own; becomes a [BeakInternalException].
+  unexpected,
+}
 
 // --8<-- [start:BeakValidationException]
 /// Raised when user-supplied data violates one or more column rules.

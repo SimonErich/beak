@@ -464,6 +464,54 @@ void main() {
     fields['price'] = const BeakIntValue(9);
     expect(plan.arguments['price']?.raw, 5);
   });
+
+  group('builtInRows', () {
+    const builtIn = BeakBoolColumn(key: 'is_system', label: 'System');
+
+    BeakRecord row(Object? flag) =>
+        BeakRecord.fromRow({'id': 'r', 'is_system': flag});
+
+    test('refuses to delete a built-in row and allows any other', () {
+      final behavior = BeakModelBehavior.builtInRows(builtIn);
+      expect(behavior.deletableWhen?.call(row(true)), isFalse);
+      expect(behavior.deletableWhen?.call(row(false)), isTrue);
+      expect(behavior.deletableWhen?.call(row(null)), isTrue);
+    });
+
+    test('leaves edits open unless lockEdits is set', () {
+      expect(BeakModelBehavior.builtInRows(builtIn).editableWhen, isNull);
+      final locked = BeakModelBehavior.builtInRows(builtIn, lockEdits: true);
+      expect(locked.editableWhen?.call(row(true)), isFalse);
+      expect(locked.editableWhen?.call(row(false)), isTrue);
+    });
+
+    test('reads the flag the way a SQLite-backed row holds it', () {
+      final behavior = BeakModelBehavior.builtInRows(builtIn);
+      expect(behavior.deletableWhen?.call(row(1)), isFalse);
+      expect(behavior.deletableWhen?.call(row(0)), isTrue);
+    });
+
+    test('is a real behavior: it needs graph preparation and validates', () {
+      final behavior = BeakModelBehavior.builtInRows(builtIn, lockEdits: true);
+      expect(behavior.isEmpty, isFalse);
+      behavior.validate(const _Model());
+    });
+
+    test('a column that is not boolean is a configuration error', () {
+      expect(
+        () => BeakModelBehavior.builtInRows(
+          const BeakStringColumn(key: 'kind', label: 'Kind'),
+        ),
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (error) => error.message,
+            'message',
+            contains('kind'),
+          ),
+        ),
+      );
+    });
+  });
 }
 
 final class _Other extends BeakModel {

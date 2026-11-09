@@ -94,4 +94,84 @@ void main() {
     expect(exception.toString(), contains('(validation)'));
     expect(exception.toString(), contains('Validation failed.'));
   });
+
+  group('forCategory', () {
+    test('maps each category to its exception type', () {
+      expect(
+        BeakException.forCategory(BeakErrorCategory.validation, 'Bad.'),
+        isA<BeakValidationException>(),
+      );
+      expect(
+        BeakException.forCategory(BeakErrorCategory.notFound, 'Gone.'),
+        isA<BeakNotFoundException>(),
+      );
+      expect(
+        BeakException.forCategory(BeakErrorCategory.unauthenticated, 'Who?'),
+        isA<BeakAuthenticationException>(),
+      );
+      expect(
+        BeakException.forCategory(BeakErrorCategory.forbidden, 'No.'),
+        isA<BeakAuthorizationException>(),
+      );
+      expect(
+        BeakException.forCategory(BeakErrorCategory.conflict, 'Taken.'),
+        isA<BeakConflictException>(),
+      );
+      expect(
+        BeakException.forCategory(BeakErrorCategory.unexpected, 'Oops.'),
+        isA<BeakInternalException>(),
+      );
+    });
+
+    test('covers every category and keeps the stable codes', () {
+      for (final category in BeakErrorCategory.values) {
+        final exception = BeakException.forCategory(category, 'Message.');
+        expect(exception.message, 'Message.');
+        expect(exception.code, expectedCodeOf(exception));
+      }
+    });
+
+    test('a validation failure attaches the message to the given field', () {
+      final exception = BeakException.forCategory(
+        BeakErrorCategory.validation,
+        'Already taken.',
+        field: 'sku',
+      );
+      expect(
+        exception,
+        isA<BeakValidationException>().having(
+          (error) => error.fieldErrors,
+          'fieldErrors',
+          {
+            'sku': ['Already taken.'],
+          },
+        ),
+      );
+    });
+
+    test('a validation failure without a field has no field errors', () {
+      final exception = BeakException.forCategory(
+        BeakErrorCategory.validation,
+        'Bad.',
+      );
+      expect(
+        exception,
+        isA<BeakValidationException>().having(
+          (error) => error.fieldErrors,
+          'fieldErrors',
+          isEmpty,
+        ),
+      );
+    });
+
+    test('a field on any other category is ignored', () {
+      final exception = BeakException.forCategory(
+        BeakErrorCategory.conflict,
+        'Taken.',
+        field: 'sku',
+      );
+      expect(exception, isA<BeakConflictException>());
+      expect(exception.message, 'Taken.');
+    });
+  });
 }

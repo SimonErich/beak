@@ -18,6 +18,7 @@ import '../query/beak_summary_spec.dart';
 import '../query/beak_value.dart';
 import '../query/beak_table_ref.dart';
 import '../relations/beak_relationship.dart';
+import 'beak_admission.dart';
 import 'beak_field_ref.dart';
 import 'beak_field_value.dart';
 import 'beak_permissions.dart';
@@ -70,8 +71,18 @@ abstract base class BeakModel {
   /// Shared value lifecycles, workflow guards and named commands.
   BeakModelBehavior get behavior => const BeakModelBehavior();
 
-  /// Live presentation policy shared by every resource using this model.
+  /// Who may read, write and run commands on this model, as data.
+  ///
+  /// The panel and the server check this same constant against the principal
+  /// each one knows. Defaults to [BeakPermissions.allowAll], which leaves a
+  /// handwritten model unrestricted; a generated model names its roles.
   BeakPermissions get permissions => const BeakPermissions.allowAll();
+
+  /// The constant facts a generator reviewed about this model, or `null` for
+  /// a model that was not generated: the columns a client may write, the
+  /// columns that never leave the server, the restore key and the write
+  /// binding.
+  BeakAdmission? get admission => null;
 
   /// Operations actually supported by this model's transport.
   ///

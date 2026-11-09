@@ -1,3 +1,4 @@
+import '../columns/beak_column.dart';
 import '../common/beak_exception.dart';
 import '../model/beak_field_ref.dart';
 import '../model/beak_model.dart';
@@ -177,6 +178,41 @@ final class BeakModelBehavior {
     this.editableWhen,
     this.deletableWhen,
   });
+
+  /// Protects the rows a system ships with, such as built-in roles or
+  /// dictionaries.
+  ///
+  /// A row whose [isBuiltIn] flag is `true` cannot be deleted. With
+  /// [lockEdits] it cannot be edited either; without it only the delete is
+  /// refused. Rows without the flag, or with it `false`, stay ordinary.
+  ///
+  /// [isBuiltIn] must be a boolean column, and a server-owned one: leave it
+  /// out of the model's writable columns so a client cannot flip it.
+  ///
+  /// ```dart
+  /// @override
+  /// BeakModelBehavior get behavior =>
+  ///     BeakModelBehavior.builtInRows(RoleColumns.isSystem, lockEdits: true);
+  /// ```
+  ///
+  /// Throws a [BeakConfigurationException] when [isBuiltIn] is not a boolean
+  /// column.
+  factory BeakModelBehavior.builtInRows(
+    BeakColumn isBuiltIn, {
+    bool lockEdits = false,
+  }) {
+    if (isBuiltIn is! BeakBoolColumn) {
+      throw BeakConfigurationException(
+        'builtInRows needs a boolean column, and "${isBuiltIn.key}" is '
+        '${isBuiltIn.valueType}.',
+      );
+    }
+    bool builtIn(BeakRecord record) => isBuiltIn.readFrom(record) == true;
+    return BeakModelBehavior(
+      editableWhen: lockEdits ? (record) => !builtIn(record) : null,
+      deletableWhen: (record) => !builtIn(record),
+    );
+  }
 
   /// Default, suggested, calculated and historical fields.
   final List<BeakValueBehavior<Object>> values;
