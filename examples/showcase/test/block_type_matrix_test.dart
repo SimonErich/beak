@@ -60,6 +60,7 @@ enum _BlockKind {
   tileMap,
   timeline,
   video,
+  visibility,
   widget,
 }
 // --8<-- [end:BlockKind]
@@ -128,6 +129,7 @@ enum _BlockKind {
   BeakTileMapBlock() => (_BlockKind.tileMap, const []),
   BeakTimelineBlock() => (_BlockKind.timeline, const []),
   BeakVideoBlock() => (_BlockKind.video, const []),
+  BeakVisibilityBlock(:final child) => (_BlockKind.visibility, [child]),
   BeakWidgetBlock() => (_BlockKind.widget, const []),
 };
 // --8<-- [end:describe]

@@ -37,6 +37,116 @@ void main() {
     await Worm.reset();
   });
 
+  const themePreview = BeakScreen(
+    path: '/theme-preview',
+    title: 'Theme preview',
+    icon: BeakIconToken(OiIcons.sun),
+    body: BeakTextBlock('Theme preview'),
+    showInNav: false,
+  );
+  const nextPreview = BeakScreen(
+    path: '/next-preview',
+    title: 'Next preview',
+    icon: BeakIconToken(OiIcons.sun),
+    body: BeakTextBlock('Next preview'),
+    showInNav: false,
+  );
+
+  for (final (layout, sizeInPixels) in const [
+    ('desktop', Size(1440, 900)),
+    ('phone', Size(390, 844)),
+    ('landscape', Size(844, 390)),
+  ]) {
+    testWidgets('theme menu works beside help on $layout', (tester) async {
+      await tester.binding.setSurfaceSize(sizeInPixels);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      final baseConfig = foodioPanel();
+      final config = baseConfig.copyWith(
+        initialThemeMode: OiThemeMode.light,
+        home: themePreview,
+        pages: [...baseConfig.pages, themePreview, nextPreview],
+      );
+      await tester.pumpWidget(BeakPanel(config: config, dataSource: source));
+      await tester.pumpAndSettle();
+      final router = GoRouter.of(tester.element(find.byType(OiAppShell)));
+      // A short landscape body stays minimal so table sizing cannot mask
+      // whether the shared top bar and its theme menu work.
+      final initialPath = layout == 'landscape'
+          ? themePreview.path
+          : BeakRoutes.list(const AppSettingModel().table);
+      final nextPath = layout == 'landscape'
+          ? nextPreview.path
+          : BeakRoutes.list(const CustomerModel().table);
+      router.go(initialPath);
+      await tester.pumpAndSettle();
+
+      final themeButton = find.descendant(
+        of: find.byType(OiThemeToggle),
+        matching: find.byType(OiIconButton),
+      );
+      final helpButton = find.byWidgetPredicate(
+        (widget) =>
+            widget is OiButton &&
+            widget.semanticLabel == 'Order workspace help',
+      );
+      expect(themeButton, findsOneWidget);
+      final helpRect = tester.getRect(helpButton);
+      final themeRect = tester.getRect(themeButton);
+      expect(themeRect.center.dy, closeTo(helpRect.center.dy, 1));
+      expect(themeRect.left, greaterThanOrEqualTo(helpRect.right));
+      expect(themeRect.left - helpRect.right, lessThan(themeRect.width));
+      expect(themeRect.right, lessThanOrEqualTo(sizeInPixels.width));
+
+      for (final (mode, label) in const [
+        (OiThemeMode.dark, 'Dark mode'),
+        (OiThemeMode.light, 'Light mode'),
+        (OiThemeMode.system, 'System mode'),
+      ]) {
+        final pathBefore = router.routeInformationProvider.value.uri.path;
+        await tester.tap(themeButton);
+        await tester.pumpAndSettle();
+        expect(find.text('Light mode'), findsOneWidget);
+        expect(find.text('Dark mode'), findsOneWidget);
+        expect(find.text('System mode'), findsOneWidget);
+        await tester.tap(find.text(label));
+        await tester.pumpAndSettle();
+
+        expect(tester.widget<OiApp>(find.byType(OiApp)).themeMode, mode);
+        expect(
+          OiTheme.of(tester.element(find.byType(OiAppShell))).brightness,
+          mode == OiThemeMode.dark ? Brightness.dark : Brightness.light,
+        );
+        expect(router.routeInformationProvider.value.uri.path, pathBefore);
+        expect(find.text('Light mode'), findsNothing);
+        expect(find.text('Dark mode'), findsNothing);
+        expect(find.text('System mode'), findsNothing);
+        expect(tester.takeException(), isNull);
+
+        final destination = pathBefore == initialPath ? nextPath : initialPath;
+        router.go(destination);
+        await tester.pumpAndSettle();
+        expect(router.routeInformationProvider.value.uri.path, destination);
+        expect(tester.widget<OiApp>(find.byType(OiApp)).themeMode, mode);
+        expect(find.byType(OiThemeToggle), findsOneWidget);
+      }
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<OiApp>(find.byType(OiApp)).themeMode,
+        OiThemeMode.system,
+      );
+      expect(
+        OiTheme.of(tester.element(find.byType(OiAppShell))).brightness,
+        Brightness.dark,
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    });
+  }
+
   testWidgets('the complete panel boots and all configured routes render', (
     tester,
   ) async {
@@ -46,6 +156,7 @@ void main() {
     await tester.pumpWidget(BeakPanel(config: config, dataSource: source));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull, reason: 'Full panel bootstrap');
+    expect(find.byType(OiThemeToggle), findsOneWidget);
     final router = GoRouter.of(tester.element(find.byType(OiAppShell)));
     Future<void> route(String path) async {
       router.go(path);

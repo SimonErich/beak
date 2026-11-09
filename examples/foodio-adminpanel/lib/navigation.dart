@@ -133,25 +133,35 @@ Widget _accountMenu(BuildContext context) => OiUserMenu(
 );
 
 /// Help uses the shared dialog; notifications and account links use panel data.
-List<Widget> foodioShellActions(BuildContext context) => [
-  OiButton.icon(
-    icon: OiIcons.circleHelp,
-    label: 'Order workspace help',
-    onTap: () => showOiDialog<void>(
-      context,
-      semanticLabel: 'Order workspace help',
-      builder: (context, close) => OiDialog.alert(
-        label: 'Order workspace help',
-        title: 'Working with orders',
-        content: const OiLabel.body(
-          'Search across orders, customers and invoices with Ctrl-K or Cmd-K. '
-          'Use presets to choose a workspace, then preview filters before applying them. '
-          'Open an order to review its delivery, payment and activity history. '
-          'Changes are validated and saved together; uncertain saves can be checked without repeating the command.',
+List<Widget> foodioShellActions(BuildContext context) {
+  final themeController = beakDependencies(context)<BeakThemeController>();
+  return [
+    OiButton.icon(
+      icon: OiIcons.circleHelp,
+      label: 'Order workspace help',
+      onTap: () => showOiDialog<void>(
+        context,
+        semanticLabel: 'Order workspace help',
+        builder: (context, close) => OiDialog.alert(
+          label: 'Order workspace help',
+          title: 'Working with orders',
+          content: const OiLabel.body(
+            'Search across orders, customers and invoices with Ctrl-K or Cmd-K. '
+            'Use presets to choose a workspace, then preview filters before applying them. '
+            'Open an order to review its delivery, payment and activity history. '
+            'Changes are validated and saved together; uncertain saves can be checked without repeating the command.',
+          ),
+          onClose: close,
+          actions: [OiButton.primary(label: 'Got it', onTap: close)],
         ),
-        onClose: close,
-        actions: [OiButton.primary(label: 'Got it', onTap: close)],
       ),
     ),
-  ),
-];
+    ValueListenableBuilder<OiThemeMode>(
+      valueListenable: themeController,
+      builder: (context, mode, _) => OiThemeToggle(
+        currentMode: mode,
+        onModeChange: (next) => themeController.value = next,
+      ),
+    ),
+  ];
+}
