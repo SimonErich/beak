@@ -172,12 +172,7 @@ final class PostgresAdapter extends DatabaseAdapter with ExplainCapable {
       (session) => runSelect(session, compiled.sql, compiled.parameters),
       query: compiled.sql,
     );
-    final result = <Object?, num>{};
-    for (final row in rows) {
-      final value = row['value'];
-      if (value is num) result[row['group']] = value;
-    }
-    return result;
+    return parseGroupedAggregateRows(rows, descriptor);
   }
 
   @override
@@ -394,15 +389,53 @@ int parseAggregateCount(Map<String, Object?> row, AggregateDescriptor d) =>
 /// nullable [num]. `null` survives as `null` (an empty aggregate over
 /// no rows). Throws a [QueryException] for any non-numeric shape.
 num? parseAggregateSum(Map<String, Object?> row, AggregateDescriptor d) =>
-    switch (row['sum']) {
-      null => null,
-      final num v => v,
-      final String v => num.parse(v),
-      _ => throw QueryException(
-        query: 'SELECT SUM("${d.column}") FROM "${d.table}"',
-        message: 'sum() returned a non-numeric value',
-      ),
-    };
+    _parseNullableAggregateNumber(
+      row['sum'],
+      query: 'SELECT SUM("${d.column}") FROM "${d.table}"',
+      operation: 'sum()',
+    );
+
+/// Reads grouped `count` or `sum` rows from PostgreSQL.
+///
+/// `SUM(bigint)` uses PostgreSQL `numeric`, which can arrive as a string.
+/// Empty aggregates are omitted; malformed results fail instead of silently
+/// dropping a group.
+Map<Object?, num> parseGroupedAggregateRows(
+  List<Map<String, Object?>> rows,
+  AggregateDescriptor descriptor,
+) {
+  final query = const PostgresCompiler()
+      .compileGroupedAggregate(descriptor)
+      .sql;
+  final result = <Object?, num>{};
+  for (final row in rows) {
+    final value = _parseNullableAggregateNumber(
+      row['value'],
+      query: query,
+      operation: 'aggregateGrouped()',
+    );
+    if (value != null) result[row['group']] = value;
+  }
+  return result;
+}
+
+num? _parseNullableAggregateNumber(
+  Object? value, {
+  required String query,
+  required String operation,
+}) {
+  if (value == null) return null;
+  final parsed = switch (value) {
+    final num v => v,
+    final String v => num.tryParse(v),
+    _ => null,
+  };
+  if (parsed != null) return parsed;
+  throw QueryException(
+    query: query,
+    message: '$operation returned a non-numeric value',
+  );
+}
 
 /// Reads the `avg` column from an aggregate [row], coercing it into a
 /// nullable [double]. `null` survives as `null`. Throws a
