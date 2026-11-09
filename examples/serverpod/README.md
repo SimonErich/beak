@@ -1,6 +1,6 @@
 # Beak on Serverpod 4
 
-A small [Serverpod](https://serverpod.dev) 4.0.3 project with a
+A small [Serverpod](https://serverpod.dev) 4.0.4 project with a
 [Beak](https://github.com/SimonErich/beak) admin panel. Two tables, `author`
 and `book`. Serverpod's email login. One admin app that reads and writes both
 tables through Beak's stock API, which runs inside the Serverpod server on
@@ -13,7 +13,7 @@ lists every gap.
 
 ## Run it
 
-You need Dart 3.12.2+ and Flutter 3.44.4+ (Serverpod 4.0.3's floor), and an
+You need Dart 3.12.2+ and Flutter 3.44.4+ (Serverpod 4.0.4's floor), and an
 `obers_ui` checkout next to this repository (`../obers_ui` from the repo root).
 Beak's panel builds on obers_ui, pinned by git commit. The pinned commit is
 older than the obers_ui APIs `beak_frontend` uses, so a plain `dart pub get`

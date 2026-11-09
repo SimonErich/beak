@@ -358,7 +358,7 @@ BeakFormActionInput(
 BeakFormActions(actions: [OrderActions.startKitchen])
 ```
 
-A command that you place, with `BeakFormActions` or `BeakFormActionInput`, leaves the automatic toolbar. A bare `BeakFormActions()` places every available command. When a command completes on a record with no unsaved edits, the session reloads it, so a note or an activity row the server added shows up without a callback.
+`BeakFormActions(page: true, actions: [...])` puts the same commands in the page heading instead of the layout body — use that for a primary detail action such as cancel. A command that you place, with `BeakFormActions` or `BeakFormActionInput`, leaves the automatic toolbar. A bare `BeakFormActions()` places every available command. When a command completes on a record with no unsaved edits, the session reloads it, so a note or an activity row the server added shows up without a callback.
 
 `BeakFormLinks` turns typed values into contact actions. Only `http`, `https`, `mailto`, `tel` and `sms` open, a link whose value is empty is left out, and a failure shows an error toast:
 

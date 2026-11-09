@@ -17,8 +17,8 @@ Serverpod stays the owner of the tables, the migrations and the sign-in. You wil
 
 ## Before you start
 
-- A Serverpod project on exactly 4.0.3, created with `serverpod create`, as a pub workspace. Dart 3.12.2 or newer and Flutter 3.44.4 or newer (Serverpod 4.0.3's own floor).
-- The `serverpod` CLI at 4.0.3. A globally activated CLI may be another release; the example ships a pinned one in `tool/serverpod_cli_4`.
+- A Serverpod project on exactly 4.0.4, created with `serverpod create`, as a pub workspace. Dart 3.12.2 or newer and Flutter 3.44.4 or newer (Serverpod 4.0.4's own floor).
+- The `serverpod` CLI at 4.0.4. A globally activated CLI may be another release; the example ships a pinned one in `tool/serverpod_cli_4`.
 - The `beak` CLI ([Installation](../../start-here/installation.md)).
 - Beak's packages. Beak is not on pub.dev yet, so every Beak package comes from one git ref or one path. The example lives in the Beak repository and uses `path:`. Your workspace uses a git dependency, with the same `ref` on every Beak package:
 
@@ -191,7 +191,7 @@ The mapping the example follows:
 | `stock: int, default=0` | `@Column(defaultValue: 0)` |
 | `supplierCostInCents: int?, scope=serverOnly` | Nothing. A column the schema class does not declare never leaves the server through Beak |
 
-The enum must list the same names as the Serverpod one. The `.spy.yaml` states `serialized: byName` (the 4.0.3 default), and Beak's enum column stores the value name, so an enum serialized by index would not match its integer column.
+The enum must list the same names as the Serverpod one. The `.spy.yaml` states `serialized: byName` (the 4.0.4 default), and Beak's enum column stores the value name, so an enum serialized by index would not match its integer column.
 
 ```dart title="examples/serverpod/bookshop_beak/lib/models/book_format.dart"
 /// How a book is bound (or not bound at all).
@@ -251,9 +251,9 @@ dependencies:
     path: ../../../packages/beak_serverpod_server
   bookshop_beak:
     path: ../bookshop_beak
-  serverpod: 4.0.3
-  serverpod_auth_idp_server: 4.0.3
-  serverpod_cloud_storage: 4.0.3
+  serverpod: 4.0.4
+  serverpod_auth_idp_server: 4.0.4
+  serverpod_cloud_storage: 4.0.4
 ```
 
 For the tests, `dev_dependencies` add `beak_core`, `beak_serverpod`, `beak_test`, `worm` and `worm_postgres` the same way.
@@ -407,8 +407,8 @@ dependencies:
     path: ../bookshop_client
   flutter:
     sdk: flutter
-  serverpod_auth_core_flutter: 4.0.3
-  serverpod_flutter: 4.0.3
+  serverpod_auth_core_flutter: 4.0.4
+  serverpod_flutter: 4.0.4
 
 dev_dependencies:
   beak_backend:
@@ -420,7 +420,7 @@ dev_dependencies:
   http: ^1.6.0
   lints: '>=3.0.0 <7.0.0'
   postgres: ^3.5.16
-  serverpod_auth_core_client: 4.0.3
+  serverpod_auth_core_client: 4.0.4
   shelf: ^1.4.2
   signals: ^6.3.0
   worm:

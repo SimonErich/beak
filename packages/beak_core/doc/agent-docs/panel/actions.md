@@ -204,7 +204,7 @@ If the answer to the commit is lost (a dropped connection, a closed laptop), the
 | --- | --- | --- |
 | List row | A `model:<name>` action | The resource allows edit, and `availableWhen` holds for that row |
 | Show page (generated) | One button per available command | The resource allows edit |
-| Form page | Buttons beside Save, or inline where `BeakFormActions` places them | The account may run it and it is available; on create, only commands with `allowOnCreate` |
+| Form page | Buttons beside Save, in the page heading when `BeakFormActions(page: true)`, or inline where `BeakFormActions` places them | The account may run it and it is available; on create, only commands with `allowOnCreate` |
 | Selection bar | Bulk commands of a composed list | Listed in `bulkModelActions`, or as `BeakActionPresentation.model` in `bulkActions` |
 
 A bulk command asks once ("Apply Cancel order to 3 selected records? Each record is saved independently."), collects the input once, and then runs record by record. Every record has its own receipt. One failure does not stop the others, and the failures come back as one message naming each id.

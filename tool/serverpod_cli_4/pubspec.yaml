@@ -1,6 +1,6 @@
 name: serverpod_cli_4
 description: >-
-  Pins the Serverpod CLI at 4.0.3, the version the Beak integration is built and
+  Pins the Serverpod CLI at 4.0.4, the version the Beak integration is built and
   tested against. Use the `serverpod` wrapper next to this file instead of a
   globally activated CLI, which may be an older release.
 publish_to: none
@@ -9,4 +9,4 @@ environment:
   sdk: ^3.12.2
 
 dependencies:
-  serverpod_cli: 4.0.3
+  serverpod_cli: 4.0.4

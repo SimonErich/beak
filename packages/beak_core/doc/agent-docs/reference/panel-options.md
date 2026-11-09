@@ -794,17 +794,80 @@ One display policy for tables, forms, summaries and exports. It changes presenta
 | `supportedLocales` | Defaults to `BeakLocalizations.supportedLocales`, which is `en` and `de` |
 | `localizationsDelegates` | Application delegates installed first; Beak's own delegate is always appended, so a custom `BeakLocalizations` delegate can override framework text |
 | `theme`, `darkTheme` | `OiThemeData`; `OiThemeData.light()` and `OiThemeData.dark()` when null |
-| `initialThemeMode` | `OiThemeMode.system` by default; `light` and `dark` are the others. The shell's toggle changes it live through the registered `BeakThemeController`. |
+| `initialThemeMode` | Fallback when no preference is stored yet (`OiThemeMode.system` by default). The shell's toggle changes the live mode through `BeakThemeController`, which persists the choice locally across reloads. |
 | `sidebarCollapsible` | `true`: the sidebar collapses to an icon rail |
 | `sidebarDefaultCollapsed` | `false`: the sidebar starts expanded |
 | `shellActions` | `List<Widget> Function(BuildContext)`; extra controls in the shell header. When null and `auth` is set, the shell shows the sign-out button instead. |
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_theme_controller.dart"
 final class BeakThemeController extends ValueNotifier<OiThemeMode> {
-  /// Creates a controller starting in the given mode (default: system).
-  BeakThemeController([super.initialMode = OiThemeMode.system]);
-}
+  /// Creates a controller starting in [initialMode], then restoring any
+  /// previously saved preference from local storage.
+  BeakThemeController([OiThemeMode initialMode = OiThemeMode.system])
+    : this._(initialMode, const OiLocalStorageDriver(prefix: 'beak'));
 
+  /// Test and host seam that supplies a custom settings [store].
+  BeakThemeController.withStore(
+    OiSettingsDriver store, {
+    OiThemeMode initialMode = OiThemeMode.system,
+  }) : this._(initialMode, store);
+
+  BeakThemeController._(this.initialMode, this._store) : super(initialMode) {
+    unawaited(restore());
+  }
+
+  /// Fallback mode used when no preference has been saved yet.
+  final OiThemeMode initialMode;
+
+  final OiSettingsDriver _store;
+  int _epoch = 0;
+
+  static const _namespace = 'theme';
+
+  /// Reloads the persisted preference, if any.
+  ///
+  /// A concurrent [value] write wins over an in-flight restore.
+  Future<void> restore() async {
+    final epoch = ++_epoch;
+    final saved = await _load();
+    if (epoch != _epoch || saved == null || saved == value) return;
+    super.value = saved;
+  }
+
+  @override
+  set value(OiThemeMode newValue) {
+    if (newValue == value) return;
+    _epoch++;
+    super.value = newValue;
+    unawaited(_persist(newValue));
+  }
+
+  Future<OiThemeMode?> _load() async {
+    try {
+      final settings = await _store.load(
+        namespace: _namespace,
+        deserialize: _BeakThemeSettings.fromJson,
+      );
+      return settings?.mode;
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<void> _persist(OiThemeMode mode) async {
+    try {
+      final settings = _BeakThemeSettings(mode);
+      await _store.save(
+        namespace: _namespace,
+        data: settings,
+        serialize: (data) => data.toJson(),
+      );
+    } on Object {
+      // Best-effort: missing plugin bindings (e.g. widget tests) must not
+      // break the live theme toggle.
+    }
+  }
+}
 ```
 
 The shell header also carries the command search (Ctrl or Cmd plus K), which lists every visible resource and page and searches `globalSearchSources`. `BeakNavigation` controls its placement and hint.
@@ -876,7 +939,7 @@ container
 | Data source | `BeakDataSource` | A `ModelBeakDataSource` routing each table to its model's own source or the fallback |
 | Model registry | `BeakModelRegistry` | Every resource model and every model they relate to |
 | Panel config | `BeakPanelConfig` | The config in use |
-| Theme controller | `BeakThemeController` | Starts in `initialThemeMode` |
+| Theme controller | `BeakThemeController` | Starts from the saved preference, else `initialThemeMode` |
 | Action runner | `BeakModelActionRunner` | Runs model commands and keeps unresolved ones recoverable |
 
 ## Embedding

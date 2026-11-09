@@ -20,8 +20,8 @@ dependencies:
     path: ../bookshop_client
   flutter:
     sdk: flutter
-  serverpod_auth_core_flutter: 4.0.3
-  serverpod_flutter: 4.0.3
+  serverpod_auth_core_flutter: 4.0.4
+  serverpod_flutter: 4.0.4
 
 dev_dependencies:
   beak_backend:
@@ -33,7 +33,7 @@ dev_dependencies:
   http: ^1.6.0
   lints: '>=3.0.0 <7.0.0'
   postgres: ^3.5.16
-  serverpod_auth_core_client: 4.0.3
+  serverpod_auth_core_client: 4.0.4
   shelf: ^1.4.2
   signals: ^6.3.0
   worm:

@@ -11,7 +11,7 @@ This is the short version. The bookshop example is a Serverpod 4 workspace whose
 | Domain | A bookshop, "Dog-Eared Books" |
 | Models | 2 Serverpod tables, `author` and `book`, mirrored by 2 Beak schema classes |
 | Packages | 5: `bookshop_server`, `bookshop_client`, `bookshop_flutter` (from `serverpod create`), plus `bookshop_beak` and `bookshop_admin` |
-| Versions | Serverpod 4.0.3, Dart 3.12.2 or newer, Flutter 3.44.4 or newer |
+| Versions | Serverpod 4.0.4, Dart 3.12.2 or newer, Flutter 3.44.4 or newer |
 | API port | 8080 (Serverpod's API server). The admin runs on web port 8095 |
 | Auth | Serverpod's email login. The `beak.admin` scope opens the endpoint, and `bookshop.staff` grants reads and writes |
 | Database | Serverpod's Postgres, embedded in development, no Docker |

@@ -156,14 +156,20 @@ Widget _field(BuildContext context, BeakFieldBlock block) {
       breakpoint: context.breakpoint,
       gap: const OiResponsive<double>(4),
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [OiLabel.caption(label), value],
+      children: [
+        OiLabel.small(label, color: context.colors.textSubtle),
+        value,
+      ],
     ),
     BeakFieldLayout.inline => OiRow(
       breakpoint: context.breakpoint,
       gap: const OiResponsive<double>(12),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(width: 160, child: OiLabel.smallStrong(label)),
+        SizedBox(
+          width: 160,
+          child: OiLabel.small(label, color: context.colors.textSubtle),
+        ),
         Expanded(child: value),
       ],
     ),

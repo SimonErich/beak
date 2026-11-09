@@ -1,6 +1,6 @@
 # Beak on Serverpod: notes for coding agents
 
-A Serverpod 4.0.3 workspace with a Beak admin panel for two tables, `author`
+A Serverpod 4.0.4 workspace with a Beak admin panel for two tables, `author`
 and `book`. Beak's API runs inside the Serverpod server behind one gated
 endpoint method. Read `README.md` first for what it does and does not cover.
 

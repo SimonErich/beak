@@ -44,7 +44,7 @@ The rows are the questions that decide a project. "Admin app" means the [admin a
 | Sign-in | Serverpod's email sign-in through `ServerpodAuthAdapter` | The same adapter, or your own | Beak's own auth routes |
 | Your endpoint logic on admin writes | Does not run: Beak writes rows directly | Runs: every write is one of your endpoint calls | Not applicable |
 | Uploads | Not available | Not available | Yes, with a storage driver |
-| Version constraints | Serverpod 4.0.3 pinned exactly, one Beak ref | None on Serverpod for the bridge itself; the sign-in adapter needs 4.0.3 or newer within 4.x | None |
+| Version constraints | Serverpod 4.0.4 pinned exactly, one Beak ref | None on Serverpod for the bridge itself; the sign-in adapter needs 4.0.3 or newer within 4.x | None |
 | Codegen input | `.spy.yaml`, mirrored by hand, then `beak prepare` | The generated Serverpod client, read by `beak_serverpod_generator` | `beak prepare` |
 
 Two rows deserve a second look. "Your endpoint logic on admin writes" is the cost of the admin app: a `Book` saved through the panel skips whatever your `book.create` endpoint would have done (an audit row, a cache flush, a webhook).

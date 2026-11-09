@@ -50,7 +50,7 @@ migration, `bin/beak_admin.dart grant`.
 
 1. Read the exact `serverpod` version from the server pubspec. Every `serverpod*`
    package stays on that exact pin; Beak's own packages all use one release tag,
-   the one `beak --version` prints (`ref: v0.9.0`). Serverpod 4.0.3 needs Dart
+   the one `beak --version` prints (`ref: v0.9.0`). Serverpod 4.0.4 needs Dart
    3.12.2 and Flutter 3.44.4 or newer.
 2. Create `<name>_beak` and add it to the workspace. Mirror each table the admin
    shows as a schema class (`@Resource(table: ..., managesSchema: false)`); leave

@@ -209,7 +209,7 @@ Each example is a package of its own. `melos bootstrap` resolves all of them exc
 | [`clean_beak_config`](examples/clean_beak_config) | The shop: eleven resources with exact `BeakDecimal` money, form screens and sections, named invoice actions, dynamic attributes and variants, media galleries, imports, a graph preparer and custom widgets. | `:8080` |
 | [`foodio-adminpanel`](examples/foodio-adminpanel) | The Gabel food-ordering admin with 48,213 demo orders: composed lists with presets and saved views, a wizard with named steps, record templates, summaries, printable documents, durable effects, its own theme. | `:8081` |
 | [`showcase`](examples/showcase) | The Aviary: every block type, column kind and relationship kind Beak has, with soft deletes. Three tests fail when Beak grows one the example does not show. | `:8082` |
-| [`serverpod`](examples/serverpod) | A Serverpod 4.0.3 workspace with a Beak admin for `Author` and `Book`, running inside the Serverpod server. Outside melos. | `:8080` |
+| [`serverpod`](examples/serverpod) | A Serverpod 4.0.4 workspace with a Beak admin for `Author` and `Book`, running inside the Serverpod server. Outside melos. | `:8080` |
 
 The four Beak-only examples run the same way. From an example's directory:
 
@@ -239,7 +239,7 @@ ways in, and they differ in where Beak's code runs.
   generated client, with `beak_serverpod_generator` writing the resources. No
   server change, and a smaller feature set: equality filters, one sort, one
   search, no relations, no atomic saves.
-- Tested against Serverpod 4.0.3 only. The admin app is a proof on two tables, not
+- Tested against Serverpod 4.0.4 only. The admin app is a proof on two tables, not
   a product; the [Serverpod section](https://simonerich.github.io/beak/serverpod/)
   lists every gap with its workaround.
 

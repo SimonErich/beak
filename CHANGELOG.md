@@ -124,13 +124,13 @@ migration table at the end collects the common ones.
   `ServerpodDataSource` and generated-model codecs so a panel can read and write
   through an existing Serverpod client. `beak_serverpod_generator` generates the
   typed resources from a Serverpod client.
-- `examples/serverpod`: a Serverpod 4.0.3 workspace with an admin for `Author`
+- `examples/serverpod`: a Serverpod 4.0.4 workspace with an admin for `Author`
   and `Book` (see Examples below).
 - `beak_backend`: `BeakFrameworkTables`, so the receipts table can be owned by
   another migration system, and an allowlist so only declared columns are
   selected, returned or stored in receipts.
 - `sqlite3 ^3` in `worm_sqlite` and `beak_cli`, which Serverpod needs. The pinned
-  Serverpod 4.0.3 CLI wrapper lives in `tool/serverpod_cli_4`.
+  Serverpod 4.0.4 CLI wrapper lives in `tool/serverpod_cli_4`.
 
 #### Command line
 
@@ -273,7 +273,7 @@ migration table at the end collects the common ones.
   matrix tests switch exhaustively over the sealed hierarchies with no default
   branch, so a new block, column or relation kind fails to compile until the
   example shows it. Authored panel, SQLite, API on port 8082.
-- `examples/serverpod`: a real Serverpod 4.0.3 workspace with a Beak admin for
+- `examples/serverpod`: a real Serverpod 4.0.4 workspace with a Beak admin for
   `Author` and `Book`. The server runs Beak's API behind one endpoint that needs
   a login and the `beak.admin` scope, with a deny-by-default policy and a
   server-only column that never leaves the database. Tests cover worm's adapter
@@ -747,6 +747,9 @@ migration table at the end collects the common ones.
   `127.0.0.1`. The corrections table of the agent docs takes its heading from
   the version, a missing table fails `check-agent-docs`, and a removed symbol is
   proven gone against public declarations, the vendored worm packages excluded.
+- **Serverpod 4.0.4.** `examples/serverpod` and the pinned CLI in
+  `tool/serverpod_cli_4` move from 4.0.3 to 4.0.4, and the generated client and
+  protocol are unchanged. The declared `>=4.0.3 <5.0.0` ranges stay.
 
 ### Removed
 

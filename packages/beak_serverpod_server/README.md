@@ -177,7 +177,7 @@ declare never leaves the database.
 - Every panel call is a Serverpod call, so the server's `maxRequestSize` caps it
   (512 KiB in the template). A larger request fails with 413.
 - Revoking access is bounded by the access-token lifetime, 10 minutes by default.
-- Requires Dart 3.12.2 and Serverpod `>=4.0.3 <5.0.0`. Only 4.0.3 is tested.
+- Requires Dart 3.12.2 and Serverpod `>=4.0.3 <5.0.0`. Only 4.0.4 is tested.
 - Deployment is untested. The example's Docker build is not supported.
 
 The unit tests here run against a fake `Session`. The tests that need a live

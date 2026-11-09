@@ -115,14 +115,77 @@ For example, `defaults.copyWith(initialThemeMode: OiThemeMode.dark)`, with `OiTh
 
 The panel builds one `OiApp` with both themes and a mode. `OiThemeMode.system` follows the operating system, `light` and `dark` pin it. The shell shows a toggle (`OiThemeToggle`) that changes the mode live, without rebuilding the router or losing the page you are on. Switch it off with `BeakNavigation.showThemeToggle: false` when the panel should not offer the choice.
 
-The chosen mode is not saved. A reload goes back to `initialThemeMode`, so set that if your users all want dark. Custom widgets can read and change the mode through the panel's `BeakThemeController`, a `ValueNotifier<OiThemeMode>`:
+The chosen mode is saved locally (browser `localStorage` / `SharedPreferences`) by `BeakThemeController`, so a reload keeps the user's preference. `initialThemeMode` is only the fallback when nothing has been saved yet. Custom widgets can read and change the mode through that same `ValueNotifier<OiThemeMode>`:
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_theme_controller.dart"
 final class BeakThemeController extends ValueNotifier<OiThemeMode> {
-  /// Creates a controller starting in the given mode (default: system).
-  BeakThemeController([super.initialMode = OiThemeMode.system]);
-}
+  /// Creates a controller starting in [initialMode], then restoring any
+  /// previously saved preference from local storage.
+  BeakThemeController([OiThemeMode initialMode = OiThemeMode.system])
+    : this._(initialMode, const OiLocalStorageDriver(prefix: 'beak'));
 
+  /// Test and host seam that supplies a custom settings [store].
+  BeakThemeController.withStore(
+    OiSettingsDriver store, {
+    OiThemeMode initialMode = OiThemeMode.system,
+  }) : this._(initialMode, store);
+
+  BeakThemeController._(this.initialMode, this._store) : super(initialMode) {
+    unawaited(restore());
+  }
+
+  /// Fallback mode used when no preference has been saved yet.
+  final OiThemeMode initialMode;
+
+  final OiSettingsDriver _store;
+  int _epoch = 0;
+
+  static const _namespace = 'theme';
+
+  /// Reloads the persisted preference, if any.
+  ///
+  /// A concurrent [value] write wins over an in-flight restore.
+  Future<void> restore() async {
+    final epoch = ++_epoch;
+    final saved = await _load();
+    if (epoch != _epoch || saved == null || saved == value) return;
+    super.value = saved;
+  }
+
+  @override
+  set value(OiThemeMode newValue) {
+    if (newValue == value) return;
+    _epoch++;
+    super.value = newValue;
+    unawaited(_persist(newValue));
+  }
+
+  Future<OiThemeMode?> _load() async {
+    try {
+      final settings = await _store.load(
+        namespace: _namespace,
+        deserialize: _BeakThemeSettings.fromJson,
+      );
+      return settings?.mode;
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<void> _persist(OiThemeMode mode) async {
+    try {
+      final settings = _BeakThemeSettings(mode);
+      await _store.save(
+        namespace: _namespace,
+        data: settings,
+        serialize: (data) => data.toJson(),
+      );
+    } on Object {
+      // Best-effort: missing plugin bindings (e.g. widget tests) must not
+      // break the live theme toggle.
+    }
+  }
+}
 ```
 
 ## Reading the theme in your own widgets

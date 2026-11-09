@@ -104,7 +104,7 @@ Two supported paths, four packages. See [Choosing an integration](../serverpod/c
 | `beak_serverpod_server` | admin app | `BeakServerpodEngine`, `BeakAdminGate`, `ServerpodSessionAdapter`; runs Beak inside a Serverpod 4 server. Needs Dart ^3.12.2. | `beak_backend`, `beak_core`, `beak_serverpod` | `serverpod` (`>=4.0.3 <5.0.0`), `shelf`, `worm`, `worm_postgres` |
 | `beak_serverpod_generator` | bridge | `generateServerpodCompanions` and `bin/generate.dart`, which turn a generated Serverpod client into typed Beak companions. Imports no Beak package at run time; `beak_core` and `beak_serverpod` are dev dependencies for its tests. | none | `analyzer`, `args`, `dart_style`, `path`, `yaml` |
 
-The pinned Serverpod CLI is `tool/serverpod_cli_4`: a package that depends on `serverpod_cli: 4.0.3`, with a `serverpod` wrapper beside it, so a globally activated older CLI cannot generate the wrong code. Version rules are on [Version compatibility](../serverpod/versions.md).
+The pinned Serverpod CLI is `tool/serverpod_cli_4`: a package that depends on `serverpod_cli: 4.0.4`, with a `serverpod` wrapper beside it, so a globally activated older CLI cannot generate the wrong code. Version rules are on [Version compatibility](../serverpod/versions.md).
 
 ## Dependency graph
 
@@ -190,7 +190,7 @@ Five runnable projects under `examples/`. The docs quote them instead of inventi
 | `examples/clean_beak_config` | The shop: schema classes with semantic fields and exact money, resources, form screens, named actions, graph preparer, custom screens. The main teaching source. | 8080 | 3000 | in the gate |
 | `examples/foodio-adminpanel` | Gabel food-ordering admin: composed lists, wizard, record templates, summaries, printable documents, durable effects, custom navigation and theme. | 8081 | 3002 | in the gate |
 | `examples/showcase` | The Aviary: every block, every column kind, every relation kind, soft deletes. Exists to fill the gaps the others leave. | 8082 | 3003 | in the gate |
-| `examples/serverpod` | Bookshop: a Serverpod 4.0.3 workspace with an admin app. Beak's API runs inside the Serverpod server behind one endpoint, so there is no separate Beak port; Serverpod's API is on 8080. | 8080 (Serverpod) | 8095 (admin) | ignored: its own pub workspace |
+| `examples/serverpod` | Bookshop: a Serverpod 4.0.4 workspace with an admin app. Beak's API runs inside the Serverpod server behind one endpoint, so there is no separate Beak port; Serverpod's API is on 8080. | 8080 (Serverpod) | 8095 (admin) | ignored: its own pub workspace |
 
 The quickstart and the shop both use API port 8080; run one at a time or change `server.port` in `beak.yaml`. Ports come from each example's `beak.yaml` and README.
 
@@ -262,7 +262,7 @@ Contributor detail is in [Dev infrastructure](../contributing/dev-infrastructure
 - Only `beak_backend` imports worm on the data path. `beak_cli` and `beak_serverpod_server` name worm for their own reasons, and `beak` re-exports it in `migrations.dart`.
 - `beak_frontend` is the only package that imports obers_ui for widgets. `beak` depends on the three obers_ui packages only to re-export them.
 - Storage drivers are plug-ins. A project that never adds `beak_storage_s3` never resolves it, and adding it next to `beak` needs no `dependency_overrides`.
-- Dart ^3.11.0 everywhere, Flutter `>=3.41.0` for the Flutter packages, Dart ^3.12.2 for `beak_serverpod_server` because Serverpod 4.0.3 requires it.
+- Dart ^3.11.0 everywhere, Flutter `>=3.41.0` for the Flutter packages, Dart ^3.12.2 for `beak_serverpod_server` because Serverpod 4.0.4 requires it.
 
 ## Source
 

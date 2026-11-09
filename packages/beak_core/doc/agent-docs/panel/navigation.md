@@ -122,19 +122,24 @@ const BeakNavigationItem.resource(
   this.preset,
   this.showCount = false,
   this.recordLabelMonospace = false,
+  this.group,
 }) : screen = null,
      _label = label,
      _icon = icon;
 ```
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_navigation.dart"
-const BeakNavigationItem.screen(this.screen, {String? label, IconData? icon})
-  : model = null,
-    preset = null,
-    showCount = false,
-    recordLabelMonospace = false,
-    _label = label,
-    _icon = icon;
+const BeakNavigationItem.screen(
+  this.screen, {
+  String? label,
+  IconData? icon,
+  this.group,
+}) : model = null,
+     preset = null,
+     showCount = false,
+     recordLabelMonospace = false,
+     _label = label,
+     _icon = icon;
 ```
 
 You name a model or a screen object, never a route. `BeakNavigationItem.resource(OrderModel())` points at the list of whatever resource registers that model, and `BeakNavigationItem.screen(kitchenScreen)` at the page's path. Label and icon default to the resource's `navigationTitle` and `icon`, or the screen's.
@@ -142,6 +147,7 @@ You name a model or a screen object, never a route. `BeakNavigationItem.resource
 | Parameter | Applies to | Effect |
 | --- | --- | --- |
 | `label`, `icon` | both | Override the resource's or screen's own |
+| `group` | both | Sidebar group heading (`OiNavItem.section`); items with the same value sit under one label |
 | `preset` | resource | Opens the list on one of its `BeakQueryPreset` objects. The item is active only while that preset is selected |
 | `showCount` | resource | Shows a live record count as the item's badge |
 | `recordLabelMonospace` | resource | Draws the current record's label in the code font, for identifiers such as order numbers |

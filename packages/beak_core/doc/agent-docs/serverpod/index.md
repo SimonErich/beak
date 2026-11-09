@@ -37,8 +37,8 @@ The bridge is older and narrower. It is covered by unit tests and a generator th
 | Part | Version |
 | --- | --- |
 | Beak packages | 0.9.0, all in lockstep, from a git ref or a path (not on pub.dev yet) |
-| Serverpod | 4.0.3, pinned exactly in the app |
-| Dart | 3.12.2 or newer (Serverpod 4.0.3's own floor) |
+| Serverpod | 4.0.4, pinned exactly in the app |
+| Dart | 3.12.2 or newer (Serverpod 4.0.4's own floor) |
 | Flutter | 3.44.4 or newer for the admin app |
 
 The details, including the break between the 4.0 beta and 4.0.x, are on [Version compatibility](versions.md).

@@ -57,7 +57,7 @@ A screen is attached to a resource through `BeakResource.screens`. Each screen c
 | `BeakFormProgress`, `BeakProgressStep` | Read-only progress through an enum field |
 | `BeakFormTimeline` | A to-many relationship as a chronological timeline |
 | `BeakFormLinks`, `BeakFormLink` | External actions computed from the draft |
-| `BeakFormActions` | Model commands placed in the layout |
+| `BeakFormActions` | Model commands placed in the layout or page heading (`page: true`) |
 | `BeakFormActionInput` | A command's argument form, inline |
 | `BeakFormLock` | Disabled action with the reason it is unavailable |
 | `BeakCalculated` | Reactive display value, never submitted |
@@ -992,14 +992,20 @@ Only safe schemes can launch. A link whose destination is unavailable or unreada
 ### BeakFormActions and BeakFormActionInput
 
 ```dart title="packages/beak_frontend/lib/src/form/beak_form_layout.dart"
-const BeakFormActions({this.actions, super.visibleIf, super.enabledIf});
+const BeakFormActions({
+  this.actions,
+  this.page = false,
+  super.visibleIf,
+  super.enabledIf,
+});
 ```
 
-`actions` null shows every currently available model command; a list shows exactly those commands, in order.
+`actions` null shows every currently available model command; a list shows exactly those commands, in order. With `page: true`, the commands appear in the page heading actions (or the form footer when there is no page frame) instead of inline in the layout, so localized presentation labels still apply.
 
 | Parameter | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `actions` | `List<BeakModelAction>?` | none | Explicit commands, in display order |
+| `page` | `bool` | `false` | Places commands in the page heading instead of the layout body |
 | `visibleIf` | `BeakVisibility?` | none | Predicate over the live draft; false hides the node and its descendants |
 | `enabledIf` | `BeakVisibility?` | none | Predicate over the live draft; false disables the node and its descendants |
 

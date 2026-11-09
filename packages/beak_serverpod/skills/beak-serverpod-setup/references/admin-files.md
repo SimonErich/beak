@@ -14,8 +14,8 @@ flutter create --platforms=web --empty --no-pub acme_admin
 ## `acme_admin/pubspec.yaml`
 
 `serverpod_flutter` and `serverpod_auth_core_flutter` carry the exact version the
-workspace already pins (`serverpod: 4.0.3` in the server pubspec means
-`4.0.3` here). Beak comes from one release tag.
+workspace already pins (`serverpod: 4.0.4` in the server pubspec means
+`4.0.4` here). Beak comes from one release tag.
 
 ```yaml
 name: acme_admin
@@ -46,8 +46,8 @@ dependencies:
       path: packages/beak_serverpod_flutter
   flutter:
     sdk: flutter
-  serverpod_auth_core_flutter: 4.0.3
-  serverpod_flutter: 4.0.3
+  serverpod_auth_core_flutter: 4.0.4
+  serverpod_flutter: 4.0.4
 
 dev_dependencies:
   flutter_test:
