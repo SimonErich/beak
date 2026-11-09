@@ -188,7 +188,7 @@ void main() {
       expect(binding.columns, model.columns);
       expect(binding.displayColumnKey, model.displayColumnKey);
       expect(binding.relationships, isEmpty);
-      expect(binding.permissions.allows(BeakOperation.read), isTrue);
+      expect(binding.permissions.allows(BeakOperation.read, null), isTrue);
       expect(identical(binding.dataSource, binding.dataSource), isTrue);
       expect(
         (await source.create('users', codec.encode(user)))['id']?.raw,
