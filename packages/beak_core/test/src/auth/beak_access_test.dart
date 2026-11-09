@@ -74,6 +74,20 @@ void main() {
       );
     });
 
+    test('equal principals share a hash code, whatever the role order', () {
+      expect(
+        const BeakPrincipal(id: 'a', roles: {'x', 'y'}).hashCode,
+        const BeakPrincipal(id: 'a', roles: {'y', 'x'}).hashCode,
+      );
+    });
+
+    test('toString names the id and the sorted roles', () {
+      expect(
+        const BeakPrincipal(id: 'a', roles: {'z', 'b'}).toString(),
+        'BeakPrincipal(a, roles: [b, z])',
+      );
+    });
+
     test('serialises with sorted roles for a stable wire shape', () {
       expect(const BeakPrincipal(id: 'a', roles: {'z', 'b'}).toJson(), {
         'id': 'a',

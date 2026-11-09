@@ -147,6 +147,30 @@ void main() {
       expect(BeakDefinitions.behaviorOf(_menus), same(_lockedBehavior));
     });
 
+    test('rules count as the same when every rule is the same instance', () {
+      BeakDefinitions.bind(_withRules([_nameRule]));
+      BeakDefinitions.bind(_withRules([_nameRule]));
+      expect(BeakDefinitions.rulesOf(_menus), [_nameRule]);
+    });
+
+    test('a different rule at the same position is a different set', () {
+      BeakDefinitions.bind(_withRules([_nameRule]));
+      expect(
+        () => BeakDefinitions.bind(
+          _withRules([const BeakSameAs<String>(_aliasField, _nameField)]),
+        ),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+    });
+
+    test('a different number of rules is a different set', () {
+      BeakDefinitions.bind(_withRules([_nameRule]));
+      expect(
+        () => BeakDefinitions.bind(_withRules([])),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+    });
+
     test('a behavior built at runtime counts as a different set', () {
       BeakDefinitions.bind(
         BeakDefinitions([BeakModelDefinition(_menus, behavior: _runtime())]),
@@ -310,6 +334,11 @@ void main() {
     });
   });
 }
+
+/// A set whose rule list is built at run time, so it is never the same list
+/// as another call's.
+BeakDefinitions _withRules(List<BeakRecordRule> rules) =>
+    BeakDefinitions([BeakModelDefinition(_menus, rules: rules)]);
 
 BeakModelBehavior _runtime() =>
     BeakModelBehavior(deletableWhen: (record) => true);
