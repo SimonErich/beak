@@ -42,7 +42,7 @@ Beak boots a panel two ways. An authored `lib/main.dart` calls `BeakPanel` itsel
 | `apiBaseUrl` | `apiBaseUrl` | `api.baseUrl` in beak.yaml |
 | `pages` | `pages` | every screen discovered under `lib/screens/` |
 | `auth` | `auth` | `beakAuth()` in `lib/auth.dart` |
-| `theme`, `darkTheme` | `theme`, `darkTheme` | `beakLightTheme()`, `beakDarkTheme()` in `lib/theme.dart` |
+| `theme` | `theme` | `theme.preset` in beak.yaml, or `beakTheme()` in `lib/theme.dart` |
 | `sidebarCollapsible`, `sidebarDefaultCollapsed` | none | `theme.sidebar.collapsible`, `theme.sidebar.startCollapsed` in beak.yaml |
 | `locale`, `formatting`, `home`, `navigation`, `refreshPolicy` | same names | `beakPanel(defaults)` in `lib/panel.dart` |
 | `maintenance`, `mapException` | same names | `beakPanel(defaults)` in `lib/panel.dart` |
@@ -60,7 +60,6 @@ The root widget. It builds its own dependency container and router from the conf
     List<BeakResource>? resources,
     this.title,
     this.theme,
-    this.darkTheme,
     this.apiBaseUrl,
     this.pages = const [],
     this.auth,
@@ -84,8 +83,7 @@ The root widget. It builds its own dependency container and router from the conf
 | `config` | `BeakPanelConfig?` | `null` | A complete configuration. Exclusive with `resources`; the constructor asserts. |
 | `resources` | `List<BeakResource>?` | `[]` | The resources of a directly configured panel. |
 | `title` | `String?` | `null` | Application title; `Beak` when null. |
-| `theme` | `OiThemeData?` | `null` | Light theme, `OiThemeData.light()` when null. |
-| `darkTheme` | `OiThemeData?` | `null` | Dark theme, `OiThemeData.dark()` when null. |
+| `theme` | `BeakTheme?` | `null` | Light and dark theme, `BeakTheme.standard()` when null. |
 | `apiBaseUrl` | `String?` | `null` | Backend origin; when null the `BEAK_API_BASE_URL` `--dart-define`, else `http://localhost:8080`. `BeakPanelConfig` does not read the `--dart-define`. |
 | `pages` | `List<BeakScreen>` | `[]` | Custom pages. |
 | `auth` | `BeakAuthConfig?` | `null` | Authentication configuration. |
@@ -126,10 +124,12 @@ The everyday authored form is a title, a formatting policy, pages and resources:
 void main() => runApp(
   BeakPanel(
     title: 'Clean Beak Shop',
-    theme: OiThemeData.fromBrand(color: const Color(0xFF315D91)),
-    darkTheme: OiThemeData.fromBrand(
-      color: const Color(0xFF82ACDF),
-      brightness: Brightness.dark,
+    theme: BeakTheme(
+      light: OiThemeData.fromBrand(color: const Color(0xFF315D91)),
+      dark: OiThemeData.fromBrand(
+        color: const Color(0xFF82ACDF),
+        brightness: Brightness.dark,
+      ),
     ),
     locale: const Locale('en'),
     formatting: const BeakFormatting(
@@ -191,7 +191,6 @@ const BeakPanelConfig({
   this.auth,
   this.maintenance,
   this.theme,
-  this.darkTheme,
   this.initialThemeMode = OiThemeMode.system,
   this.locale,
   this.formatting,
@@ -216,8 +215,7 @@ const BeakPanelConfig({
 | `pages` | `List<BeakScreen>` | `const []` | Custom, non-resource screens, in navigation order. |
 | `auth` | `BeakAuthConfig?` | `null` | Authentication routes; `null` mounts only a default `/login`. |
 | `maintenance` | `BeakMaintenanceConfig?` | `null` | Maintenance / coming-soon routes; `null` mounts neither. |
-| `theme` | `OiThemeData?` | `null` | The light theme (defaults to `OiThemeData.light()`). |
-| `darkTheme` | `OiThemeData?` | `null` | The dark theme (defaults to `OiThemeData.dark()`). |
+| `theme` | `BeakTheme?` | `null` | The panel's light and dark themes (defaults to `BeakTheme.standard()`). |
 | `initialThemeMode` | `OiThemeMode` | `OiThemeMode.system` | The theme mode the panel starts in; toggled live from the shell. |
 | `locale` | `Locale?` | `null` | Explicit app locale; `null` follows the platform's supported locale. |
 | `formatting` | `BeakFormatting?` | `null` | Shared date, number and currency display policy. |
@@ -676,8 +674,7 @@ The bell loads 30 rows, newest first when `timeField` is set, and refetches afte
 
 ```dart title="examples/foodio-adminpanel/lib/main.dart"
 title: 'Gabel Admin',
-theme: gabelTheme(),
-darkTheme: gabelTheme(dark: true),
+theme: GabelTheme(),
 apiBaseUrl: apiBaseUrl,
 locale: const Locale('en'),
 formatting: const BeakFormatting(
@@ -793,7 +790,7 @@ One display policy for tables, forms, summaries and exports. It changes presenta
 | `locale` | Explicit `Locale`; the platform's when null |
 | `supportedLocales` | Defaults to `BeakLocalizations.supportedLocales`, which is `en` and `de` |
 | `localizationsDelegates` | Application delegates installed first; Beak's own delegate is always appended, so a custom `BeakLocalizations` delegate can override framework text |
-| `theme`, `darkTheme` | `OiThemeData`; `OiThemeData.light()` and `OiThemeData.dark()` when null |
+| `theme` | `BeakTheme`: a light and a dark `OiThemeData` and the licences they bundle; `BeakTheme.standard()` when null. A built-in one, such as `GabelTheme()`, is [Built-in themes](../theming/built-in-themes.md) |
 | `initialThemeMode` | Fallback when no preference is stored yet (`OiThemeMode.system` by default). The shell's toggle changes the live mode through `BeakThemeController`, which persists the choice locally across reloads. |
 | `sidebarCollapsible` | `true`: the sidebar collapses to an icon rail |
 | `sidebarDefaultCollapsed` | `false`: the sidebar starts expanded |

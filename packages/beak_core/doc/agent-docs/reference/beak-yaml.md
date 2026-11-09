@@ -50,7 +50,7 @@ if (agents != null) {
 }
 final YamlMap? theme = _optionalMap(root['theme'], 'theme');
 if (theme != null) {
-  _rejectUnknownKeys(theme, const {'sidebar'}, 'theme.');
+  _rejectUnknownKeys(theme, const {'preset', 'sidebar'}, 'theme.');
 }
 final YamlMap? sidebar = _optionalMap(theme?['sidebar'], 'theme.sidebar');
 if (sidebar != null) {
@@ -73,6 +73,7 @@ if (sidebar != null) {
 | [`agents.instructions`](#agents) | `all`, `package`, `none` | `all` | Which `AGENTS.md` files Beak keeps its block in |
 | [`agents.docs`](#agents) | bool | `true` | Copy the version-matched docs to `.dart_tool/beak/docs` |
 | [`agents.skills`](#agents) | list of `claude`, `agents`, `cursor` | not set | Where skills are installed; `[]` installs none |
+| [`theme.preset`](#theme) | `standard`, `gabel` | `standard` | The built-in theme the generated panel uses |
 | [`theme.sidebar.collapsible`](#theme) | bool | `true` | The sidebar can collapse to an icon rail |
 | [`theme.sidebar.startCollapsed`](#theme) | bool | `false` | It starts collapsed |
 | [`resources.<table>.icon`](#resources) | lowerCamelCase string | `table` | `OiIcons` name of the sidebar icon |
@@ -103,6 +104,7 @@ A panel boots one of two ways, see [Two ways to boot a panel](../start-here/gene
 | --- | --- | --- |
 | `name` | `lib/beak/panel.g.dart`, on every `prepare` | Copied into `BeakPanel(title:)` once |
 | `api.baseUrl` | `panel.g.dart`, on every `prepare` | Copied into `apiBaseUrl:` once (omitted when it is the default) |
+| `theme.preset` | `panel.g.dart`: `theme: GabelTheme()` for `gabel` | Copied into `theme:` once, only when not `standard` |
 | `theme.sidebar.*` | `panel.g.dart` | Copied into a `BeakPanelConfig` once, only when not the default |
 | `resources.<table>` | The default resource of each model without a `BeakResource` class | Written into the resource list once. A later edit changes nothing; edit the `BeakResource` in your file |
 | `server.*` | `lib/beak/server.g.dart` | Same file, the backend does not depend on the panel bootstrap |
@@ -211,12 +213,15 @@ none,
 
 ```yaml
 theme:
+  preset: gabel
   sidebar:
     collapsible: true
     startCollapsed: false
 ```
 
-The two sidebar behaviours. Both are booleans; both default as shown, so a panel that wants neither can leave the block out. Anything else about the look of the panel is Dart, in `lib/theme.dart` (`beak eject theme`), see [Theming basics](../theming/theming-basics.md).
+`preset` names a built-in theme: `standard` (obers_ui's stock light and dark theme, the default) or `gabel`. With `gabel`, `beak prepare` writes `theme: GabelTheme()` and its import into `lib/beak/panel.g.dart`, and refuses to generate until `pubspec.yaml` depends on `beak_theme_gabel`, which `beak doctor` reports too. A project that ejected `lib/theme.dart` cannot also set a preset: remove one of them. See [Built-in themes](../theming/built-in-themes.md).
+
+The two sidebar behaviours are booleans, and both default as shown, so a panel that wants neither can leave them out. Anything else about the look of the panel is Dart, in `lib/theme.dart` (`beak eject theme`), see [Theming basics](../theming/theming-basics.md).
 
 ## `resources`
 
@@ -258,6 +263,7 @@ Every problem names the key. Real messages:
 | `resources: {notes: {colour: red}}` | `beak.yaml: unknown key "resources.notes.colour". Expected one of: hidden, icon, label, section.` |
 | `resources: {notes: {icon: file-text}}` | `beak.yaml: resources.notes.icon must be a lowerCamelCase OiIcons name (got "file-text").` |
 | `theme: {sidebar: {collapsible: maybe}}` | `beak.yaml: theme.sidebar.collapsible must be true or false (got maybe).` |
+| `theme: {preset: neon}` | `beak.yaml: theme.preset must be one of: standard, gabel (got "neon").` |
 | `agents: {skills: claude}` | `beak.yaml: agents.skills must be a list, such as [claude, agents].` |
 | `resources: {notes: 5}` | `beak.yaml: resources.notes must be a mapping.` |
 | a list as the document root | `beak.yaml: the document root must be a mapping.` |

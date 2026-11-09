@@ -186,8 +186,8 @@ enum BeakOverrideKind {
   /// `lib/panel.dart` — the whole panel config, last word.
   panel(path: 'panel.dart', symbol: 'beakPanel'),
 
-  /// `lib/theme.dart` — light and dark themes.
-  theme(path: 'theme.dart', symbol: 'beakLightTheme'),
+  /// `lib/theme.dart` — the panel's `BeakTheme`.
+  theme(path: 'theme.dart', symbol: 'beakTheme'),
 
   /// `lib/auth.dart` — auth routes and callbacks.
   auth(path: 'auth.dart', symbol: 'beakAuth'),
@@ -320,6 +320,7 @@ final allIssues = <BeakDiscoveryIssue>[
   ...schemaIssues,
   ...discovery.issues,
   ...beakConfigIssues(config, discovery),
+  ...beakThemeIssues(config, discovery, root: root),
 ];
 
 if (allIssues.isNotEmpty) {

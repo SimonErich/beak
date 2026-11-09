@@ -1,6 +1,6 @@
 ---
 title: Foodio admin
-description: "Tour Gabel, the Foodio example: composed order lists, a five-step wizard, named actions, a transactional preparer, durable effects and a custom theme."
+description: "Tour Gabel, the Foodio example: composed order lists, a five-step wizard, named actions, a transactional preparer, durable effects and the Gabel theme."
 type: example
 audience: [expert, agent]
 status: stable
@@ -25,7 +25,7 @@ Read this page after the shop. It is a tour of where the parts are and why they 
 | Database | SQLite file `foodio.sqlite` |
 | Money | Integer cents, VAT inclusive |
 | Fixture | 48,213 orders, seeded in about 20 to 30 seconds |
-| Highlights | Composed list with presets and saved views, wizard, record templates, printable document, 15 named order actions, transactional preparer, outbox effects, custom theme |
+| Highlights | Composed list with presets and saved views, wizard, record templates, printable document, 15 named order actions, transactional preparer, outbox effects, the Gabel theme |
 | Tests | 43 in the Dart VM (money, behavior, API), 101 across the whole folder |
 | Read it if | You are building a designed panel or a workflow with real invariants |
 
@@ -191,15 +191,21 @@ The queue key is derived from the save id and the effect kind, and enqueueing a 
 
 Nothing leaves the machine. The payment and message providers are local adapters, and payment links use the reserved `.example` domain. See [Durable effects](../backend/durable-effects.md).
 
-### 8. A custom theme, still Obers
+### 8. A built-in theme, still Obers
 
-The look comes from one function that returns an `OiThemeData`. It starts from Obers' own light or dark theme with two font families, then overrides colors, text styles, shadows, borders, icons and the chart palette from a token file:
+The look is `GabelTheme`, a built-in theme from the `beak_theme_gabel` package. The panel selects it with one line:
 
-```dart title="examples/foodio-adminpanel/lib/theme/gabel_theme.dart"
---8<-- "examples/foodio-adminpanel/lib/theme/gabel_theme.dart:gabelBase"
+```dart title="examples/foodio-adminpanel/lib/main.dart"
+--8<-- "examples/foodio-adminpanel/lib/main.dart:foodioTheme"
 ```
 
-The fonts (Mona Sans and JetBrains Mono, both under the SIL Open Font License) are bundled in `assets/fonts/`. `DESIGN.md` records why an earlier rendering differed from the prototype and which contracts fixed it: who paints a card, how hover keeps geometry stable, why a fixed `wght` axis breaks `copyWith(fontWeight:)`. The panel around it is plain Beak. See [Theming basics](../theming/theming-basics.md).
+The package builds an `OiThemeData` per mode. Each starts from Obers' own light or dark theme with two font families, then overrides colors, text styles, shadows, borders, icons and the chart palette from a token file:
+
+```dart title="packages/beak_theme_gabel/lib/src/gabel_theme_data.dart"
+--8<-- "packages/beak_theme_gabel/lib/src/gabel_theme_data.dart:gabelBase"
+```
+
+The fonts (Mona Sans and JetBrains Mono, both under the SIL Open Font License) ship in the package, so the example declares none, and the package adds their licences to the app's licence page. `DESIGN.md` records why an earlier rendering differed from the prototype and which contracts fixed it: who paints a card, how hover keeps geometry stable, why a fixed `wght` axis breaks `copyWith(fontWeight:)`. The panel around it is plain Beak. See [Built-in themes](../theming/built-in-themes.md).
 
 ## Where things are
 
@@ -219,7 +225,7 @@ The fonts (Mona Sans and JetBrains Mono, both under the SIL Open Font License) a
 | `lib/server.dart` | Preparer, finalizer, outbox and graph-only registration |
 | `lib/seeders/foodio_seeder.dart` | The 48,213-order fixture |
 | `lib/migrations/` | 30 migrations, including additive upgrades for existing databases |
-| `lib/theme/` | Tokens, icons and the theme function |
+| `packages/beak_theme_gabel` | The theme itself: tokens, type ramp, component themes, icons and fonts |
 | `DOMAIN.md`, `DESIGN.md`, `VERIFICATION.md` | Contracts, design notes, browser checks |
 | `tool/` | Playwright scripts for browser verification |
 
@@ -241,7 +247,7 @@ The fonts (Mona Sans and JetBrains Mono, both under the SIL Open Font License) a
 | Durable effects and outbox | `lib/domain/foodio_effects.dart` | [Durable effects](../backend/durable-effects.md) |
 | Integer-cent money and exact VAT | `lib/domain/foodio_money.dart` | [Semantic fields](../models/semantic-fields.md) |
 | Enum labels and badges on a model | `lib/models/order.dart` | [An enum badge column](../recipes/an-enum-badge-column.md) |
-| A complete custom theme | `lib/theme/gabel_theme.dart` | [Theming basics](../theming/theming-basics.md) |
+| A complete built-in theme | `lib/main.dart`, `packages/beak_theme_gabel/lib/src/gabel_theme.dart` | [Built-in themes](../theming/built-in-themes.md) |
 | A large seeded fixture with real counts | `lib/seeders/foodio_seeder.dart` | [Seeding](../backend/seeding.md) |
 
 ## Tests
@@ -263,7 +269,7 @@ Both commands pass. The tests use isolated in-memory SQLite and never touch `foo
 | `order_wizard_presentation_test.dart`, `order_preview_test.dart`, `order_presentation_test.dart` | The five steps, live previews, persisted order presentation |
 | `supporting_forms_test.dart` | Create, detail and edit routes of the supporting resources |
 | `*_migration_test.dart` | Additive migrations keep existing data |
-| `gabel_*_test.dart`, `overview_layout_test.dart` | Typography, numeric alignment and overview layout |
+| `order_table_typography_test.dart`, `gabel_theme_bundle_test.dart`, `overview_layout_test.dart` | Column typography, the theme's fonts and licences reaching the app, and overview layout |
 
 Browser checks are separate. `tool/verify_*.cjs` drive Chrome through Playwright against a running API and a release build, and `VERIFICATION.md` lists what each one asserts. They need `npm` and a browser, and the gate does not run them.
 
@@ -273,7 +279,7 @@ Browser checks are separate. `tool/verify_*.cjs` drive Chrome through Playwright
 - Local providers only. There is no card gateway, email service or identity provider.
 - The rules are one canteen's rules. The capacity model reserves one order per slot regardless of portions, and delivery areas are postal codes, not geocoding.
 - The example uses a lot of Beak at once. When something here looks heavier than you expected, the [clean shop](clean-shop.md) shows the same idea with less around it.
-- Its look is a prototype's look. The theme file is a good template for a token-driven theme, but it is not a design system you should copy wholesale.
+- Its look is a prototype's look. The theme package is a good template for a token-driven theme, but it is not a design system you should copy wholesale.
 
 ## Continue reading
 

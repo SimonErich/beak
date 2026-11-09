@@ -312,6 +312,7 @@ nav:
       - "Theming and formatting":
           - theming/index.md
           - "Theming basics": theming/theming-basics.md
+          - "Built-in themes": theming/built-in-themes.md
           - "Colors and tokens": theming/colors-and-tokens.md
           - "Typography and icons": theming/typography-and-icons.md
           - "Formatting and localization": theming/formatting-and-localization.md

@@ -218,39 +218,37 @@ A `BeakMatrixCell` names its `row` and `column` by string and carries a `value`.
 
 ## Styling
 
-Charts read the theme. Series and segments take their colors from the theme's chart palette (`colors.chart`), and the grid, axes, legend and density come from `components.chart`. Set them once in the panel theme and every chart follows. The bars and donuts inside a [summary](summaries.md) read the same axis, grid and legend tokens, though their series colors come from the summary's own palette. Foodio's theme, for example:
+Charts read the theme. Series and segments take their colors from the theme's chart palette (`colors.chart`), and the grid, axes, legend and density come from `components.chart`. Set them once in the panel theme and every chart follows. The bars and donuts inside a [summary](summaries.md) read the same axis, grid and legend tokens, though their series colors come from the summary's own palette. The Gabel theme, for example:
 
-```dart title="examples/foodio-adminpanel/lib/theme/gabel_theme.dart"
-chart: OiChartThemeData(
-  grid: OiChartGridTheme(
-    color: line,
-    width: 1,
-    dashPattern: const [1, 1],
-  ),
-  centerValueStyle: text(28, 32, weight: 560),
-  legend: OiChartLegendTheme(
-    iconSize: 8,
-    valueIconSize: 10,
-    markerGap: 6,
-    valueLabelStyle: body,
-    valueStyle: text(
-      14,
-      20,
-      weight: 500,
-    ).copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
-  ),
-  axis: OiChartAxisTheme(
-    labelGap: 8,
-    labelStyle: text(12, 16, weight: 500, tracking: .12),
-    labelColor: muted,
-  ),
-  density: const OiChartDensityTheme(
-    padding: EdgeInsets.fromLTRB(40, 8, 0, 38),
-    radialInset: 7,
-    barWidth: 18,
-    sectionSpacing: 24,
-  ),
-),
+```dart title="packages/beak_theme_gabel/lib/src/components/gabel_display_components.dart"
+/// The Gabel theme for the chart widgets.
+OiChartThemeData gabelChartTheme(GabelPalette p, GabelText text) =>
+    OiChartThemeData(
+      grid: OiChartGridTheme(
+        color: p.line,
+        width: 1,
+        dashPattern: const [1, 1],
+      ),
+      centerValueStyle: text(28, 32, weight: 560),
+      legend: OiChartLegendTheme(
+        iconSize: 8,
+        valueIconSize: 10,
+        markerGap: 6,
+        valueLabelStyle: text.body,
+        valueStyle: text.tabular(text(14, 20, weight: 500)),
+      ),
+      axis: OiChartAxisTheme(
+        labelGap: 8,
+        labelStyle: text(12, 16, weight: 500, tracking: .12),
+        labelColor: p.muted,
+      ),
+      density: const OiChartDensityTheme(
+        padding: EdgeInsets.fromLTRB(40, 8, 0, 38),
+        radialInset: 7,
+        barWidth: 18,
+        sectionSpacing: 24,
+      ),
+    );
 ```
 
 `axis.labelGap` is the gap between the plot and its tick labels, and null keeps each chart's default. The chart blocks have no color parameter, so a chart that must look different is a theme change. [Colors and tokens](../theming/colors-and-tokens.md) covers the palette.

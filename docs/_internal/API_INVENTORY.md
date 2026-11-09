@@ -222,7 +222,7 @@ The Flutter panel. Built on obers_ui / obers_ui_autoforms / obers_ui_charts.
   complete `config:` (a generated or host-built `BeakPanelConfig`), never both.
   Both forms support the transport overrides `dataSource:` and `httpClient:`.
 - `BeakPanelConfig`: `{title, resources, apiBaseUrl, pages=[], auth?,
-  maintenance?, theme?, darkTheme?, initialThemeMode=system, locale?,
+  maintenance?, theme? (BeakTheme), initialThemeMode=system, locale?,
   supportedLocales=BeakLocalizations.supportedLocales, localizationsDelegates=[],
   sidebarCollapsible, sidebarDefaultCollapsed, formatting?, home?,
   notifications?, navigation?, refreshPolicy?, shellActions?, mapException?}`;

@@ -192,10 +192,12 @@ The shop registers its resources this way:
 void main() => runApp(
   BeakPanel(
     title: 'Clean Beak Shop',
-    theme: OiThemeData.fromBrand(color: const Color(0xFF315D91)),
-    darkTheme: OiThemeData.fromBrand(
-      color: const Color(0xFF82ACDF),
-      brightness: Brightness.dark,
+    theme: BeakTheme(
+      light: OiThemeData.fromBrand(color: const Color(0xFF315D91)),
+      dark: OiThemeData.fromBrand(
+        color: const Color(0xFF82ACDF),
+        brightness: Brightness.dark,
+      ),
     ),
     locale: const Locale('en'),
     formatting: const BeakFormatting(
@@ -230,7 +232,7 @@ The shop registers 11 resources for 20 models. Related models register themselve
 
 | Option | `BeakPanel(...)` | `BeakPanelConfig` |
 | --- | --- | --- |
-| `title`, `resources`, `pages`, `apiBaseUrl`, `theme`, `darkTheme`, `locale`, `formatting`, `auth`, `navigation`, `refreshPolicy`, `home`, `maintenance`, `mapException` | yes | yes |
+| `title`, `resources`, `pages`, `apiBaseUrl`, `theme`, `locale`, `formatting`, `auth`, `navigation`, `refreshPolicy`, `home`, `maintenance`, `mapException` | yes | yes |
 | `notifications`, `shellActions` | no | yes |
 | `initialThemeMode`, `supportedLocales`, `localizationsDelegates` | no | yes |
 | `sidebarCollapsible`, `sidebarDefaultCollapsed` | no | yes |
@@ -240,8 +242,7 @@ The shop registers 11 resources for 20 models. Related models register themselve
 
 ```dart title="examples/foodio-adminpanel/lib/main.dart"
 title: 'Gabel Admin',
-theme: gabelTheme(),
-darkTheme: gabelTheme(dark: true),
+theme: GabelTheme(),
 apiBaseUrl: apiBaseUrl,
 locale: const Locale('en'),
 formatting: const BeakFormatting(

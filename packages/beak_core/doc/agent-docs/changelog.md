@@ -10,9 +10,9 @@ Three things to know before you read on:
 
 - **Lockstep.** `beak`, `beak_core`, `beak_backend`, `beak_frontend`,
   `beak_cli`, `beak_test`, `beak_image`, `beak_storage_s3`, `beak_storage_ftp`,
-  `beak_serverpod`, `beak_serverpod_flutter`, `beak_serverpod_generator` and
-  `beak_serverpod_server` share one version, `0.9.0`, and are released
-  together. Each package's own `CHANGELOG.md` points back to this file. The
+  `beak_serverpod`, `beak_serverpod_flutter`, `beak_serverpod_generator`,
+  `beak_serverpod_server` and `beak_theme_gabel` share one version, `0.9.0`, and
+  are released together. Each package's own `CHANGELOG.md` points back to this file. The
   vendored `worm*` packages keep their own `0.1.0` line and are not part of a
   Beak release.
 - **The obers_ui pin must be fetchable, and current.** `beak` and `beak_frontend`
@@ -134,6 +134,12 @@ migration table at the end collects the common ones.
 
 #### Command line
 
+- `beak.yaml` takes `theme.preset` (`standard` or `gabel`). With `gabel`,
+  `beak prepare` writes `theme: GabelTheme()` and its import into
+  `lib/beak/panel.g.dart` and `beak eject main` keeps it. `beak prepare` and
+  `beak doctor` refuse it until the pubspec depends on `beak_theme_gabel`, and
+  when `lib/theme.dart` also sets the theme. `beak init` names the package a
+  preset in an existing `beak.yaml` needs.
 - `beak init` adds Beak to an existing Flutter app: the dependency, `beak.yaml`,
   an authored entrypoint and a `.gitignore` block. It is idempotent and keeps
   comments. `--entrypoint`, `--beak-ref`, `--beak-path`, `--example`,
@@ -575,9 +581,41 @@ migration table at the end collects the common ones.
 - `architecture_guard_test.dart` in `beak_frontend` fails a `StatefulWidget`,
   `State` or `StatefulElement` subclass in the `lib/` of `beak_frontend` and
   `beak_serverpod_flutter`.
+- `BeakTheme({required light, required dark, licenses})` holds the panel's two
+  `OiThemeData` and the licences a look bundles, and `BeakTheme.standard()` is
+  the stock obers_ui look. The panel registers the licences with Flutter's
+  `LicenseRegistry` once, when it mounts, and a theme that reads its licence
+  texts from assets overrides `registerLicenses()`.
+
+#### beak_theme_gabel
+
+- New package `beak_theme_gabel`: the official Gabel design as `GabelTheme()`,
+  a `BeakTheme` with both modes preconfigured. It brings the `GabelLight` and
+  `GabelDark` color tokens, the Mona Sans type ramp (with a `fieldLabel` role
+  that captions and input labels share), component themes for the controls a
+  panel draws, a 64 px compact sidebar, `OiFieldDisplayThemeData`, the
+  `gabelNumeric*Style` amount styles and the `gabelIconSources` icon table.
+  Select it with `theme: GabelTheme()`, or `theme.preset: gabel` in `beak.yaml`.
+- The package bundles Mona Sans and JetBrains Mono, with their Extended cuts
+  and SIL Open Font License texts, in `lib/fonts/`. Every family is named
+  `packages/beak_theme_gabel/<family>`, so an app declares no fonts, and
+  `GabelTheme` adds the licences to the app's licence page once.
+  `package:beak_theme_gabel/testing.dart` exports `loadGabelFonts()` for
+  widget tests and goldens.
+- `beak` does not depend on it, so a panel that keeps the stock theme ships none
+  of the fonts (about 360 KB). The Foodio example uses the package in place of
+  its own copy of the theme.
 
 ### Changed
 
+- **Breaking, `beak_frontend`: one theme value.** `BeakPanelConfig.theme` and
+  `BeakPanel(theme:)` take a `BeakTheme` and replace the `theme` and `darkTheme`
+  pair, so a panel cannot get a dark mode that is not part of its look. Wrap the
+  two themes you had: `BeakTheme(light: lightTheme, dark: darkTheme)`. In a
+  generated panel, `lib/theme.dart` declares one `BeakTheme beakTheme()` in
+  place of `beakLightTheme()` and `beakDarkTheme()`, and `beak eject theme`
+  writes it. `beak prepare` and `beak doctor` refuse a `lib/theme.dart` that
+  still declares the old pair, and name the replacement.
 - **Breaking, `beak_frontend`: one way to configure a resource.** `BeakResource`
   loses `label`, `section`, `detail`, `viewModes`, `createFields`, `editFields`,
   `createBuilder`, `editBuilder`, `formValueMode`, `createModel`, `editModel`,
@@ -1255,6 +1293,7 @@ From the pre-0.9 line, the renames people meet first:
 | `graphOnlyTables: {'orders'}` | `graphOnly: [OrderModel()]` |
 | `initializeWormPostgres` | `initializeBeakDatabase` |
 | `BeakKpiBlock` | `BeakMetricBlock(previous:, target:, format:)` |
+| `theme: light, darkTheme: dark`, `beakLightTheme()` and `beakDarkTheme()` | `theme: BeakTheme(light: light, dark: dark)`, `BeakTheme beakTheme()` |
 | `BeakWizardBlock` | `BeakWizardScreen` |
 | `lib/dashboard.dart` `beakDashboard()` | A `BeakScreen` with `path: '/'` under `lib/screens/` |
 | `lib/resources/<table>.dart` `beakResource()` override | A `BeakResource` subclass (`beak eject resource <table>`) |

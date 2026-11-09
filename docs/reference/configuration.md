@@ -137,6 +137,7 @@ The generated panel reads `api.baseUrl` from `beak.yaml` as the default of that 
 | `server.port`, `server.host` | Defaults for `PORT` and `HOST` in the generated host. A real variable wins |
 | `panel.entrypoint` | The Dart file that boots the panel in an app that keeps its own `lib/main.dart`. `prepare` then never writes `lib/main.dart`, `dev` prints `flutter run -t <file>`, and `doctor` checks that file |
 | `agents.instructions`, `agents.docs`, `agents.skills` | Which `AGENTS.md` files, docs copy and skill folders `prepare` and `beak agents` may write |
+| `theme.preset` | The built-in theme the generated panel uses: `standard` or `gabel` |
 | `theme.sidebar.collapsible`, `theme.sidebar.startCollapsed` | Sidebar behaviour |
 | `resources.<table>.icon`, `.label`, `.section`, `.hidden` | Presentation of the default resource of a model that has no `BeakResource` class |
 
@@ -147,7 +148,7 @@ Each is optional, found by file name and function name, and wired in by `beak pr
 | File | Function | Read by | Purpose |
 | --- | --- | --- | --- |
 | `lib/panel.dart` | `BeakPanelConfig beakPanel(BeakPanelConfig defaults)` | `panel.g.dart` | The last word on the panel config |
-| `lib/theme.dart` | `OiThemeData beakLightTheme()`, `OiThemeData beakDarkTheme()` | `panel.g.dart` | Light and dark theme |
+| `lib/theme.dart` | `BeakTheme beakTheme()` | `panel.g.dart` | Light and dark theme |
 | `lib/auth.dart` | `BeakAuthConfig beakAuth()` | `panel.g.dart` | Sign-in routes and adapter |
 | `lib/server.dart` | `BeakServer beakServer(BeakServerDefaults defaults)` | `server.g.dart` | Policy, sessions, middleware, routes, graph rules, outbox |
 | `lib/server.dart` | `BeakStorageRegistry beakStorageRegistry()` | `server.g.dart` | Extra storage drivers, independent of `beakServer` |

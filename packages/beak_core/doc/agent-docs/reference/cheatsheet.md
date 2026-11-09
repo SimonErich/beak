@@ -203,7 +203,7 @@ Add the resource to `resources: [...]` in an authored `lib/main.dart`; a generat
 | Hide a resource from the sidebar | `resources.<table>.hidden: true` in `beak.yaml`, or leave it out of `resources: [...]` | [beak.yaml](beak-yaml.md#resources) |
 | Sign-in, registration, idle lock | `BeakAuthConfig` in `lib/auth.dart` | [Auth and idle-lock](../panel/auth-and-idle-lock.md) |
 | Maintenance and coming-soon pages | `BeakMaintenanceConfig` | [Maintenance and coming soon](../panel/maintenance-and-coming-soon.md) |
-| Themes | `beakLightTheme()`, `beakDarkTheme()` in `lib/theme.dart` | [Theming basics](../theming/theming-basics.md) |
+| Themes | `theme.preset` in `beak.yaml`, or `beakTheme()` in `lib/theme.dart` | [Theming basics](../theming/theming-basics.md), [Built-in themes](../theming/built-in-themes.md) |
 | Date, number and currency display | `BeakFormatting` | [Formatting and localization](../theming/formatting-and-localization.md) |
 | Map server errors to messages | `BeakPanelConfig.mapException` | [Panel and resource options](panel-options.md#mapexception) |
 

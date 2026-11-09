@@ -27,6 +27,7 @@ Tests mirror the source: `lib/src/query/beak_query_spec.dart` is tested in `test
 | `beak_storage_s3`, `beak_storage_ftp` | `dart test` | a fake transport injected into the driver | 85% |
 | `beak_image`, `beak_serverpod`, `beak_serverpod_generator`, `beak_serverpod_server` | `dart test` | see each package's `test/` | 85% |
 | `beak_serverpod_flutter` | `flutter test` | see its `test/` | 85% |
+| `beak_theme_gabel` | `flutter test` | token and font checks, plus goldens of a small showcase in light and dark | 85% |
 | `examples/*` | `flutter test` | the real panel, the real server on in-memory SQLite | 85%, `quickstart` 50% |
 | the workspace root | `dart test` | the gate tooling itself, in `test/` | not measured |
 
