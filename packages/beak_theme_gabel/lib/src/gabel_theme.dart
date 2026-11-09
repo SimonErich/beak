@@ -21,7 +21,9 @@ import 'gabel_theme_data.dart';
 ///
 /// The fonts ship with this package under `packages/beak_theme_gabel/...`, so
 /// the app declares none. The theme adds the fonts' SIL Open Font License
-/// texts to Flutter's licence registry when the panel mounts.
+/// texts to Flutter's licence registry when the panel mounts. [licenses]
+/// stays empty, because the texts are read from the package's assets when a
+/// licence page opens, which [registerLicenses] arranges.
 class GabelTheme extends BeakTheme {
   /// Creates the Gabel theme, with its light and dark themes built.
   GabelTheme()
