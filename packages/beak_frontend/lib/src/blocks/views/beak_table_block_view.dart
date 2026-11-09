@@ -18,6 +18,7 @@ class _BeakTableBlockView extends StatelessWidget {
         onRowTap: block.onRowTap,
         columns: block.columns,
         fields: block.fields,
+        presentations: block.tableColumns,
         enableDelete: block.enableDelete,
         initialSpec: block.initialSpec,
         baseFilter: block.baseFilter,

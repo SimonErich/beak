@@ -21,6 +21,7 @@ import '../di/beak_locator.dart';
 import '../pages/beak_resource_pages.dart';
 import '../form/beak_configured_form.dart';
 import 'beak_resource_screen.dart';
+import 'beak_screen.dart';
 import 'beak_routes.dart';
 import 'beak_navigation.dart';
 import '../data/beak_resource_repository.dart';
@@ -199,6 +200,7 @@ List<RouteBase> beakPanelRoutes(
       for (final screen in config.pages)
         GoRoute(
           path: screen.path,
+          redirect: (_, _) => screen.isAccessible ? null : '/403',
           builder: (context, state) => _watchAuth(
             context,
             config,
@@ -251,11 +253,14 @@ String? _homeLocation(BeakPanelConfig config) {
     for (final resource in config.resources) resource.model.table: resource,
   };
   bool visible(BeakNavigationItem item) =>
-      item.model == null || (resources[item.model!.table]?.isVisible ?? false);
+      (item.screen?.isAccessible ?? true) &&
+      (item.model == null ||
+          (resources[item.model!.table]?.isVisible ?? false));
   final home = config.home;
   if (home != null) {
     final reachable = switch (home) {
       final BeakResource resource => resource.isVisible,
+      final BeakScreen screen => screen.isAccessible,
       _ => true,
     };
     if (reachable) return home.location;
@@ -273,7 +278,7 @@ String? _homeLocation(BeakPanelConfig config) {
     if (resource.isVisible) return resource.route;
   }
   for (final screen in config.pages) {
-    if (screen.showInNav) return screen.path;
+    if (screen.showInNav && screen.isAccessible) return screen.path;
   }
   return null;
 }
@@ -436,8 +441,9 @@ final class _BeakShell extends HookWidget {
       for (final resource in config.resources) resource.model.table: resource,
     };
     bool visible(BeakNavigationItem item) =>
-        item.model == null ||
-        (resources[item.model!.table]?.isVisible ?? false);
+        (item.screen?.isAccessible ?? true) &&
+        (item.model == null ||
+            (resources[item.model!.table]?.isVisible ?? false));
     final sections =
         config.navigation?.sections
             .where((section) => section.items.any(visible))
@@ -551,6 +557,7 @@ final class _BeakShell extends HookWidget {
       return OiNavItem(
         label: item.label ?? resource?.effectiveNavigationTitle ?? '',
         icon: item.icon ?? resource?.icon.icon ?? OiIcons.layoutDashboard,
+        section: item.group,
         route: item.route,
         badge: item.showCount
             ? navigationCounts.value[item.route]?.toString() ?? '—'
@@ -783,7 +790,7 @@ final class _BeakShell extends HookWidget {
                                   section: resource.navigationGroup,
                                 ),
                             for (final screen in config.pages)
-                              if (screen.showInNav)
+                              if (screen.showInNav && screen.isAccessible)
                                 OiNavItem(
                                   label: screen.effectiveNavigationTitle,
                                   icon: screen.icon.icon,

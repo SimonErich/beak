@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:get_it/get_it.dart';
 import 'package:obers_ui/obers_ui.dart';
+import 'package:signals/signals_flutter.dart';
 
 import '../../support/panel_fixtures.dart';
 
@@ -40,6 +41,89 @@ void main() {
   }
 
   group('shell', () {
+    testWidgets('mounted screens follow reactive access revocation', (
+      tester,
+    ) async {
+      final allowed = signal(true);
+      addTearDown(allowed.dispose);
+      final screen = BeakScreen(
+        path: '/live',
+        title: 'Live',
+        icon: const BeakIconToken(OiIcons.lock),
+        canAccess: () => allowed.value,
+        body: const BeakTextBlock('Protected content'),
+      );
+      await tester.pumpWidget(
+        OiApp(
+          theme: OiThemeData.light(),
+          home: BeakScreenView(screen: screen),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Protected content'), findsOneWidget);
+      allowed.value = false;
+      await tester.pumpAndSettle();
+      expect(find.text('Protected content'), findsNothing);
+      expect(find.byType(OiErrorPage), findsOneWidget);
+    });
+
+    testWidgets(
+      'screen access guards navigation, commands and direct routes live',
+      (tester) async {
+        var allowed = false;
+        final screen = BeakScreen(
+          path: '/protected',
+          title: 'Protected page',
+          icon: const BeakIconToken(OiIcons.lock),
+          canAccess: () => allowed,
+          body: const BeakTextBlock('Protected content'),
+        );
+        final gated = config.copyWith(pages: [screen]);
+        await tester.pumpWidget(
+          BeakPanel(config: gated, dataSource: FakeDataSource()),
+        );
+        await tester.pumpAndSettle();
+        final router = routerOf(tester);
+        expect(find.text('Protected page'), findsNothing);
+        expect(
+          beakNavigationCommands(
+            gated,
+            (_) {},
+          ).any((command) => command.id == 'nav:/protected'),
+          isFalse,
+        );
+        router.go('/protected');
+        await tester.pumpAndSettle();
+        expect(router.routeInformationProvider.value.uri.path, '/403');
+        expect(find.text('Protected content'), findsNothing);
+        allowed = true;
+        router.go('/protected');
+        await tester.pumpAndSettle();
+        expect(find.text('Protected content'), findsOneWidget);
+        expect(
+          beakNavigationCommands(
+            gated,
+            (_) {},
+          ).any((command) => command.id == 'nav:/protected'),
+          isTrue,
+        );
+        allowed = false;
+        router.refresh();
+        await tester.pumpAndSettle();
+        expect(find.text('Protected content'), findsNothing);
+        expect(find.byType(OiErrorPage), findsOneWidget);
+        await tester.pumpWidget(
+          OiApp(
+            theme: OiThemeData.light(),
+            home: BeakScreenView(screen: screen),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Protected content'), findsNothing);
+        expect(find.byType(OiErrorPage), findsOneWidget);
+      },
+    );
+
     testWidgets('renders one nav item per resource and no dashboard item', (
       tester,
     ) async {

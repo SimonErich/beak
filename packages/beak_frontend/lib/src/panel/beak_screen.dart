@@ -35,6 +35,7 @@ class BeakScreen implements BeakDestination {
     this.navigationGroup,
     this.showInNav = true,
     this.framed = true,
+    this.canAccess,
   });
   // --8<-- [end:BeakScreen]
 
@@ -67,6 +68,13 @@ class BeakScreen implements BeakDestination {
   /// [BeakCardBlock] to deliberately place it on one shared surface.
   /// Set false for full-bleed screens like a calendar or kanban board.
   final bool framed;
+
+  /// Live presentation permission, evaluated for routes, navigation and rendering.
+  /// The server must independently authorize the screen's data requests.
+  final bool Function()? canAccess;
+
+  /// Whether the current identity may open this screen.
+  bool get isAccessible => canAccess?.call() ?? true;
 
   /// The title shown in navigation.
   String get effectiveNavigationTitle => navigationTitle ?? title;

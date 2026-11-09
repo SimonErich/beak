@@ -1799,10 +1799,22 @@ final class BeakFormLinks extends BeakFormNode {
 /// Positions authoritative model commands within a form's layout or regions.
 final class BeakFormActions extends BeakFormNode {
   /// Null [actions] displays all currently available model commands.
-  const BeakFormActions({this.actions, super.visibleIf, super.enabledIf});
+  ///
+  /// With [page] true on a form that has a page frame, the commands appear in
+  /// the page heading actions instead of inline in the layout. Without a page
+  /// frame they still render inline.
+  const BeakFormActions({
+    this.actions,
+    this.page = false,
+    super.visibleIf,
+    super.enabledIf,
+  });
 
   /// Explicit commands, in display order.
   final List<BeakModelAction>? actions;
+
+  /// Places these commands in the generated page heading when a frame is used.
+  final bool page;
 }
 
 /// Places a model command's typed argument form inline in the current screen.

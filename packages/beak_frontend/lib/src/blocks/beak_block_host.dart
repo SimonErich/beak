@@ -72,6 +72,11 @@ class BeakBlockHost extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => switch (block) {
+    final BeakVisibilityBlock visibility => Watch(
+      (_) => visibility.visibleWhen()
+          ? BeakBlockHost(block: visibility.child)
+          : const SizedBox.shrink(),
+    ),
     final BeakColumnBlock column => _column(context, column),
     final BeakRowBlock row => _row(context, row),
     final BeakGridBlock grid => _grid(context, grid),
@@ -331,14 +336,20 @@ class BeakBlockHost extends StatelessWidget {
         breakpoint: context.breakpoint,
         gap: const OiResponsive<double>(4),
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [OiLabel.caption(label), value],
+        children: [
+          OiLabel.small(label, color: context.colors.textSubtle),
+          value,
+        ],
       ),
       BeakFieldLayout.inline => OiRow(
         breakpoint: context.breakpoint,
         gap: const OiResponsive<double>(12),
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 160, child: OiLabel.smallStrong(label)),
+          SizedBox(
+            width: 160,
+            child: OiLabel.small(label, color: context.colors.textSubtle),
+          ),
           Expanded(child: value),
         ],
       ),

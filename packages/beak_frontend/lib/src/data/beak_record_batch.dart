@@ -100,7 +100,7 @@ final class BeakBatchPreview {
               ? BeakSaveOperationKind.create
               : BeakSaveOperationKind.update,
           values: row.values,
-          expectedUpdatedAt: switch (initial?['updated_at']?.raw) {
+          expectedUpdatedAt: switch (initial?[model.updatedAtColumnKey]?.raw) {
             final DateTime timestamp => timestamp,
             _ => null,
           },

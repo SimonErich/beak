@@ -203,6 +203,9 @@ class BeakLocalizations {
   /// Adds a gallery picture.
   String get formAddImage => _de ? 'Bild hinzufügen' : 'Add image';
 
+  /// Adds a new row to the named related collection.
+  String formAddRow(String label) => _de ? '$label hinzufügen' : 'Add $label';
+
   /// Screen-reader name of the move-earlier button of picture [number].
   String formMoveImageEarlier(int number) =>
       _de ? 'Bild $number weiter nach vorn' : 'Move image $number earlier';
@@ -345,6 +348,9 @@ class BeakLocalizations {
   /// Save action label.
   String get save => _de ? 'Speichern' : 'Save';
 
+  /// Applies edits to the owning draft without saving the record.
+  String get apply => _de ? 'Übernehmen' : 'Apply';
+
   /// Pending save label.
   String get saving => _de ? 'Wird gespeichert…' : 'Saving…';
 
@@ -406,6 +412,19 @@ class BeakLocalizations {
 
   /// Command palette accessibility label.
   String get commandBar => _de ? 'Befehlssuche' : 'Command bar';
+
+  /// Placeholder text in the command palette search field.
+  String get commandBarPlaceholder =>
+      _de ? 'Befehl eingeben…' : 'Type a command…';
+
+  /// Footer hint: arrow keys select a result.
+  String get commandBarSelect => _de ? 'Auswählen' : 'Select';
+
+  /// Footer hint: Enter opens the highlighted result.
+  String get commandBarOpen => _de ? 'Öffnen' : 'Open';
+
+  /// Footer hint: Escape closes the palette.
+  String get commandBarClose => _de ? 'Schließen' : 'Close';
 
   /// Navigation command group.
   String get navigate => _de ? 'Navigation' : 'Navigate';

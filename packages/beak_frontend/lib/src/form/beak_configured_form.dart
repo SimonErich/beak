@@ -566,6 +566,13 @@ class BeakConfiguredForm extends HookWidget {
         );
         final externalFrame = steps.isEmpty && frameBuilder != null;
         final commandActions = [
+          for (final action in _pagePlacedActions(
+            session.root.layout,
+            session.root,
+          ))
+            if (action.name != submitAction?.name &&
+                session.canExecuteAction(model.behavior.action(action.name)))
+              action,
           for (final action in model.behavior.actions)
             if (action.name != submitAction?.name &&
                 !_actionPlaced(session.root.layout, action, session.root) &&
@@ -615,11 +622,9 @@ class BeakConfiguredForm extends HookWidget {
                     onTap: () => displayMode.value = BeakFormMode.edit,
                   )
           else if (!readOnly)
-            OiRow(
-              breakpoint: context.breakpoint,
-              mainAxisSize: navigation == BeakWizardNavigation.rail
-                  ? MainAxisSize.max
-                  : MainAxisSize.min,
+            _formControls(
+              context,
+              rail: navigation == BeakWizardNavigation.rail,
               children: [
                 if (steps.isEmpty && session.root.id != null) ...[
                   (outlinedCancel ? OiButton.outline : OiButton.ghost)(
@@ -640,7 +645,6 @@ class BeakConfiguredForm extends HookWidget {
                             }
                           },
                   ),
-                  const SizedBox(width: 8),
                 ],
                 if (steps.isNotEmpty &&
                     session.currentStep == 0 &&
@@ -1496,11 +1500,14 @@ class _FormNodeView extends HookWidget {
         draft: draft,
         readOnly: readOnly,
       ),
-      BeakFormActions(:final actions) => _ModelActions(
-        draft: draft,
-        actions: actions,
-        enabled: draft.enabled(node),
-      ),
+      BeakFormActions(:final actions, :final page) =>
+        page
+            ? const SizedBox.shrink()
+            : _ModelActions(
+                draft: draft,
+                actions: actions,
+                enabled: draft.enabled(node),
+              ),
       BeakFormTemplate(:final template) => BeakRecordTemplateView(
         template: template,
         draft: draft,
@@ -1578,6 +1585,25 @@ class _FormRegionScope extends InheritedWidget {
       compactHeadings != oldWidget.compactHeadings;
 }
 
+/// Secondary field label used on read surfaces — theme `textSubtle` + small.
+Widget _fieldLabel(BuildContext context, String label) =>
+    OiLabel.small(label, color: context.colors.textSubtle);
+
+/// Stacks a themed field label above a read-only value with clear pairing.
+Widget _readOnlyLabeledValue(
+  BuildContext context, {
+  required Widget child,
+  String? label,
+}) {
+  if (label == null || label.isEmpty) return child;
+  return OiColumn(
+    breakpoint: context.breakpoint,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    gap: const OiResponsive<double>(4),
+    children: [_fieldLabel(context, label), child],
+  );
+}
+
 Widget _calculatedView(
   BuildContext context,
   BeakCalculated node,
@@ -1598,8 +1624,7 @@ Widget _calculatedView(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       gap: const OiResponsive<double>(4),
       children: [
-        if (label != null)
-          OiLabel.caption(label, color: context.colors.textMuted),
+        if (label != null) _fieldLabel(context, label),
         OiSurface(
           color: context.colors.surfaceSubtle,
           borderRadius: context.radius.md,
@@ -1620,14 +1645,13 @@ Widget _calculatedView(
     return OiColumn(
       breakpoint: context.breakpoint,
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      gap: const OiResponsive<double>(2),
+      gap: const OiResponsive<double>(4),
       children: [
-        if (label != null)
-          OiLabel.caption(label, color: context.colors.textMuted),
+        if (label != null) _fieldLabel(context, label),
         Row(
           children: [
             if (node.icon != null) ...[
-              OiIcon.raw(node.icon, size: 16, color: context.colors.textMuted),
+              OiIcon.raw(node.icon, size: 16, color: context.colors.textSubtle),
               const SizedBox(width: 8),
             ],
             Expanded(
@@ -2038,6 +2062,18 @@ class _FormHeaderView extends HookWidget {
   }
 }
 
+Widget _formControls(
+  BuildContext context, {
+  required bool rail,
+  required List<Widget> children,
+}) => rail
+    ? OiRow(
+        breakpoint: context.breakpoint,
+        mainAxisSize: MainAxisSize.max,
+        children: children,
+      )
+    : Wrap(spacing: 8, runSpacing: 8, children: children);
+
 Widget _formNotice(
   BuildContext context,
   BeakFormNotice notice,
@@ -2254,6 +2290,23 @@ bool _actionPlaced(
   };
 }
 
+List<BeakModelAction> _pagePlacedActions(
+  BeakFormNode node,
+  BeakDraftRecord draft,
+) {
+  if (!draft.visible(node)) return const [];
+  return switch (node) {
+    BeakFormActions(:final actions, page: true) =>
+      List<BeakModelAction>.unmodifiable(
+        actions ?? draft.session.model.behavior.actions,
+      ),
+    BeakFormLayout(:final children) => [
+      for (final child in children) ..._pagePlacedActions(child, draft),
+    ],
+    _ => const [],
+  };
+}
+
 class _FormErrorRegistry {
   final anchors = <_FormErrorAnchorHandle>[];
   Future<void> revealFirst() async {
@@ -2450,7 +2503,7 @@ class _RelationAddAction extends StatelessWidget {
                 table.rowLayout,
                 title: label,
               );
-              if (accepted != true) {
+              if (accepted != true && context.mounted) {
                 draft.restore(checkpoint);
               }
             },
@@ -2538,23 +2591,25 @@ class _InlineActionInput extends StatelessWidget {
             session.submitting.value ||
             session.hasUnknown ||
             !draft.enabled(input);
-        final description = primary
-            ? input.editDescription ?? input.description
-            : input.description;
+        final description =
+            (primary ? input.editDescription : null) ??
+            input.description ??
+            input.action.description ??
+            action.description;
         Future<void> execute() async {
           final values = await session.actionArguments(input.action);
           if (values == null || !context.mounted) return;
-          await session.executeAction(input.action, arguments: values);
+          await session.executeAction(action, arguments: values);
         }
 
         final button = input.inlineFooter
             ? OiButton.primary(
-                label: action.label,
+                label: input.action.label,
                 size: OiButtonSize.small,
                 onTap: busy ? null : execute,
               )
             : OiButton.secondary(
-                label: action.label,
+                label: input.action.label,
                 onTap: busy ? null : execute,
               );
         return OiColumn(
@@ -2626,13 +2681,15 @@ class _ModelActions extends HookWidget {
       );
     }
     final behavior = session.model.behavior;
-    final commands = actions == null
-        ? behavior.actions
-        : [for (final action in actions!) behavior.action(action.name)];
+    final commands = actions ?? behavior.actions;
     final scope = context
         .dependOnInheritedWidgetOfExactType<_FormCommandScope>();
     final open = useState(false);
-    final available = commands.where(session.canExecuteAction).toList();
+    final available = commands
+        .where(
+          (action) => session.canExecuteAction(behavior.action(action.name)),
+        )
+        .toList();
     if (available.isEmpty) return const SizedBox.shrink();
     Future<void> execute(BeakModelAction action) async {
       if (compact) {
@@ -2642,7 +2699,10 @@ class _ModelActions extends HookWidget {
       }
       final arguments = await showBeakActionInput(context, session, action);
       if (arguments == null || !context.mounted) return;
-      final result = await session.executeAction(action, arguments: arguments);
+      final result = await session.executeAction(
+        behavior.action(action.name),
+        arguments: arguments,
+      );
       if (result?.complete == true && !session.isDirty && context.mounted) {
         scope?.onSaved(result?.rootRecord ?? session.root.snapshot);
       }
@@ -2653,28 +2713,27 @@ class _ModelActions extends HookWidget {
         session.submitting.value ||
         session.hasUnknown ||
         session.conflicts.isNotEmpty;
-    Widget button(BeakModelAction action) => OiButton.secondary(
-      label: action.label,
-      onTap: busy ? null : () => execute(action),
-    );
-    if (compact) {
+    Widget button(BeakModelAction action, {bool constrained = false}) =>
+        OiButton.secondary(
+          label: action.label,
+          fullWidth: constrained,
+          tooltip: constrained ? action.label : null,
+          onTap: busy ? null : () => execute(action),
+        );
+    // Page-frame chrome (`compact` without `iconOnly`) keeps labelled buttons
+    // visible in the heading. Only `compactActions` collapses them into a menu.
+    if (compact && iconOnly) {
       return OiPopover(
         label: 'More actions',
         open: open.value,
         onClose: () => open.value = false,
         alignment: OiFloatingAlignment.bottomEnd,
-        anchor: iconOnly
-            ? OiButton.icon(
-                label: 'More actions',
-                icon: OiIcons.ellipsis,
-                variant: OiButtonVariant.secondary,
-                onTap: busy ? null : () => open.value = !open.value,
-              )
-            : OiButton.secondary(
-                label: 'More actions',
-                icon: OiIcons.ellipsis,
-                onTap: busy ? null : () => open.value = !open.value,
-              ),
+        anchor: OiButton.icon(
+          label: 'More actions',
+          icon: OiIcons.ellipsis,
+          variant: OiButtonVariant.secondary,
+          onTap: busy ? null : () => open.value = !open.value,
+        ),
         content: Padding(
           padding: const EdgeInsets.all(8),
           child: OiColumn(
@@ -2688,7 +2747,10 @@ class _ModelActions extends HookWidget {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: [for (final action in available) button(action)],
+      children: [
+        for (final action in available)
+          IntrinsicWidth(child: button(action, constrained: true)),
+      ],
     );
   }
 }
@@ -2971,53 +3033,51 @@ class _ScalarInput extends HookWidget {
       String choiceLabel(Object? item) =>
           choices?.where((option) => option.value == item).firstOrNull?.label ??
           BeakFormatting.of(context).format(item, BeakValueFormat.text);
-      return OiColumn(
-        breakpoint: context.breakpoint,
-        crossAxisAlignment: showLabel
-            ? CrossAxisAlignment.stretch
-            : CrossAxisAlignment.start,
-        children: [
-          if (showLabel) OiLabel.caption(label),
-          if (choices != null)
-            OiLabel.body(
-              value is Iterable<Object>
-                  ? value.map(choiceLabel).join(', ')
-                  : choiceLabel(value),
-            )
-          else if ((
-                column.semantic.objectSchema,
-                column.semantic.tryDecode(draft.snapshot[column.key]),
-              )
-              case (final BeakObjectSchema schema, final BeakJsonObject object))
-            BeakObjectView(schema: schema, value: object)
-          else if ((column, draft.snapshot[column.key]?.raw) case (
-            BeakImageColumn(),
-            final String key,
-          ))
-            BeakStoredImage(
-              column: column,
-              storageKey: key,
-              alt: label,
-              table: draft.model.table,
-              client: draft.session.uploader,
-            )
-          else if (input.currency)
-            OiLabel.body(switch (draft.snapshot[column.key]?.raw) {
-              final num amount => BeakFormatting.of(context).currency(
-                input.minorUnits
-                    ? amount / math.pow(10, input.currencyScale)
-                    : amount,
-              ),
-              _ => BeakFormatting.of(context).emptyValue,
-            })
-          else
-            renderBeakField(
-              context,
-              field: input.field,
-              record: draft.snapshot,
-              renderContext: BeakContext.detail,
-            ),
-        ],
+      final Widget valueChild;
+      if (choices != null) {
+        valueChild = OiLabel.body(
+          value is Iterable<Object>
+              ? value.map(choiceLabel).join(', ')
+              : choiceLabel(value),
+        );
+      } else if ((
+            column.semantic.objectSchema,
+            column.semantic.tryDecode(draft.snapshot[column.key]),
+          )
+          case (final BeakObjectSchema schema, final BeakJsonObject object)) {
+        valueChild = BeakObjectView(schema: schema, value: object);
+      } else if ((column, draft.snapshot[column.key]?.raw) case (
+        BeakImageColumn(),
+        final String key,
+      )) {
+        valueChild = BeakStoredImage(
+          column: column,
+          storageKey: key,
+          alt: label,
+          table: draft.model.table,
+          client: draft.session.uploader,
+        );
+      } else if (input.currency) {
+        valueChild = OiLabel.body(switch (draft.snapshot[column.key]?.raw) {
+          final num amount => BeakFormatting.of(context).currency(
+            input.minorUnits
+                ? amount / math.pow(10, input.currencyScale)
+                : amount,
+          ),
+          _ => BeakFormatting.of(context).emptyValue,
+        });
+      } else {
+        valueChild = renderBeakField(
+          context,
+          field: input.field,
+          record: draft.snapshot,
+          renderContext: BeakContext.detail,
+        );
+      }
+      return _readOnlyLabeledValue(
+        context,
+        label: showLabel ? label : null,
+        child: valueChild,
       );
     }
     final enabled =
@@ -3155,17 +3215,23 @@ class _RelationInput extends HookWidget {
     final record = draft.read(field);
     if (readOnly) {
       if (input.template != null && record != null) {
-        return OiColumn(
-          breakpoint: context.breakpoint,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (label.isNotEmpty) OiLabel.caption(label),
-            BeakRecordTemplateView(template: input.template!, record: record),
-          ],
+        return _readOnlyLabeledValue(
+          context,
+          label: label.isEmpty ? null : label,
+          child: BeakRecordTemplateView(
+            template: input.template!,
+            record: record,
+          ),
         );
       }
-      return OiLabel.body(
-        '${label.isEmpty ? '' : '$label: '}${record == null ? BeakFormatting.of(context).emptyValue : field.relation.displayLabelOf(record)}',
+      return _readOnlyLabeledValue(
+        context,
+        label: label.isEmpty ? null : label,
+        child: OiLabel.body(
+          record == null
+              ? BeakFormatting.of(context).emptyValue
+              : field.relation.displayLabelOf(record),
+        ),
       );
     }
     if (input.presentation == BeakRelationPresentation.code) {
@@ -3301,7 +3367,7 @@ class _RelationCodeInput extends HookWidget {
             ),
             const SizedBox(width: 8),
             OiButton.outline(
-              label: 'Apply',
+              label: BeakLocalizations.of(context).apply,
               loading: pending.value,
               enabled:
                   enabled &&
@@ -3391,7 +3457,7 @@ Future<void> _createRelatedOption(
     child.layout,
     title: input.createLabel ?? 'Create ${input.field.label}',
   );
-  if (accepted != true) {
+  if (accepted != true && context.mounted) {
     draft.restore(checkpoint);
   }
 }
@@ -3999,7 +4065,11 @@ class _CatalogGroup extends StatelessWidget {
         table.allowEdit &&
         (quantity == null ||
             (row.capabilities.canWrite(quantity.key) &&
-                row.model.behavior.canEdit(quantity.key, row.initialRecord)));
+                row.model.behavior.canEdit(
+                  quantity.key,
+                  row.initialRecord,
+                  isCreate: row.id == null,
+                )));
     void increment() {
       if (quantity != null && matching.isNotEmpty) {
         final row = matching.first;
@@ -4049,7 +4119,9 @@ class _CatalogGroup extends StatelessWidget {
         table.advancedForm!,
         title: catalog.selection.relation.displayLabelOf(record),
       );
-      if (accepted != true) row.restore(checkpoint);
+      if (accepted != true && context.mounted) {
+        row.restore(checkpoint);
+      }
     }
 
     if (catalog.presentation == BeakCatalogPresentation.rows) {
@@ -4686,16 +4758,25 @@ Future<bool?> _editModal(
   BeakDraftRecord draft,
   BeakFormLayout layout, {
   required String title,
+  String? description,
 }) => showOiDialog<bool>(
   context,
-  builder: (context, close) => OiDialog.standard(
+  builder: (context, close) => OiDialog.form(
     label: title,
     title: title,
     content: Watch.builder(
       builder: (context) {
         draft.session.revision.value;
-        return SingleChildScrollView(
-          child: _FormNodeView(node: layout, draft: draft, readOnly: false),
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (description != null) ...[
+              OiLabel.body(description),
+              const SizedBox(height: 16),
+            ],
+            _FormNodeView(node: layout, draft: draft, readOnly: false),
+          ],
         );
       },
     ),
@@ -4705,7 +4786,7 @@ Future<bool?> _editModal(
         onTap: () => close(false),
       ),
       OiButton.primary(
-        label: 'Apply',
+        label: BeakLocalizations.of(context).apply,
         onTap: () async {
           if (await draft.validate()) close(true);
         },
@@ -5112,7 +5193,9 @@ class _CompactRelationRows extends HookWidget {
                       table.advancedForm!,
                       title: table.label ?? table.field.label,
                     );
-                    if (accepted != true) row.restore(checkpoint);
+                    if (accepted != true && context.mounted) {
+                      row.restore(checkpoint);
+                    }
                   },
           ),
         if (table.allowRemove)
@@ -5211,7 +5294,7 @@ class _RelationTable extends HookWidget {
                                       table.advancedForm!,
                                       title: label,
                                     );
-                                    if (accepted != true) {
+                                    if (accepted != true && context.mounted) {
                                       row.restore(checkpoint);
                                     }
                                   },
@@ -5253,7 +5336,8 @@ class _RelationTable extends HookWidget {
             table.showAddAction &&
             table.catalog == null)
           OiButton.secondary(
-            label: 'Add $label',
+            label: strings.formAddRow(label),
+            fullWidth: true,
             onTap: draft.session.submitting.value || draft.session.hasUnknown
                 ? null
                 : () async {
@@ -5264,9 +5348,9 @@ class _RelationTable extends HookWidget {
                       context,
                       row,
                       table.rowLayout,
-                      title: 'Add $label',
+                      title: strings.formAddRow(label),
                     );
-                    if (accepted != true) {
+                    if (accepted != true && context.mounted) {
                       draft.restore(checkpoint);
                     }
                   },
@@ -5442,20 +5526,29 @@ Future<void> showBeakFormInspector(
         ],
       ),
     ),
-    actions: [OiButton.primary(label: 'Close', onTap: () => close(null))],
+    actions: [
+      OiButton.primary(
+        label: BeakLocalizations.of(context).close,
+        onTap: () => close(null),
+      ),
+    ],
     onClose: () => close(null),
   ),
 );
 
 /// Uses the declared action input model, or a confirmation for input-free actions.
 /// The returned values are arguments to the record's transaction, never a new row.
+/// [action] supplies presentation; the registered command supplies eligibility
+/// and its input schema.
 Future<BeakRecord?> showBeakActionInput(
   BuildContext context,
   BeakFormSession session,
   BeakModelAction action,
 ) async {
-  if (!session.canExecuteAction(action)) return null;
-  final input = action.inputModel;
+  final canonical = session.model.behavior.action(action.name);
+  if (!session.canExecuteAction(canonical)) return null;
+  final input = canonical.inputModel;
+  final description = action.description ?? canonical.description;
   if (input == null) {
     final accepted = await showOiDialog<bool>(
       context,
@@ -5463,14 +5556,21 @@ Future<BeakRecord?> showBeakActionInput(
         label: action.label,
         title: action.label,
         content: OiLabel.body(
-          action.description ?? 'Apply this action to the record?',
+          description ?? BeakLocalizations.of(context).confirmAction,
         ),
         actions: [
           OiButton.ghost(
             label: BeakLocalizations.of(context).cancel,
             onTap: () => close(false),
           ),
-          OiButton.primary(label: action.label, onTap: () => close(true)),
+          IntrinsicWidth(
+            child: OiButton.primary(
+              label: action.label,
+              fullWidth: true,
+              tooltip: action.label,
+              onTap: () => close(true),
+            ),
+          ),
         ],
         onClose: () => close(false),
       ),
@@ -5489,6 +5589,7 @@ Future<BeakRecord?> showBeakActionInput(
       arguments.root,
       arguments.root.layout,
       title: action.label,
+      description: description,
     );
     return accepted == true ? arguments.root.buildRecord() : null;
   } finally {

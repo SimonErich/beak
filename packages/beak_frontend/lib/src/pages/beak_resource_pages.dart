@@ -478,7 +478,11 @@ class BeakResourceListPage extends HookWidget {
             source: dataSource,
           ),
         for (final action in resource.globalActions)
-          BeakActionButton(action: action, actionContext: actionContext),
+          BeakActionButton(
+            action: action,
+            actionContext: actionContext,
+            compact: resource.globalActions.length > 3,
+          ),
         if (resource.allowsCreate && access.canCreate)
           if (definition?.createLabel case final String label)
             OiButton.primary(

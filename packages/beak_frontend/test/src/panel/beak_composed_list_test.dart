@@ -30,6 +30,83 @@ const all = BeakQueryPreset(key: 'all', label: 'All', rowHeightInPixels: 56);
 const everything = BeakQueryPreset(key: 'all', label: 'All notes');
 
 void main() {
+  testWidgets('a delayed URL acknowledgment preserves newer search editing', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      BeakPanel(
+        dataSource: FakeDataSource(),
+        resources: [
+          BeakResource(
+            model: const NoteModel(),
+            screens: [
+              BeakTableScreen(
+                definition: BeakListDefinition(
+                  columns: [BeakTableColumn.field(_title)],
+                  showPresetCounts: false,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+    final router = GoRouter.of(tester.element(find.byType(OiAppShell)));
+    router.go('/notes');
+    await tester.pumpAndSettle();
+    final controller = tester
+        .widget<BeakListToolbar>(find.byType(BeakListToolbar).first)
+        .controller;
+    final input = find.byType(EditableText);
+    await tester.showKeyboard(input);
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: 'q',
+        selection: TextSelection.collapsed(offset: 1),
+      ),
+    );
+    await tester.pump();
+    final previous = router.routeInformationProvider.value.uri;
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: 'qa',
+        selection: TextSelection.collapsed(offset: 2),
+      ),
+    );
+    await tester.pump();
+    expect(controller.state.value.search, 'qa');
+    final editing = tester.widget<EditableText>(input).controller;
+    expect(editing.text, 'qa');
+    expect(editing.selection, const TextSelection.collapsed(offset: 2));
+    await tester.pumpAndSettle();
+    expect(
+      BeakQueryController.readUri(
+        router.routeInformationProvider.value.uri,
+      )?.search,
+      'qa',
+    );
+
+    router.go(previous.toString());
+    await tester.pumpAndSettle();
+    expect(controller.state.value.search, 'q');
+    expect(editing.text, 'q');
+    router.go('/notes');
+    await tester.pumpAndSettle();
+    expect(controller.state.value.search, isEmpty);
+    expect(editing.text, isEmpty);
+
+    controller.setSearch('pending');
+    router.go(previous.toString());
+    await tester.pumpAndSettle();
+    expect(controller.state.value.search, 'q');
+    expect(editing.text, 'q');
+    controller.setSearch('disposed');
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
   test(
     'a screen destination takes its route, label and icon from the screen',
     () {
@@ -49,6 +126,11 @@ void main() {
       expect(renamed.icon, OiIcons.cog);
     },
   );
+
+  test('a resource destination can declare a sidebar group', () {
+    const item = BeakNavigationItem.resource(NoteModel(), group: 'Entities');
+    expect(item.group, 'Entities');
+  });
 
   test('a resource destination with a preset bookmarks that preset', () {
     const urgent = BeakQueryPreset(key: 'urgent', label: 'Urgent');

@@ -66,11 +66,12 @@ void main() {
     openBeakCommandBar(tester.element(find.byType(OiAppShell)), config);
     await tester.pumpAndSettle();
 
-    expect(find.text('Insights'), findsOneWidget);
+    expect(find.text('INSIGHTS'), findsOneWidget);
+    expect(find.text('NAVIGATE'), findsNothing);
     expect(find.text('Navigate'), findsNothing);
   });
 
-  testWidgets('the highlighted result is announced without its marker', (
+  testWidgets('the highlighted result is announced without a visual marker', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(1280, 900));
@@ -82,22 +83,11 @@ void main() {
     openBeakCommandBar(tester.element(find.byType(OiAppShell)), config);
     await tester.pumpAndSettle();
 
-    final labels = [
-      for (final button in tester.widgetList<OiButton>(
-        find.descendant(
-          of: find.byType(BeakSearchPalette),
-          matching: find.byType(OiButton),
-        ),
-      ))
-        button.semanticLabel,
-    ];
-
-    expect(labels, contains('Notes · Resources'));
-    expect(
-      labels.whereType<String>().where((label) => label.contains('›')),
-      isEmpty,
-    );
-    expect(find.textContaining('› Notes'), findsOneWidget);
+    expect(find.text('Notes'), findsWidgets);
+    expect(find.textContaining('›'), findsNothing);
+    final semantics = tester.getSemantics(find.text('Notes').first);
+    expect(semantics.label, contains('Notes'));
+    expect(semantics.label, isNot(contains('›')));
   });
 
   testWidgets(
@@ -208,7 +198,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 250));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Original · Notes'), findsOneWidget);
+      expect(find.bySemanticsLabel('Original · Notes'), findsOneWidget);
       await source.update(
         'notes',
         'n1',
@@ -218,7 +208,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 250));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Original updated · Notes'), findsOneWidget);
+      expect(find.bySemanticsLabel('Original updated · Notes'), findsOneWidget);
       expect(
         tester.widget<EditableText>(find.byType(EditableText)).controller.text,
         'Original',
@@ -275,8 +265,8 @@ void main() {
       await tester.pumpAndSettle();
       source.finish(0, 'First');
       await tester.pumpAndSettle();
-      expect(find.textContaining('Second · Notes'), findsOneWidget);
-      expect(find.textContaining('First · Notes'), findsNothing);
+      expect(find.bySemanticsLabel('Second · Notes'), findsOneWidget);
+      expect(find.bySemanticsLabel('First · Notes'), findsNothing);
       await tester.enterText(find.byType(EditableText), 'Disposed');
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 250));

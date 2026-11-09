@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:obers_ui/obers_ui.dart';
+import 'package:signals/signals_flutter.dart';
 
 import '../blocks/beak_block.dart';
 import '../blocks/beak_block_host.dart';
@@ -20,7 +21,8 @@ class BeakScreenView extends StatelessWidget {
   final BeakScreen screen;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Watch((context) {
+    if (!screen.isAccessible) return OiErrorPage.forbidden();
     final body = BeakBlockHost(block: screen.body);
     if (!screen.framed) {
       return body;
@@ -36,5 +38,5 @@ class BeakScreenView extends StatelessWidget {
       scrollable: true,
       child: body,
     );
-  }
+  });
 }

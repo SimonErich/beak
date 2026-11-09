@@ -46,9 +46,18 @@ class BeakQueryScope extends HookWidget {
     final ready = useState(false);
     final router = persistInUrl ? GoRouter.of(context) : null;
     final uri = persistInUrl ? GoRouterState.of(context).uri : null;
+    final emitted = useMemoized(() => <Uri>[], [controller, router]);
     useEffect(() {
       var active = true;
       if (uri == null) return null;
+      final acknowledgment = emitted.indexOf(uri);
+      if (acknowledgment >= 0) {
+        // An older local write may arrive after the next keystroke. Acknowledge
+        // it without restoring state or resetting the editor's selection.
+        emitted.removeRange(0, acknowledgment + 1);
+        return null;
+      }
+      emitted.clear();
       beakRun(() async {
         final restored = BeakQueryController.readUri(uri);
         controller.restore(restored ?? initial);
@@ -64,18 +73,26 @@ class BeakQueryScope extends HookWidget {
     }, [controller, uri]);
     useEffect(() {
       if (router == null || !ready.value || error.value != null) return null;
-      return effect(() {
+      var active = true;
+      final stop = effect(() {
         controller.state.value;
         final current = router.routeInformationProvider.value.uri;
-        final next = controller.writeUri(current);
-        if (current == next) return;
+        if (current == controller.writeUri(current)) return;
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (context.mounted &&
+          if (active &&
+              context.mounted &&
               router.routeInformationProvider.value.uri == current) {
+            final next = controller.writeUri(current);
+            if (next == current) return;
+            emitted.add(next);
             router.replace<void>(next.toString());
           }
         });
       });
+      return () {
+        active = false;
+        stop();
+      };
     }, [controller, router, ready.value, error.value]);
     return _QueryScope(
       controller: controller,

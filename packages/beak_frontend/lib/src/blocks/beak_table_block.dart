@@ -34,6 +34,7 @@ final class BeakTableBlock extends BeakBlock {
     this.title,
     this.columns,
     this.fields,
+    this.tableColumns,
     this.enableDelete = true,
     this.initialSpec,
     this.baseFilter,
@@ -64,6 +65,10 @@ final class BeakTableBlock extends BeakBlock {
   /// Exact ordered fields, including typed relationship paths and formatting.
   /// Takes precedence over [columns] and suppresses automatic relation columns.
   final List<BeakScalarField<Object>>? fields;
+
+  /// Reusable presentation columns with labels, templates and inferred loads.
+  /// Takes precedence over [fields] and [columns].
+  final List<BeakTableColumn>? tableColumns;
 
   /// Adds the built-in delete action. Disable for read-only embedded listings.
   /// Custom [actions] remain available independently.

@@ -14,6 +14,49 @@ const _cards = BeakToManyField(
 const _text = BeakScalarField<String>(model: _Card(), column: _Card.text);
 
 void main() {
+  testWidgets('localized add-row actions fit narrow relation cards', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(375, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    late BeakFormSession session;
+    await tester.pumpWidget(
+      OiApp(
+        theme: OiThemeData.light(),
+        locale: const Locale('de'),
+        localizationsDelegates: const [BeakLocalizations.delegate],
+        supportedLocales: BeakLocalizations.supportedLocales,
+        home: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 50),
+          child: BeakConfiguredForm(
+            model: const _Board(),
+            dataSource: FakeDataSource(models: const [_Board(), _Card()]),
+            layout: BeakFormLayout(
+              children: [
+                _cards.tableForm(
+                  label: 'Übersetzungen',
+                  children: [_text.input()],
+                ),
+              ],
+            ),
+            onSession: (value) => session = value,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is OiButton && widget.label == 'Übersetzungen hinzufügen',
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(session.root.rows(_cards), hasLength(1));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('the Remove button of every row names the row it removes', (
     tester,
   ) async {

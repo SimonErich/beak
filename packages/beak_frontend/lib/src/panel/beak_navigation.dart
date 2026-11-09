@@ -21,6 +21,7 @@ final class BeakNavigationItem {
     this.preset,
     this.showCount = false,
     this.recordLabelMonospace = false,
+    this.group,
   }) : screen = null,
        _label = label,
        _icon = icon;
@@ -30,13 +31,17 @@ final class BeakNavigationItem {
   ///
   /// The label and icon default to the screen's own navigation title and icon.
   // --8<-- [start:BeakNavigationItemScreen]
-  const BeakNavigationItem.screen(this.screen, {String? label, IconData? icon})
-    : model = null,
-      preset = null,
-      showCount = false,
-      recordLabelMonospace = false,
-      _label = label,
-      _icon = icon;
+  const BeakNavigationItem.screen(
+    this.screen, {
+    String? label,
+    IconData? icon,
+    this.group,
+  }) : model = null,
+       preset = null,
+       showCount = false,
+       recordLabelMonospace = false,
+       _label = label,
+       _icon = icon;
   // --8<-- [end:BeakNavigationItemScreen]
 
   /// Model owning a generated route.
@@ -64,6 +69,9 @@ final class BeakNavigationItem {
   /// Shows an authorized live count for this destination's base query and preset.
   /// Missing/loading/failed counts remain unavailable rather than becoming zero.
   final bool showCount;
+
+  /// Optional sidebar group label ([OiNavItem.section]) for contextual nav.
+  final String? group;
 
   /// Whether this destination matches the active resource/preset bookmark.
   bool matches(Uri current) {
