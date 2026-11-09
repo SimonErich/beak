@@ -82,9 +82,10 @@ final class Order extends BeakSchema {
   late final BeakJson? document;
   late final bool? approved;
   static List<BeakRecordRule> get validationRules => [];
-  static BeakPermissions get permissions => BeakPermissions({
-    BeakOperation.read: () => true,
-  });
+  static BeakPermissions get permissions => const BeakPermissions(
+    read: BeakAccess.anyone,
+    write: BeakAccess.role('clerk'),
+  );
   static Set<BeakOperation> get capabilities => const {
     BeakOperation.read,
     BeakOperation.create,
@@ -142,7 +143,9 @@ void main() {
   BeakModelRegistry().register(const OrderModel());
   final suggested = const OrderModel().behavior.apply(const BeakRecord(values: {}));
   if (OrderModel.quantity.readFrom(suggested) != 3) throw StateError('generated behavior not forwarded');
-  if (!const OrderModel().permissions.allows(BeakOperation.read) || const OrderModel().permissions.allows(BeakOperation.delete)) throw StateError('generated permissions not forwarded');
+  const clerk = BeakPrincipal(id: 'c', roles: {'clerk'});
+  final permissions = const OrderModel().permissions;
+  if (!permissions.allows(BeakOperation.read, null) || permissions.allows(BeakOperation.delete, null) || !permissions.allows(BeakOperation.delete, clerk)) throw StateError('generated permissions not forwarded');
   if (const OrderModel().capabilities.contains(BeakOperation.delete)) throw StateError('generated capabilities not forwarded');
   final money = BeakDecimal.parse('1.250', scale: 3);
   var record = const BeakRecord(values: {});

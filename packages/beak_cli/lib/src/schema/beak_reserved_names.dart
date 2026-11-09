@@ -21,6 +21,7 @@ abstract final class BeakReservedNames {
     'displayColumnKey',
     'columns',
     'permissions',
+    'admission',
     'validationRules',
     'behavior',
     'capabilities',
