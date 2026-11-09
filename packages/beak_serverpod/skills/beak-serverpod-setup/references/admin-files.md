@@ -136,9 +136,9 @@ ServerpodIdentityResolver acmeAdminIdentity(
 };
 ```
 
-Presentation permissions can be mapped from the same token
-(`BeakPermissions`); they only hide controls. Every endpoint enforces its own
-policy.
+Presentation permissions follow from the roles on the identity: pass them as
+`BeakAuthIdentity(roles: ...)` and a model's `BeakPermissions` is checked
+against them. They only hide controls. Every endpoint enforces its own policy.
 
 ## A resource
 
