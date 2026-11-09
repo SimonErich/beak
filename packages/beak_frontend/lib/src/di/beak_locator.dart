@@ -11,6 +11,7 @@ import '../actions/beak_model_action_runner.dart';
 import '../data/http_beak_data_source.dart';
 import '../data/model_beak_data_source.dart';
 import '../panel/beak_panel_config.dart';
+import '../panel/beak_principal_bridge.dart';
 import '../panel/beak_theme_controller.dart';
 
 /// The panel's dependency container — package-scoped so Beak never
@@ -139,6 +140,7 @@ void registerBeakDependencies({
       BeakThemeController(config.initialThemeMode),
     );
   // --8<-- [end:registerDataLayer]
+  BeakPrincipalBridge.attach(authority, owner: container);
 }
 
 /// The hook that ends [authority]'s session when the server stops accepting it.

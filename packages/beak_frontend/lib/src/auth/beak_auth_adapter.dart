@@ -8,6 +8,7 @@ class BeakAuthIdentity {
     required this.id,
     this.displayName,
     this.canAccessPanel = true,
+    this.roles = const {},
   });
 
   /// Stable identifier supplied by the authentication backend.
@@ -18,6 +19,16 @@ class BeakAuthIdentity {
 
   /// Whether the domain's current permission rules allow panel access.
   final bool canAccessPanel;
+
+  /// The roles the backend granted this account.
+  ///
+  /// Model permissions are checked against them, so a panel offers only what
+  /// the account's roles allow. The server enforces its own policy regardless.
+  final Set<String> roles;
+
+  /// This identity as the [BeakPrincipal] model permissions are checked
+  /// against.
+  BeakPrincipal get principal => BeakPrincipal(id: '$id', roles: roles);
 }
 
 /// A resolved session or its initialization state.

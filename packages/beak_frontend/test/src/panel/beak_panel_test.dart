@@ -172,13 +172,14 @@ void main() {
     testWidgets(
       'resource capabilities are reevaluated after permissions change',
       (tester) async {
-        var canWrite = true;
+        final auth = _RoleAuth({'writer'});
         await tester.pumpWidget(
           BeakPanel(
             config: config.copyWith(
+              auth: BeakAuthConfig(adapter: auth),
               resources: [
                 config.resources.first.copyWith(
-                  model: _WriteGatedNoteModel(() => canWrite),
+                  model: const _WriteGatedNoteModel(),
                 ),
               ],
             ),
@@ -187,7 +188,16 @@ void main() {
         );
         await tester.pumpAndSettle();
         final router = routerOf(tester);
-        canWrite = false;
+        router.go('/notes/create');
+        await tester.pumpAndSettle();
+        expect(find.byType(BeakResourceCreatePage), findsOneWidget);
+
+        auth.grant(const {});
+        await tester.pumpAndSettle();
+        expect(router.routeInformationProvider.value.uri.path, '/403');
+        expect(find.byType(BeakResourceCreatePage), findsNothing);
+        expect(find.byType(OiErrorPage), findsOneWidget);
+
         router.go('/notes/create');
         await tester.pumpAndSettle();
         expect(find.byType(BeakResourceCreatePage), findsNothing);
@@ -435,11 +445,9 @@ void main() {
 }
 
 // --8<-- [start:WriteGatedNoteModel]
-/// The notes model whose write permissions follow a live check.
+/// The notes model whose writes are open to the `writer` role.
 final class _WriteGatedNoteModel extends BeakModel {
-  const _WriteGatedNoteModel(this.canWrite);
-
-  final bool Function() canWrite;
+  const _WriteGatedNoteModel();
 
   @override
   String get table => 'notes';
@@ -451,9 +459,38 @@ final class _WriteGatedNoteModel extends BeakModel {
   List<BeakColumn> get columns => const NoteModel().columns;
 
   @override
-  BeakPermissions get permissions => BeakPermissions({
-    BeakOperation.read: () => true,
-    BeakOperation.create: canWrite,
-  });
+  BeakPermissions get permissions => const BeakPermissions(
+    read: BeakAccess.anyone,
+    write: BeakAccess.role('writer'),
+  );
 }
 // --8<-- [end:WriteGatedNoteModel]
+
+/// A signed-in account whose roles the test changes while the panel runs.
+final class _RoleAuth extends BeakAuthAdapter {
+  _RoleAuth(Set<String> roles)
+    : _state = signal(
+        BeakAuthAuthenticated(BeakAuthIdentity(id: 'writer-1', roles: roles)),
+      );
+
+  final Signal<BeakAuthState> _state;
+
+  @override
+  ReadonlySignal<BeakAuthState> get state => _state;
+
+  void grant(Set<String> roles) => _state.value = BeakAuthAuthenticated(
+    BeakAuthIdentity(id: 'writer-1', roles: roles),
+  );
+
+  @override
+  Future<BeakResult<void>> login({
+    required String email,
+    required String password,
+  }) async => const BeakOk(null);
+
+  @override
+  Future<BeakResult<void>> logout() async => const BeakOk(null);
+
+  @override
+  Future<BeakResult<void>> refresh() async => const BeakOk(null);
+}

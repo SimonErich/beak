@@ -1,11 +1,13 @@
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_frontend/beak_frontend.dart';
 import 'package:beak_frontend/src/data/model_beak_data_source.dart';
+import 'package:beak_frontend/src/panel/beak_principal_bridge.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
+import 'package:signals/signals.dart';
 
 import '../../support/panel_fixtures.dart';
 
@@ -196,15 +198,17 @@ void main() {
 
   // --8<-- [start:permissionsGovernTest]
   test('model permissions and supported operations govern every resource', () {
-    var canRead = true;
-    final resource = BeakResource(
+    final account = _Account({'reader'});
+    BeakPrincipalBridge.attach(account, owner: account);
+    addTearDown(() => BeakPrincipalBridge.detach(owner: account));
+    const resource = BeakResource(
       model: _BoundModel(
-        permissions: BeakPermissions({
-          BeakOperation.read: () => canRead,
-          BeakOperation.create: () => true,
-        }),
+        permissions: BeakPermissions(
+          read: BeakAccess.role('reader'),
+          create: BeakAccess.anyone,
+        ),
       ),
-      icon: const BeakIconToken(OiIcons.notebook),
+      icon: BeakIconToken(OiIcons.notebook),
     );
     expect(resource.isVisible, isTrue);
     expect(resource.allowsCreate, isFalse);
@@ -220,7 +224,7 @@ void main() {
     );
     expect(custom.allowsCreate, isTrue);
     expect(custom.allowsEdit, isFalse);
-    canRead = false;
+    account.setRoles(const {});
     expect(resource.isVisible, isFalse);
     expect(custom.allowsCreate, isFalse);
   });
@@ -314,4 +318,33 @@ void main() {
     );
     expect(count, 1);
   });
+}
+
+/// A signed-in account whose roles a test changes in place.
+final class _Account extends BeakAuthAdapter {
+  _Account(Set<String> roles)
+    : _state = signal(
+        BeakAuthAuthenticated(BeakAuthIdentity(id: 'account', roles: roles)),
+      );
+
+  final Signal<BeakAuthState> _state;
+
+  @override
+  ReadonlySignal<BeakAuthState> get state => _state;
+
+  void setRoles(Set<String> roles) => _state.value = BeakAuthAuthenticated(
+    BeakAuthIdentity(id: 'account', roles: roles),
+  );
+
+  @override
+  Future<BeakResult<void>> login({
+    required String email,
+    required String password,
+  }) async => const BeakOk(null);
+
+  @override
+  Future<BeakResult<void>> logout() async => const BeakOk(null);
+
+  @override
+  Future<BeakResult<void>> refresh() async => const BeakOk(null);
 }

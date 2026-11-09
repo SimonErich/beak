@@ -14,6 +14,7 @@ import '../auth/beak_session_store.dart';
 import '../localization/beak_localizations.dart';
 import '../formatting/beak_formatting.dart';
 import 'beak_panel_config.dart';
+import 'beak_principal_bridge.dart';
 import 'beak_router.dart';
 import 'beak_theme_controller.dart';
 import 'beak_auth_config.dart';
@@ -257,6 +258,7 @@ class BeakPanel extends HookWidget {
           routing.container<BeakClient>().close();
         }
         routing.container<BeakThemeController>().dispose();
+        BeakPrincipalBridge.detach(owner: routing.container);
         routing.container.reset();
       },
       [routing],

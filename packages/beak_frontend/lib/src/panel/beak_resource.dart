@@ -7,6 +7,7 @@ import '../filters/beak_default_filters.dart';
 import '../filters/beak_filter_widget.dart';
 import '../form/upload_field.dart';
 import 'beak_destination.dart';
+import 'beak_principal_bridge.dart';
 import 'beak_resource_screen.dart';
 import 'beak_routes.dart';
 
@@ -161,12 +162,12 @@ class BeakResource implements BeakDestination {
 
   /// Whether read access is currently available in the panel.
   ///
-  /// Reads [BeakModel.permissions], so a schema class declaring
-  /// `static BeakPermissions get permissions` controls navigation and every
-  /// resource route.
+  /// Checks [BeakModel.permissions] against the signed-in principal, so a
+  /// schema class declaring `static BeakPermissions get permissions` controls
+  /// navigation and every resource route.
   bool get isVisible =>
       model.capabilities.contains(BeakOperation.read) &&
-      model.permissions.allows(BeakOperation.read);
+      model.permissions.allows(BeakOperation.read, BeakPrincipalBridge.current);
 
   /// Whether creation is currently available: the model supports it or a
   /// custom create screen supplies the workflow, [canCreate] is set and
@@ -176,7 +177,10 @@ class BeakResource implements BeakDestination {
       canCreate &&
       (model.capabilities.contains(BeakOperation.create) ||
           _hasCustomScreen(BeakScreenRole.create)) &&
-      model.permissions.allows(BeakOperation.create);
+      model.permissions.allows(
+        BeakOperation.create,
+        BeakPrincipalBridge.current,
+      );
 
   /// Whether editing is currently available: the model supports it or a
   /// custom edit screen supplies the workflow, [canEdit] is set and
@@ -186,14 +190,20 @@ class BeakResource implements BeakDestination {
       canEdit &&
       (model.capabilities.contains(BeakOperation.update) ||
           _hasCustomScreen(BeakScreenRole.edit)) &&
-      model.permissions.allows(BeakOperation.update);
+      model.permissions.allows(
+        BeakOperation.update,
+        BeakPrincipalBridge.current,
+      );
 
   /// Whether deletion is currently available.
   bool get allowsDelete =>
       isVisible &&
       canDelete &&
       model.capabilities.contains(BeakOperation.delete) &&
-      model.permissions.allows(BeakOperation.delete);
+      model.permissions.allows(
+        BeakOperation.delete,
+        BeakPrincipalBridge.current,
+      );
 
   /// Live availability of a built-in or configured resource action.
   /// Custom actions require read access and retain their own domain checks.

@@ -382,8 +382,7 @@ final class _PrivateNoteModel extends BeakModel {
     BeakStringColumn(key: 'title', label: 'Title', searchable: true),
   ];
   @override
-  BeakPermissions get permissions =>
-      BeakPermissions({BeakOperation.read: () => false});
+  BeakPermissions get permissions => const BeakPermissions();
 }
 
 final class _SearchModel extends BeakModel {
