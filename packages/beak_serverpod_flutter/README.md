@@ -30,7 +30,7 @@ says which path fits.
 | Part | Version |
 | --- | --- |
 | `serverpod_auth_core_flutter`, `serverpod_auth_idp_client`, `serverpod_client` | `>=4.0.3 <5.0.0` declared, 4.0.4 tested |
-| Flutter | `>=3.41.0` declared. Serverpod 4.0.4 itself needs Dart 3.12.2 and Flutter 3.44.4 |
+| Flutter | `>=3.44.0` declared. Serverpod 4.0.4 itself needs Dart 3.12.2 and Flutter 3.44.4 |
 
 Earlier Beak builds pinned `4.0.0-beta.0`, and this package does not resolve
 against it. Between the beta and 4.0.x, `ServerpodClientException` became sealed

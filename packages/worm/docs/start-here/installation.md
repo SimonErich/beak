@@ -44,19 +44,12 @@ dev_dependencies:
 
 ### Lints (optional)
 
-`worm_lints` is a `custom_lint` plugin carrying worm's coding-convention rules. The `custom_lint` version is pinned exactly:
-
-```yaml title="pubspec.yaml"
-dev_dependencies:
-  custom_lint: 0.8.1
-  worm_lints:
-    path: ../beak/packages/worm_lints
-```
+`worm_lints` is an analyzer plugin (built on `analysis_server_plugin`) carrying worm's coding-convention rules. Name it under `plugins:` in `analysis_options.yaml`. Nothing goes into `pubspec.yaml`, and `dart analyze` and the IDE both report what it finds:
 
 ```yaml title="analysis_options.yaml"
-analyzer:
-  plugins:
-    - custom_lint
+plugins:
+  worm_lints:
+    path: ../beak/packages/worm_lints
 ```
 
 ## Scaffold the project layout
@@ -121,7 +114,7 @@ You should see the 15 commands, from `db:seed` to `schema:dump`. If Dart complai
 
 - The default `adapterFactory` builds a connected `InMemoryAdapter`. Until you wire a real adapter into your own entry point, database commands succeed against RAM and touch no real database.
 - `worm:worm` always runs the stock, empty-registry CLI from the worm package. Your project-aware entry point is the `bin/worm.dart` you wrote yourself.
-- `custom_lint` must be exactly `0.8.1`; `worm_lints` pins `custom_lint_builder` to that version.
+- `worm_lints` is loaded by the analysis server from the `plugins:` entry, so a change to a rule needs the analysis server restarted before the editor shows it.
 - Migrations, seeders, and models are registered in code, not discovered from disk. A migration file that is not in the `migrations:` list does not exist as far as the CLI is concerned.
 
 ## Continue reading

@@ -494,7 +494,7 @@ class BeakRecordTemplateView extends StatelessWidget {
   final BeakDraftRecord? draft;
 
   @override
-  Widget build(BuildContext context) => Watch.builder(
+  Widget build(BuildContext context) => SignalBuilder(
     builder: (context) {
       final row = draft?.snapshot ?? record!;
       final reader = draft ?? _RecordReader(row);

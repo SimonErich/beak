@@ -91,15 +91,37 @@ final class BeakPanelAccess {
 
   /// The access of the nearest panel above [context].
   ///
-  /// Subscribes [context] to the principal: the widget builds again when the
-  /// account's identity or roles change. Without a panel, and without a
-  /// registered access, the answer is [anonymous].
+  /// Depends on the panel's [BeakPanelAccessScope], so the widget builds again
+  /// when the account's identity or roles change. Without a panel, and without
+  /// a registered access, the answer is [anonymous].
   static BeakPanelAccess of(BuildContext context) {
+    final scoped = context
+        .dependOnInheritedWidgetOfExactType<BeakPanelAccessScope>();
+    if (scoped != null) return scoped.access;
     final container = beakDependencies(context);
-    final access = container.isRegistered<BeakPanelAccess>()
+    return container.isRegistered<BeakPanelAccess>()
         ? container<BeakPanelAccess>()
         : anonymous;
-    access._principal.watch(context);
-    return access;
   }
+}
+
+/// Makes the panel's [BeakPanelAccess] available to every widget below it.
+///
+/// [BeakPanel] rebuilds this scope when the account's principal changes, so
+/// [BeakPanelAccess.of] answers with fresh roles without any widget asking a
+/// signal directly.
+final class BeakPanelAccessScope extends InheritedWidget {
+  /// Creates a scope over [access].
+  const BeakPanelAccessScope({
+    required this.access,
+    required super.child,
+    super.key,
+  });
+
+  /// The account's current access.
+  final BeakPanelAccess access;
+
+  @override
+  bool updateShouldNotify(BeakPanelAccessScope oldWidget) =>
+      oldWidget.access != access;
 }

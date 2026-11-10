@@ -20,7 +20,7 @@ the accounting, capacity, approval and snapshot rules, and
 
 ## Run locally
 
-You need Dart `^3.11` and Flutter 3.41 or newer, one installation used for
+You need Dart `^3.12` and Flutter 3.44 or newer, one installation used for
 dependency resolution, generation, tests and builds alike. The checks in
 [VERIFICATION.md](VERIFICATION.md) ran on Flutter 3.44.0 and Dart 3.12.0.
 

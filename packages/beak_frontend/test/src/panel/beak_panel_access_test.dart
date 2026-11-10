@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
 import 'package:signals/signals.dart';
-import 'package:signals_flutter/signals_flutter.dart' show Watch;
+import 'package:signals_flutter/signals_flutter.dart' show SignalBuilder;
 
 import '../../support/panel_fixtures.dart';
 
@@ -386,10 +386,12 @@ class _AccessProbe extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    // A Watch tracks every signal read below, like BeakPanelAccess.of does.
-    return Watch((context) {
-      onBuild();
-      return Text('writer: ${access.has('writer') ? 'yes' : 'no'}');
-    });
+    // A SignalBuilder tracks every signal read below, like of(context) does.
+    return SignalBuilder(
+      builder: (context) {
+        onBuild();
+        return Text('writer: ${access.has('writer') ? 'yes' : 'no'}');
+      },
+    );
   }
 }

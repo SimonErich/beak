@@ -249,10 +249,12 @@ Widget _watchAuth(
 ) {
   if (config.auth == null) return Builder(builder: builder);
   final access = BeakPanelAccess.of(context);
-  return Watch((context) {
-    final principal = access.principal;
-    return KeyedSubtree(key: ValueKey(principal), child: builder(context));
-  });
+  return SignalBuilder(
+    builder: (context) {
+      final principal = access.principal;
+      return KeyedSubtree(key: ValueKey(principal), child: builder(context));
+    },
+  );
 }
 
 /// The access [registerBeakDependencies] registered in [beakLocator], for a
@@ -425,21 +427,25 @@ Widget _forbiddenPage(BuildContext context, BeakPanelConfig config) {
             (container.isRegistered<BeakSessionStore>()
                 ? container<BeakSessionStore>()
                 : null);
-  return Watch((context) {
-    final refused = switch (adapter?.state.value) {
-      BeakAuthAuthenticated(:final identity) => !identity.canAccessPanel,
-      _ => false,
-    };
-    return OiErrorPage.forbidden(
-      actionLabel: refused ? strings.authBackToLogin : strings.backToDashboard,
-      onAction: switch (adapter) {
-        final BeakAuthAdapter session when refused => () => unawaited(
-          session.logout(),
-        ),
-        _ => () => context.go('/'),
-      },
-    );
-  });
+  return SignalBuilder(
+    builder: (context) {
+      final refused = switch (adapter?.state.value) {
+        BeakAuthAuthenticated(:final identity) => !identity.canAccessPanel,
+        _ => false,
+      };
+      return OiErrorPage.forbidden(
+        actionLabel: refused
+            ? strings.authBackToLogin
+            : strings.backToDashboard,
+        onAction: switch (adapter) {
+          final BeakAuthAdapter session when refused => () => unawaited(
+            session.logout(),
+          ),
+          _ => () => context.go('/'),
+        },
+      );
+    },
+  );
 }
 
 /// The panel chrome around every routed page: an `OiAppShell` whose

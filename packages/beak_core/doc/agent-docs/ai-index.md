@@ -60,6 +60,8 @@ Rows marked `(removed)` name symbols that no Beak package declares any more. The
 | Existing Serverpod tables require `deleted_at` or the `beak.admin` scope | `@Resource` accepts configurable lifecycle keys and a boolean deletion flag. `BeakServerpodEngine.admit` checks live application access, with the stock scope rule as its default | [How the admin app works](serverpod/admin-app/how-it-works.md) |
 | Custom screen visibility is fixed at startup | `BeakScreen.canAccess` is a live callback checked by navigation, commands, routes and rendering. `BeakVisibilityBlock` omits a dashboard subtree before mounting its requests | [Custom screens](panel/custom-screens.md) |
 | A Serverpod project means the client bridge | Two paths. The admin app inside the workspace runs Beak's API in the Serverpod server (`BeakServerpodEngine` behind `BeakAdminGate`). The bridge (`ServerpodResource`) puts the panel over an existing client and changes nothing on the server | [Choosing an integration](serverpod/choosing-an-integration.md) |
+| A panel widget reads a signal through the Watch widget | signals 7 deprecates the Watch widget. Beak builds reactive subtrees with `SignalBuilder(builder: (context) => ...)` from `package:signals/signals_flutter.dart`, and `flutter analyze --fatal-infos` fails on it | [Frontend flow](architecture/frontend-flow.md) |
+| Beak's Flutter packages run on Dart 3.11 and Flutter 3.41 | `beak_frontend`, `beak`, `beak_serverpod_flutter` and `beak create` need Dart `^3.12` and Flutter `>=3.44`, because go_router 18 does. The pure-Dart packages stay at Dart `^3.11` | [Installation](start-here/installation.md) |
 
 Search your own code for the removed names before you report a change. Nothing should match:
 

@@ -22,7 +22,7 @@ You write one small Dart class per model. Everything else in the list above come
 | You need | Why |
 | --- | --- |
 | The `beak` command | [Installation](installation.md) has the two lines. `beak --version` prints `beak 0.9.0`. |
-| Dart `^3.11`, Flutter `3.41` or newer | The API runs on Dart, the panel on Flutter. |
+| Dart `^3.12`, Flutter `3.44` or newer | The API runs on Dart, the panel on Flutter. |
 | Chrome | Runs the panel. Any Flutter web device works. |
 | A free port `8080` | The API listens there. `PORT=9090 beak dev` moves it. |
 

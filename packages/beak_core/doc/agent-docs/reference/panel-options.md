@@ -479,26 +479,27 @@ The first visible item of a section is its landing destination.
 An item is a generated resource list or a custom screen. The constructors are named.
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_navigation.dart"
-  const BeakNavigationItem.resource(
-    this.model, {
-    String? label,
-    IconData? icon,
-    this.preset,
-    this.showCount = false,
-    this.recordLabelMonospace = false,
-  }) : screen = null,
-       _label = label,
-       _icon = icon;
+const BeakNavigationItem.resource(
+  this.model, {
+  this._label,
+  this._icon,
+  this.preset,
+  this.showCount = false,
+  this.recordLabelMonospace = false,
+  this.group,
+}) : screen = null;
 ```
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_navigation.dart"
-  const BeakNavigationItem.screen(this.screen, {String? label, IconData? icon})
-    : model = null,
-      preset = null,
-      showCount = false,
-      recordLabelMonospace = false,
-      _label = label,
-      _icon = icon;
+const BeakNavigationItem.screen(
+  this.screen, {
+  this._label,
+  this._icon,
+  this.group,
+}) : model = null,
+     preset = null,
+     showCount = false,
+     recordLabelMonospace = false;
 ```
 
 | Parameter | Constructor | Type | Default | Meaning |

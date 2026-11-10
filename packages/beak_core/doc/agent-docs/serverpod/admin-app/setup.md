@@ -422,7 +422,7 @@ dev_dependencies:
   postgres: ^3.5.16
   serverpod_auth_core_client: 4.0.4
   shelf: ^1.4.2
-  signals: ^6.3.0
+  signals: ^7.1.0
   worm:
     path: ../../../packages/worm
 ```

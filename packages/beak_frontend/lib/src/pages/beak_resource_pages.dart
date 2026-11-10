@@ -216,17 +216,16 @@ class BeakResourceListPage extends HookWidget {
     );
 
     Widget content() {
-      final listDefaults = beakDependencies(
-        context,
-      ).isRegistered<BeakPanelConfig>()
+      final listDefaults =
+          beakDependencies(context).isRegistered<BeakPanelConfig>()
           ? beakDependencies(context)<BeakPanelConfig>().defaults
           : null;
       var spec =
           sharedQuery?.query ??
           tableScreen?.query ??
-          BeakQuerySpec(table: model.table).paginate(
-            perPage: listDefaults?.pageSize,
-          );
+          BeakQuerySpec(
+            table: model.table,
+          ).paginate(perPage: listDefaults?.pageSize);
       final base = spec.filter;
       final combined = switch ((base, filter.value)) {
         (final BeakFilter a, final BeakFilter b) => BeakAndFilter([a, b]),
@@ -680,7 +679,7 @@ class BeakResourceListPage extends HookWidget {
         : BeakQueryScope(
             controller: sharedQuery,
             persistInUrl: definition!.persistQueryInUrl,
-            child: Watch.builder(builder: (_) => content()),
+            child: SignalBuilder(builder: (_) => content()),
           );
   }
 }
@@ -885,6 +884,10 @@ class BeakResourceCreatePage extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final GoRouter router = GoRouter.of(context);
+    // Read once: `GoRouterState.of` spins forever from a page that is leaving
+    // (go_router 18.1.1 and later), and this page is rebuilt while its exit
+    // confirmation is open.
+    final Object? extra = useMemoized(() => GoRouterState.of(context).extra);
     final screen = resource.screenFor(BeakScreenRole.create);
     final form = screen is BeakFormScreen ? screen : null;
     return _formScaffold(
@@ -908,7 +911,7 @@ class BeakResourceCreatePage extends HookWidget {
         model: resource.model.createModel ?? resource.model,
         dataSource: dataSource,
         mode: BeakFormMode.create,
-        initialValues: switch (GoRouterState.of(context).extra) {
+        initialValues: switch (extra) {
           final BeakRecord record => record,
           _ => null,
         },

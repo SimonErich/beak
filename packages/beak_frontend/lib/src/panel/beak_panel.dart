@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:get_it/get_it.dart';
 import 'package:http/http.dart' as http;
 import 'package:obers_ui/obers_ui.dart';
+import 'package:signals_flutter/signals_flutter.dart';
 
 import '../di/beak_locator.dart';
 import '../data/beak_data_changes.dart';
@@ -290,9 +291,18 @@ class BeakPanel extends HookWidget {
         ),
       ),
     );
+    final access = routing.container<BeakPanelAccess>();
+    // Rebuild the scope when the principal (identity or roles) changes; every
+    // BeakPanelAccess.of below depends on it.
+    final scoped = SignalBuilder(
+      builder: (context) {
+        access.principal;
+        return BeakPanelAccessScope(access: access, child: panel);
+      },
+    );
     final effectiveFormatting = config.formatting;
     return effectiveFormatting == null
-        ? panel
-        : BeakFormattingScope(formatting: effectiveFormatting, child: panel);
+        ? scoped
+        : BeakFormattingScope(formatting: effectiveFormatting, child: scoped);
   }
 }

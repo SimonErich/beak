@@ -74,12 +74,14 @@ class BeakBlockHost extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => switch (block) {
-    final BeakVisibilityBlock visibility => Watch((context) {
-      final access = BeakPanelAccess.of(context);
-      return visibility.visibleWhen(access)
-          ? BeakBlockHost(block: visibility.child)
-          : const SizedBox.shrink();
-    }),
+    final BeakVisibilityBlock visibility => SignalBuilder(
+      builder: (context) {
+        final access = BeakPanelAccess.of(context);
+        return visibility.visibleWhen(access)
+            ? BeakBlockHost(block: visibility.child)
+            : const SizedBox.shrink();
+      },
+    ),
     final BeakColumnBlock column => _column(context, column),
     final BeakRowBlock row => _row(context, row),
     final BeakGridBlock grid => _grid(context, grid),

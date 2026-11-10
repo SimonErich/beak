@@ -17,7 +17,7 @@ By taking part you agree to the [Code of Conduct](https://github.com/SimonErich/
 | | |
 | --- | --- |
 | Repository | A Melos monorepo: `packages/`, `examples/`, `docs/`, `tool/` |
-| Needs | Dart `^3.11`, Flutter stable `3.41` or newer, Melos exactly `6.3.3` |
+| Needs | Dart `^3.12`, Flutter stable `3.44` or newer, Melos exactly `6.3.3` |
 | Optional | Docker (Postgres and MinIO suites), Python 3 (docs preview) |
 | The gate | `melos run analyze`, `format-check`, `test`, `coverage` |
 | Layout of the work | Backend in `packages/beak_backend`, panel in `packages/beak_frontend`, schema and query contract in `packages/beak_core`, the CLI in `packages/beak_cli` |

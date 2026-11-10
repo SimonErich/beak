@@ -13,7 +13,7 @@ Worm lives in the `beak` monorepo. The repo root is a Flutter app shell; all ORM
 | --- | --- |
 | `worm` | The ORM core: models, query builder, descriptors, relations, migrations, seeding, validation, the `InMemoryAdapter`, the CLI, and the codegen core. |
 | `worm_generator` | The `build_runner` front end. Reads annotations with the analyzer through a `SharedPartBuilder`; `source_gen`'s combining builder merges the output into `.g.dart` part files. |
-| `worm_lints` | A `custom_lint` plugin with the repo's own lint rules. |
+| `worm_lints` | An analyzer plugin with the repo's own lint rules. |
 | `worm_sqlite` | SQLite adapter and SQL compiler (wraps `sqlite3`). |
 | `worm_postgres` | PostgreSQL adapter and SQL compiler (wraps `postgres`). |
 | `worm_mysql` | MySQL adapter and SQL compiler (wraps `mysql_client_plus`). |
@@ -39,11 +39,7 @@ dart analyze
 dart test
 ```
 
-All three must be clean. In `packages/worm` there is a fourth check, the custom lint rules:
-
-```sh
-dart run custom_lint
-```
+All three must be clean. In `packages/worm` the `worm_lints` rules run as part of `dart analyze`, because `analysis_options.yaml` names the plugin.
 
 ## Running the tests
 
@@ -105,32 +101,25 @@ Run golden tests from the package directory. The golden path is resolved relativ
 
 ## worm_lints
 
-`worm_lints` is a `custom_lint` plugin. Its entry point, `createPlugin()` in `lib/worm_lints.dart`, returns a `PluginBase` that registers every shipped rule. There is currently one:
+`worm_lints` is an analyzer plugin built on `analysis_server_plugin`. Its entry point is the `plugin` value in `lib/main.dart`, a `Plugin` that registers every shipped rule. There is currently one:
 
 | Rule | Severity | What it flags |
 | --- | --- | --- |
 | `no_ticket_reference` | WARNING | Any comment matching `WI-<digits>` or `AC-<digits>` (regex `WI-\d+\|AC-\d+`). Message: "Comments must not contain internal ticket references (WI-XXX / AC-N)." The correction asks you to rewrite the comment with intent-focused language and track tickets in commits, PRs, or the issue tracker. |
 
-The rule exposes `static RegExp pattern` and `static bool matches(String)` so unit tests can exercise the classification logic without spinning up the analyzer.
+The rule exposes `static RegExp pattern`, `static bool matches(String)` and `static List<CommentToken> ticketCommentsIn(CompilationUnit)` so unit tests can exercise the classification and the scan over a parsed file without spinning up the analysis server.
 
 Wiring in a consumer package looks like what `packages/worm` does:
 
-```yaml title="pubspec.yaml"
-dev_dependencies:
-  custom_lint: 0.8.1
+```yaml title="analysis_options.yaml"
+plugins:
   worm_lints:
     path: ../worm_lints
 ```
 
-```yaml title="analysis_options.yaml"
-analyzer:
-  plugins:
-    - custom_lint
-```
+Then run `dart analyze`. The plugin needs no `pubspec.yaml` entry in the consumer.
 
-Then run `dart run custom_lint`. Note the exact version pin: `worm_lints` pins `custom_lint_builder` and `custom_lint_core` to `0.8.1`, so consumers must pin `custom_lint: 0.8.1` to match.
-
-To add a rule: create a `DartLintRule` subclass under `lib/src/`, register it in `createPlugin()`, export it from the barrel, and give its matching logic static helpers so it stays testable without the analyzer.
+To add a rule: create an `AnalysisRule` subclass under `lib/src/`, register it in `WormLintsPlugin.register` in `lib/main.dart`, export it from the barrel, and give its matching logic static helpers so it stays testable without the analyzer.
 
 ## How the docs site builds
 
