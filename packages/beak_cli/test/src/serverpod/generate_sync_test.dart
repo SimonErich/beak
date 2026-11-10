@@ -1,105 +1,195 @@
-import 'dart:convert';
 import 'dart:io';
 
-import 'package:beak_cli/src/cli_runner.dart';
+import 'package:beak_cli/src/serverpod/generate_issue.dart';
 import 'package:beak_cli/src/serverpod/generator.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'serverpod_fixture.dart';
+
 void main() {
-  late Directory root;
+  late ServerpodFixture fixture;
 
-  setUp(() => root = Directory.systemTemp.createTempSync('beak-sync-'));
-  tearDown(() => root.deleteSync(recursive: true));
+  setUp(() => fixture = ServerpodFixture());
+  tearDown(() => fixture.delete());
 
-  void write(String path, String source) {
-    File(p.join(root.path, path))
-      ..parent.createSync(recursive: true)
-      ..writeAsStringSync(source);
-  }
-
-  BeakCliEnvironment env() => BeakCliEnvironment(
-    out: StringBuffer(),
-    rootDirectory: root,
-    now: () => DateTime.utc(2026),
-    probe: (host, port) async => false,
-  );
-
-  void project() {
-    write('pubspec.yaml', 'name: shop_admin\n');
-    write('beak.yaml', '''
-serverpod:
-  server: server
-  models: [lib/src]
-  migrations: migrations
-generate:
-  output: generated
-  inventory: definitions
-  prefix: Shop
-  areas:
-    catalog: {read: readCatalog, write: writeCatalog}
-  writes: [configuration]
-''');
-    write('generated/pubspec.yaml', 'name: shop_generated\n');
-    write('server/lib/src/product.spy.yaml', '''
+  void product({String? handlers, String annotation = ''}) {
+    fixture
+      ..project(handlers: handlers)
+      ..model('product', '''
 class: Product
 table: product
 fields:
   id: UuidValue
   name: String
-''');
-    write(
-      'server/migrations/0001/definition_project.json',
-      jsonEncode({
-        'tables': [
-          {
-            'name': 'product',
-            'columns': [
-              {'name': 'id', 'dartType': 'UuidValue?'},
-              {'name': 'name', 'dartType': 'String?'},
-            ],
-          },
-        ],
-      }),
-    );
-    write('definitions/catalog.yaml', '''
-area: catalog
-resources:
-  Product: {operations: [read], reason: Closed.}
-''');
+''')
+      ..database([
+        ServerpodFixture.table('product', ['id', 'name']),
+      ])
+      ..define('catalog/product', '''
+@Resource()
+${annotation.isEmpty ? "@ServerpodModel(area: 'catalog', reason: 'Closed.')" : annotation}
+final class Product extends BeakSchema {
+  @Display()
+  late final String name;
+}''', writes: annotation.isNotEmpty);
   }
 
-  test('writes the package, passes --check, and removes an orphan', () {
-    project();
-    final first = runServerpodGenerate(env());
-    expect(first.written, isNotEmpty);
+  test('writes the part and models.dart, passes --check, drops an orphan', () {
+    product();
+    final first = fixture.env();
+    expect(runServerpodGenerate(first).written, isNotEmpty);
     expect(
-      File(p.join(root.path, 'generated/lib/shop_generated.dart')).existsSync(),
-      isTrue,
+      fixture.read('definitions/lib/src/catalog/product.beak.dart'),
+      startsWith("$beakGeneratedHeader\n\npart of 'product.dart';"),
     );
-    expect(runServerpodGenerate(env(), check: true).isSuccess, isTrue);
+    final models = fixture.read('definitions/lib/src/generated/models.dart');
+    expect(models, contains("export 'package:shop_definitions/src/catalog/"));
+    expect(models, contains('BeakModelRegistry createShopRegistry() =>'));
+    expect(runServerpodGenerate(fixture.env(), check: true).isSuccess, isTrue);
 
-    final orphan = File(p.join(root.path, 'generated/lib/src/old.dart'))
-      ..parent.createSync(recursive: true)
-      ..writeAsStringSync('$beakGeneratedHeader\n// stale\n');
-    final check = runServerpodGenerate(env(), check: true);
+    fixture.write(
+      'definitions/lib/src/catalog/old.beak.dart',
+      '$beakGeneratedHeader\n// stale\n',
+    );
+    final check = runServerpodGenerate(fixture.env(), check: true);
     expect(check.isSuccess, isFalse);
     expect(check.problems.single, contains('orphan'));
 
-    runServerpodGenerate(env());
-    expect(orphan.existsSync(), isFalse);
+    runServerpodGenerate(fixture.env());
+    expect(
+      fixture.exists('definitions/lib/src/catalog/old.beak.dart'),
+      isFalse,
+    );
   });
 
-  test('refuses to delete a file it did not generate', () {
-    project();
-    runServerpodGenerate(env());
-    File(
-      p.join(root.path, 'generated/lib/src/authored.dart'),
-    ).writeAsStringSync('// mine\n');
-    expect(() => runServerpodGenerate(env()), returnsNormally);
+  test('a changed definition class makes --check fail', () {
+    product();
+    runServerpodGenerate(fixture.env());
+    final path = p.join(
+      fixture.root.path,
+      'definitions/lib/src/catalog/product.dart',
+    );
+    File(path).writeAsStringSync(
+      File(path).readAsStringSync().replaceFirst("'Closed.'", "'Shut.'"),
+    );
+
+    expect(runServerpodGenerate(fixture.env(), check: true).isSuccess, isFalse);
+  });
+
+  test('refuses to delete a file it did not write', () {
+    product();
+    runServerpodGenerate(fixture.env());
+    fixture.write('definitions/lib/src/generated/authored.dart', '// mine\n');
+
+    final result = runServerpodGenerate(fixture.env());
+    expect(result.problems.single, contains('is not generated'));
     expect(
-      File(p.join(root.path, 'generated/lib/src/authored.dart')).existsSync(),
+      fixture.exists('definitions/lib/src/generated/authored.dart'),
       isTrue,
+    );
+  });
+
+  test('names the missing part and write import', () {
+    product(annotation: "@ServerpodModel.editable(area: 'catalog')");
+    fixture.write(
+      'definitions/lib/src/catalog/product.dart',
+      fixture
+          .read('definitions/lib/src/catalog/product.dart')
+          .replaceFirst("part 'product.beak.dart';", '')
+          .replaceFirst(
+            "import 'package:shop_definitions/src/generated/writes.dart';",
+            '',
+          ),
+    );
+
+    expect(
+      () => runServerpodGenerate(fixture.env()),
+      throwsA(
+        isA<BeakGenerateException>().having(
+          (error) => error.issues.map((issue) => issue.message).toList(),
+          'messages',
+          containsAll([
+            contains("add `part 'product.beak.dart';`"),
+            contains(
+              "add `import 'package:shop_definitions/src/generated/writes.dart';`",
+            ),
+          ]),
+        ),
+      ),
+    );
+  });
+
+  test('custom code needs generate.handlers', () {
+    product(
+      annotation:
+          "@ServerpodModel(area: 'catalog', create: BeakHandling.custom)",
+    );
+
+    expect(
+      () => runServerpodGenerate(fixture.env()),
+      throwsA(
+        isA<BeakGenerateException>().having(
+          (error) => error.issues.single.message,
+          'message',
+          contains('needs generate.handlers'),
+        ),
+      ),
+    );
+  });
+
+  test('writes a handler base per custom model and the aggregate', () {
+    product(
+      handlers: 'server/lib/src/admin',
+      annotation:
+          "@ServerpodModel(area: 'catalog', create: BeakHandling.custom, "
+          "update: BeakHandling.derived, commands: ['archive'])",
+    );
+    runServerpodGenerate(fixture.env());
+
+    final handler = fixture.read('server/lib/src/admin/product_handler.dart');
+    expect(handler, contains('abstract base class ProductHandler {'));
+    expect(handler, contains('Future<Object?> create(ProductWrite write);'));
+    expect(
+      handler,
+      contains('FutureOr<BeakRecord?> derive(ProductWrite write);'),
+    );
+    expect(handler, contains('Future<Object?> archive(ProductWrite write);'));
+    expect(handler, contains("'archive': (context) => archive("));
+    expect(handler, contains('String get name =>'));
+    expect(handler, contains('UuidValue get id =>'));
+    expect(handler, contains('laid over an update before it is saved'));
+    expect(
+      handler,
+      contains('context.operation.kind == BeakSaveOperationKind.update'),
+    );
+
+    final aggregate = fixture.read('server/lib/src/admin/shop_handlers.dart');
+    expect(aggregate, contains('required this.product'));
+    expect(
+      aggregate,
+      contains("import 'package:shop_server/src/admin/product_handler.dart';"),
+    );
+    expect(aggregate, contains('admin.ShopWrite.product => product.writes,'));
+    expect(runServerpodGenerate(fixture.env(), check: true).isSuccess, isTrue);
+  });
+
+  test('a stock-only project gets a handler aggregate without arguments', () {
+    product(
+      handlers: 'server/lib/src/admin',
+      annotation: "@ServerpodModel.editable(area: 'catalog')",
+    );
+    runServerpodGenerate(fixture.env());
+
+    final aggregate = fixture.read('server/lib/src/admin/shop_handlers.dart');
+    expect(aggregate, contains('const ShopHandlers();'));
+    expect(
+      aggregate,
+      contains('admin.ShopWrite.product => const BeakWriteHandler.stock(),'),
+    );
+    expect(
+      fixture.exists('server/lib/src/admin/product_handler.dart'),
+      isFalse,
     );
   });
 }

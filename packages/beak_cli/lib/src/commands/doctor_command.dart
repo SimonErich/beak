@@ -324,7 +324,7 @@ Future<List<BeakCheck>> diagnose(
         BeakCheck(
           status: BeakCheckStatus.fail,
           label: 'beak generate: ${error.issues.first}',
-          remedy: 'fix the server models, migration or inventory',
+          remedy: 'fix the server models, migration or definition classes',
           group: 'serverpod',
         ),
       );

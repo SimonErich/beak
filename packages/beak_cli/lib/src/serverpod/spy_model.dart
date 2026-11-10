@@ -35,6 +35,7 @@ final class SpyField {
     this.scope,
     this.persist = true,
     this.defaultValue,
+    this.hasDefault = false,
     this.column,
   });
 
@@ -55,6 +56,10 @@ final class SpyField {
 
   /// The `default=` text, as a Dart-compatible literal, or `null`.
   final String? defaultValue;
+
+  /// Whether Serverpod or the database supplies a value when none is given
+  /// (`default`, `defaultModel` or `defaultPersist`).
+  final bool hasDefault;
 
   /// A `column=` override of the physical column name, or `null`.
   final String? column;

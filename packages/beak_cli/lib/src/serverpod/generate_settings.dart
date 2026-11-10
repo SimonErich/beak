@@ -111,23 +111,25 @@ final class BeakMoneyConvention {
 final class BeakGenerateSettings {
   /// Creates the settings.
   const BeakGenerateSettings({
-    required this.output,
-    this.inventory = 'definitions/resources',
+    this.definitions = 'definitions',
+    this.handlers,
     this.prefix,
     this.roles,
     this.areas = const {},
-    this.writes = const [],
     this.conventions = const BeakGenerateConventions(),
   });
 
-  /// The generated package, relative to `beak.yaml`.
-  final String output;
+  /// The pure-Dart package of `@Resource` definition classes, relative to
+  /// `beak.yaml`. Parts go next to each class, support libraries into its
+  /// `lib/src/generated/`.
+  final String definitions;
 
-  /// The folder of inventory files, relative to `beak.yaml`.
-  final String inventory;
+  /// The folder of the Serverpod server the handler base classes go into,
+  /// relative to `beak.yaml`, or `null` when no model runs custom code.
+  final String? handlers;
 
   /// The `UpperCamelCase` prefix of the generated names, or `null` for the
-  /// output package's name without `_generated`.
+  /// definitions package's name without `_definitions`.
   final String? prefix;
 
   /// The Serverpod enum every role name is checked against, if any.
@@ -136,20 +138,16 @@ final class BeakGenerateSettings {
   /// The roles of each area, by area name.
   final Map<String, BeakAreaRoles> areas;
 
-  /// The write bindings, emitted as `enum <Prefix>Write`.
-  final List<String> writes;
-
   /// The presentation conventions.
   final BeakGenerateConventions conventions;
 
   /// These settings as plain data, for the inputs stamp.
   Map<String, Object?> toJson() => {
-    'output': output,
-    'inventory': inventory,
+    'definitions': definitions,
+    'handlers': handlers,
     'prefix': prefix,
     'roles': roles,
     'areas': {for (final e in areas.entries) e.key: e.value.toJson()},
-    'writes': writes,
     'conventions': conventions.toJson(),
   };
 }
@@ -197,22 +195,23 @@ BeakGenerateSettings? parseGenerateSettings(
       'models are, such as `serverpod: {server: ../server}`.',
     );
   }
+  for (final removed in const ['output', 'inventory', 'writes']) {
+    if (map.containsKey(removed)) {
+      throw BeakProjectConfigException(
+        'generate.$removed is gone: the definition classes in '
+        'generate.definitions say what is exposed and how it is written. '
+        'See docs/serverpod/admin-app/generate.md.',
+      );
+    }
+  }
   rejectUnknownYamlKeys(map, const {
-    'output',
-    'inventory',
+    'definitions',
+    'handlers',
     'prefix',
     'roles',
     'areas',
-    'writes',
     'conventions',
   }, 'generate.');
-  final String? output = optionalYamlPath(map['output'], 'generate.output');
-  if (output == null) {
-    throw const BeakProjectConfigException(
-      'generate.output is required: the pure-Dart package `beak generate` '
-      'writes, relative to beak.yaml (such as generated).',
-    );
-  }
   final String? prefix = optionalYamlString(map['prefix'], 'generate.prefix');
   if (prefix != null && !RegExp(r'^[A-Z][A-Za-z0-9]*$').hasMatch(prefix)) {
     throw BeakProjectConfigException(
@@ -227,14 +226,13 @@ BeakGenerateSettings? parseGenerateSettings(
     );
   }
   return BeakGenerateSettings(
-    output: output,
-    inventory:
-        optionalYamlPath(map['inventory'], 'generate.inventory') ??
-        'definitions/resources',
+    definitions:
+        optionalYamlPath(map['definitions'], 'generate.definitions') ??
+        'definitions',
+    handlers: optionalYamlPath(map['handlers'], 'generate.handlers'),
     prefix: prefix,
     roles: roles,
     areas: _areasOf(map['areas']),
-    writes: _writesOf(map['writes']),
     conventions: _conventionsOf(map['conventions']),
   );
 }
@@ -259,24 +257,6 @@ Map<String, BeakAreaRoles> _areasOf(Object? raw) {
     );
   }
   return result;
-}
-
-List<String> _writesOf(Object? raw) {
-  final List<String> names =
-      optionalYamlStringList(raw, 'generate.writes') ?? const [];
-  final seen = <String>{};
-  for (final name in names) {
-    if (!RegExp(r'^[a-z][A-Za-z0-9]*$').hasMatch(name)) {
-      throw BeakProjectConfigException(
-        'generate.writes: "$name" must be a lowerCamelCase name, because it '
-        'becomes a value of the generated Write enum.',
-      );
-    }
-    if (!seen.add(name)) {
-      throw BeakProjectConfigException('generate.writes lists "$name" twice.');
-    }
-  }
-  return names;
 }
 
 BeakGenerateConventions _conventionsOf(Object? raw) {

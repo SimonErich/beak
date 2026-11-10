@@ -6,15 +6,17 @@ import '../cli_runner.dart';
 import '../serverpod/generate_issue.dart';
 import '../serverpod/generator.dart';
 
-/// Generates the schema package from the Serverpod models and the inventory.
+/// Generates the admin from the Serverpod models and the definition classes.
 ///
 /// `beak generate --project apps/shop_admin` reads the `serverpod:` and
 /// `generate:` sections of that project's `beak.yaml`, the models under the
-/// server, the newest migration and every inventory file, and writes one
-/// self-contained library per admitted model into the output package. The
-/// output package's `lib/` belongs to this command: a changed file is
-/// rewritten, a generated file nothing produces any more is deleted, and a
-/// file without the generated header stops the run instead of being touched.
+/// server, the newest migration and every `@Resource` class of the
+/// definitions package. It checks each declared field against Serverpod and
+/// writes a part next to each class, the package's `lib/src/generated/` and,
+/// with `generate.handlers`, the server handler base classes. A changed file
+/// is rewritten, a generated file nothing produces any more is deleted, and a
+/// file without the generated header in a generated folder stops the run
+/// instead of being touched.
 ///
 /// `--check` writes nothing and exits non-zero when the output is stale,
 /// missing a file or holds an orphan, which is what CI runs.
@@ -29,7 +31,7 @@ final class GenerateCommand extends Command<int> {
       )
       ..addFlag(
         'check',
-        help: 'Write nothing; fail when the generated package is stale.',
+        help: 'Write nothing; fail when the generated files are stale.',
         negatable: false,
       );
   }
@@ -42,8 +44,8 @@ final class GenerateCommand extends Command<int> {
 
   @override
   String get description =>
-      'Generate the admin schema package from a Serverpod server and the '
-      'reviewed inventory.';
+      'Generate the admin models and server handlers from a Serverpod '
+      'server and the definition classes.';
 
   @override
   String get invocation => 'beak generate [--project <path>] [--check]';

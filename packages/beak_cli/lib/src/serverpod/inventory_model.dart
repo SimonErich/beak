@@ -1,61 +1,43 @@
-/// Per-field presentation the inventory overrides.
+/// What a definition class says about one exposed field, beyond Serverpod.
 final class InventoryField {
   /// Creates a field override.
   const InventoryField({
     this.label,
-    this.min,
-    this.max,
-    this.maxLength,
-    this.format,
-    this.semantic,
-    this.text = false,
-    this.name,
+    this.arguments = const {},
+    this.doc,
+    this.relation,
   });
 
-  /// The column label.
+  /// The column or relationship label.
   final String? label;
 
-  /// A lower bound (`BeakMin`) for a number column.
-  final num? min;
+  /// `@Column(...)` arguments as source, laid over the generated ones.
+  final Map<String, String> arguments;
 
-  /// An upper bound (`BeakMax`) for a number column.
-  final num? max;
+  /// The field's doc comment.
+  final String? doc;
 
-  /// A length bound (`BeakMaxLength`) for a text column.
-  final int? maxLength;
-
-  /// The `BeakDateFormat` value name for a `DateTime` column.
-  final String? format;
-
-  /// The `BeakSemantic` constructor name (`email`, `url`, ...).
-  final String? semantic;
-
-  /// Whether a `String` column is multi-line text.
-  final bool text;
-
-  /// The Dart name to use for the field instead of the Serverpod one.
-  final String? name;
+  /// The relationship annotation (`belongsTo`, `hasOne`, `hasMany`), or
+  /// `null` for a column.
+  final String? relation;
 }
 
 /// The roles that override an area's, per operation.
 final class InventoryAccess {
   /// Creates the overrides.
-  const InventoryAccess({this.operations = const {}, this.actions = const {}});
+  const InventoryAccess({this.operations = const {}});
 
-  /// Operation name (`read`, `write`, `create`, `update`, `delete`) to the
-  /// roles that must all be held.
+  /// Roles per operation (`read`, `write`, `create`, `update`, `delete`).
   final Map<String, List<String>> operations;
-
-  /// Command name to the roles that must all be held.
-  final Map<String, List<String>> actions;
 }
 
-/// One admitted Serverpod model.
+/// One exposed Serverpod model, as its definition class declares it.
 final class InventoryResource {
   /// Creates a resource.
   const InventoryResource({
     required this.name,
     required this.path,
+    required this.library,
     this.area,
     this.operations = const ['read'],
     this.write,
@@ -71,65 +53,83 @@ final class InventoryResource {
     this.restoreKey,
     this.fields = const {},
     this.labelKey,
+    this.hasBehavior = false,
+    this.hasValidationRules = false,
+    this.hasPermissions = false,
+    this.docComment,
   });
 
   /// The Serverpod class name.
   final String name;
 
-  /// The inventory file that admits it.
+  /// The definition file, as issues name it.
   final String path;
 
-  /// The area, from the resource or its file; `null` when neither names one.
+  /// The definition library under `lib/`, which the part belongs to.
+  final String library;
+
+  /// The `generate.areas` entry.
   final String? area;
 
-  /// The operations the model supports.
+  /// The offered operations (`read`, `create`, `update`, `delete`).
   final List<String> operations;
 
-  /// The write binding, a value of `generate.writes`.
+  /// The write binding value name.
   final String? write;
 
-  /// The reviewed write fields, or `null` when the key is absent.
+  /// The fields a write may set.
   final List<String>? writeFields;
 
-  /// Relations whose rows are saved with this one.
+  /// Has-many relations saved with the record.
   final List<String> ownedRelations;
 
-  /// Relations exposed only as their scalar foreign key.
+  /// Relations exposed only as their foreign key.
   final List<String> scalarRelations;
 
-  /// The field that names a record.
+  /// The display field.
   final String? display;
 
-  /// Fields not imported at all.
+  /// Serverpod fields the class does not declare.
   final List<String> exclude;
 
-  /// Columns that never leave the server.
+  /// Fields kept on the server.
   final List<String> hidden;
 
-  /// Literal defaults of columns, as YAML scalars.
+  /// Values a create writes into hidden fields.
   final Map<String, Object?> defaults;
 
-  /// Role overrides.
+  /// Per-operation role overrides.
   final InventoryAccess access;
 
   /// Why writes are closed.
   final String? reason;
 
-  /// The restore key, or `null` to detect it.
+  /// The restore key of a soft-deleted row.
   final List<String>? restoreKey;
 
-  /// Presentation overrides by field name.
+  /// Per-field labels, arguments and docs.
   final Map<String, InventoryField> fields;
 
-  /// The key the model's labels are found under in the label files, instead
-  /// of its lowerCamelCase class name.
+  /// The label-file key of the model.
   final String? labelKey;
 
-  /// Whether any operation besides `read` is open.
+  /// Whether the class declares `static get behavior`.
+  final bool hasBehavior;
+
+  /// Whether the class declares `static get validationRules`.
+  final bool hasValidationRules;
+
+  /// Whether the class declares `static get permissions`.
+  final bool hasPermissions;
+
+  /// The class's doc comment.
+  final String? docComment;
+
+  /// Whether any write is offered.
   bool get writes => operations.any((operation) => operation != 'read');
 }
 
-/// One field of a non-persisted command input.
+/// One field of a command input.
 final class InventoryInputField {
   /// Creates an input field.
   const InventoryInputField({
@@ -140,28 +140,29 @@ final class InventoryInputField {
     this.label,
   });
 
-  /// The model class the field selects, for a relation.
+  /// The model a relation field points at.
   final String? belongsTo;
 
-  /// The foreign key column name, for a relation.
+  /// The key a relation field stores.
   final String? foreignKey;
 
-  /// A scalar Dart type (`String`, `int`, `bool`, `double`, `DateTime`).
+  /// The Dart type of a scalar field.
   final String? type;
 
-  /// Whether the field must be filled.
+  /// Whether a value is required.
   final bool required;
 
-  /// The label, or `null` for the title-cased name.
+  /// The field label.
   final String? label;
 }
 
-/// A command input model that is never persisted.
+/// A non-persisted command input.
 final class InventoryInput {
   /// Creates an input.
   const InventoryInput({
     required this.name,
     required this.path,
+    required this.library,
     required this.fields,
     this.table,
   });
@@ -169,30 +170,27 @@ final class InventoryInput {
   /// The class name.
   final String name;
 
-  /// The inventory file that declares it.
+  /// The definition file, as issues name it.
   final String path;
 
-  /// The input's fields by name.
+  /// The definition library under `lib/`.
+  final String library;
+
+  /// The fields, by name.
   final Map<String, InventoryInputField> fields;
 
-  /// The table name its model reports, or `null` for `input_<snake>`.
+  /// The table name its model reports.
   final String? table;
 }
 
-/// Everything the inventory admits.
+/// Every exposed model and command input.
 final class Inventory {
   /// Creates an inventory.
   const Inventory({required this.resources, required this.inputs});
 
-  /// The admitted models by class name, in file order.
+  /// The exposed models, by Serverpod class name.
   final Map<String, InventoryResource> resources;
 
-  /// The command inputs by class name.
+  /// The command inputs, by class name.
   final Map<String, InventoryInput> inputs;
-
-  /// The inventory files read, as paths relative to `beak.yaml`.
-  List<String> get files => {
-    for (final resource in resources.values) resource.path,
-    for (final input in inputs.values) input.path,
-  }.toList();
 }

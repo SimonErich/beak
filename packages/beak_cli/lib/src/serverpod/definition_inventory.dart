@@ -1,0 +1,182 @@
+import 'database_definition.dart';
+import 'definition_area.dart';
+import 'definition_checks.dart';
+import 'definition_inputs.dart';
+import 'definition_model.dart';
+import 'generate_issue.dart';
+import 'generate_settings.dart';
+import 'inventory_model.dart';
+import 'spy_model.dart';
+
+/// Fields Serverpod or Beak own on every model.
+const Set<String> serverOwnedFields = {
+  'id',
+  'createdAt',
+  'updatedAt',
+  'deletedAt',
+  'isDeleted',
+};
+
+/// Turns the definition classes into the inventory the IR is built from,
+/// checking each declared field against the Serverpod model.
+Inventory inventoryOf(
+  List<DefinitionClass> classes,
+  SpyProject project,
+  DatabaseDefinition database,
+  BeakGenerateSettings settings,
+  BeakIssueSink issues,
+) {
+  final resources = <String, InventoryResource>{};
+  final inputs = <String, InventoryInput>{};
+  final names = {for (final definition in classes) definition.name};
+  for (final definition in classes) {
+    if (resources.containsKey(definition.name) ||
+        inputs.containsKey(definition.name)) {
+      issues.add(definition.path, '${definition.name} is declared twice.');
+      continue;
+    }
+    if (definition.input) {
+      inputs[definition.name] = inputOf(definition, issues);
+      continue;
+    }
+    final spy = project.classes[definition.name];
+    if (spy == null) {
+      issues.add(
+        definition.path,
+        '${definition.name} is not a Serverpod model. A definition class has '
+        'the name of the .spy.yaml class it exposes.',
+      );
+      continue;
+    }
+    final resource = _resource(
+      definition,
+      spy,
+      project,
+      database,
+      settings,
+      names,
+      issues,
+    );
+    if (resource != null) resources[definition.name] = resource;
+  }
+  return Inventory(resources: resources, inputs: inputs);
+}
+
+InventoryResource? _resource(
+  DefinitionClass definition,
+  SpyClass spy,
+  SpyProject project,
+  DatabaseDefinition database,
+  BeakGenerateSettings settings,
+  Set<String> names,
+  BeakIssueSink issues,
+) {
+  final path = definition.path;
+  final name = definition.name;
+  final table = database.tables[spy.table];
+  final spyFields = {
+    for (final field in project.fieldsOf(spy)) field.name: field,
+  };
+  final declared = {for (final field in definition.fields) field.name: field};
+  final exclude = <String>[];
+  final scalarRelations = <String>[];
+  // Keys, timestamps and soft delete are Serverpod's: always exposed, so a
+  // class never loses them by leaving them out.
+  final implied = <String>{...serverOwnedFields};
+  for (final field in spyFields.values) {
+    final relation = field.relation;
+    if (relation == null || field.isCollection) continue;
+    final relationName = relationNameOf(field);
+    final key = foreignKeyOf(field);
+    if (declared[relationName]?.relation != null) {
+      implied.add(key);
+    } else if (declared.containsKey(key)) {
+      scalarRelations.add(field.name);
+    }
+  }
+  for (final field in spyFields.values) {
+    if (serverOwnedFields.contains(field.name)) continue;
+    final relation = field.relation;
+    final isDeclared = relation != null && !field.isCollection
+        ? declared[relationNameOf(field)]?.relation != null ||
+              scalarRelations.contains(field.name)
+        : declared.containsKey(field.name) || implied.contains(field.name);
+    if (!isDeclared) exclude.add(field.name);
+  }
+  checkDeclaredFields(definition, spyFields, table, project, names, issues);
+  final writeFields = <String>[];
+  for (final field in definition.fields) {
+    if (field.readOnly || field.hidden) continue;
+    if (serverOwnedFields.contains(field.name)) continue;
+    final relation = field.relation;
+    if (relation == null) {
+      writeFields.add(field.name);
+      continue;
+    }
+    if (relation.kind != DefinitionRelationKind.belongsTo) continue;
+    final spyField = spyFields[field.name] ?? spyFields['${field.name}Id'];
+    if (spyField != null) writeFields.add(foreignKeyOf(spyField));
+  }
+  final opensFields = definition.create.isOpen || definition.update.isOpen;
+  final operations = [
+    'read',
+    if (definition.create.isOpen) 'create',
+    if (definition.update.isOpen || definition.commands.isNotEmpty) 'update',
+    if (definition.delete.isOpen) 'delete',
+  ];
+  if (definition.create == DefinitionHandling.stock) {
+    checkStockCreate(definition, spyFields, writeFields, issues);
+  }
+  checkDefinitionArea(definition, settings, issues);
+  final display = [
+    for (final field in definition.fields)
+      if (field.display) field.name,
+  ];
+  if (display.length > 1) {
+    issues.add(path, '$name marks ${display.join(', ')} @Display; keep one.');
+  }
+  return InventoryResource(
+    name: name,
+    path: path,
+    library: definition.library,
+    area: definition.area,
+    operations: operations,
+    write: definition.write,
+    writeFields: definition.writes
+        ? (opensFields ? writeFields : const [])
+        : null,
+    ownedRelations: [
+      for (final field in definition.fields)
+        if (field.relation?.owned ?? false) field.name,
+    ],
+    scalarRelations: scalarRelations,
+    display: display.firstOrNull,
+    exclude: exclude,
+    hidden: [
+      for (final field in definition.fields)
+        if (field.hidden) field.name,
+    ],
+    defaults: {
+      for (final field in definition.fields)
+        if (field.hidden && field.hiddenDefault != null)
+          field.name: field.hiddenDefault,
+    },
+    access: InventoryAccess(operations: definition.access),
+    reason: definition.reason,
+    restoreKey: definition.restoreKey,
+    fields: {
+      for (final field in definition.fields)
+        field.name: InventoryField(
+          label: field.label ?? field.relation?.label,
+          arguments: field.columnArguments,
+          doc: field.docComment,
+          relation: field.relation?.kind.name,
+        ),
+    },
+    labelKey: definition.labelKey,
+    hasBehavior: definition.hasBehavior,
+    hasValidationRules: definition.hasValidationRules,
+    hasPermissions: definition.hasPermissions,
+    docComment: definition.docComment,
+  );
+}

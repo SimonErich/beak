@@ -17,7 +17,7 @@ final class ServerpodIr {
     required this.writes,
   });
 
-  /// The admitted models, in inventory order.
+  /// The exposed models, in definition order.
   final List<BeakGeneratedModel> models;
 
   /// The non-persisted command inputs.
@@ -26,17 +26,20 @@ final class ServerpodIr {
   /// The Serverpod enums the models use.
   final List<BeakGeneratedEnum> enums;
 
-  /// The write bindings, emitted as an enum.
+  /// The write bindings, one per writable model, emitted as an enum.
   final List<String> writes;
 }
 
-/// Reads the Serverpod models, the newest migration and the inventory into the
-/// IR the emitter writes.
+/// Reads the Serverpod models, the newest migration and the definition
+/// classes (as an [Inventory]) into the IR the emitter writes.
+///
+/// [prefix] names the write enum (`<prefix>Write`).
 ServerpodIr buildServerpodIr({
   required SpyProject project,
   required DatabaseDefinition database,
   required Inventory inventory,
   required BeakGenerateSettings settings,
+  required String prefix,
 }) {
   final issues = BeakIssueSink();
   _validateRoleNames(project, settings, issues);
@@ -78,21 +81,26 @@ ServerpodIr buildServerpodIr({
       project.classes[entry.key]!.table!: entry.key,
   };
   final usedEnums = <String>{if (settings.roles case final String role) role};
+  for (final entry in drafts.entries) {
+    _addRelations(
+      project,
+      database,
+      entry.value,
+      schemas,
+      byTable,
+      inventory.resources[entry.key]!,
+      usedEnums,
+      issues,
+    );
+  }
+  // Admission comes after every relation, so a child already carries the
+  // shadow foreign key a one-sided parent added to it.
   final models = <BeakGeneratedModel>[];
   for (final entry in drafts.entries) {
     final resource = inventory.resources[entry.key]!;
     final draft = entry.value;
-    _addRelations(
-      project,
-      database,
-      draft,
-      schemas,
-      byTable,
-      resource,
-      usedEnums,
-      issues,
-    );
-    final admission = _admissionFor(draft, resource, settings, issues);
+    _checkRelationKinds(draft, resource, issues);
+    final admission = _admissionFor(draft, resource, prefix, issues);
     final permissions = _permissionsFor(resource, settings);
     final capabilities = {
       for (final operation in resource.operations) operation,
@@ -121,8 +129,38 @@ ServerpodIr buildServerpodIr({
     models: models,
     inputs: inputs,
     enums: enums.values.toList()..sort((a, b) => a.name.compareTo(b.name)),
-    writes: settings.writes,
+    writes: [
+      for (final resource in inventory.resources.values)
+        if (resource.write case final String write) write,
+    ],
   );
+}
+
+void _checkRelationKinds(
+  _Draft draft,
+  InventoryResource resource,
+  BeakIssueSink issues,
+) {
+  for (final MapEntry(key: name, value: field) in resource.fields.entries) {
+    final kind = field.relation;
+    if (kind == null) continue;
+    final built = draft.schema.relations
+        .where((relation) => relation.fieldName == name)
+        .firstOrNull;
+    if (built == null) {
+      issues.add(
+        resource.path,
+        '${resource.name}.$name: Serverpod declares no relation Beak can '
+        'resolve here.',
+      );
+    } else if (built.kind.name != kind) {
+      issues.add(
+        resource.path,
+        '${resource.name}.$name is a ${built.kind.name} relation in '
+        'Serverpod; annotate it @${_upperFirst(built.kind.name)}().',
+      );
+    }
+  }
 }
 
 void _validateRoleNames(
@@ -262,15 +300,17 @@ _Draft _draftFor(
     className: spy.name,
     labelKey: resource.labelKey,
     table: spy.table!,
-    libraryPath: 'src/models/${_snake(spy.name)}.dart',
+    libraryPath: resource.library,
+    docComment: resource.docComment,
     columns: columns,
     relations: [],
     displayColumnKey: _columnKeyOf(columns, display),
     softDeletes: softDeletes,
     timestamps: timestamps,
     managesSchema: false,
-    hasBehavior: true,
-    hasPermissions: true,
+    hasBehavior: resource.hasBehavior,
+    hasValidationRules: resource.hasValidationRules,
+    hasPermissions: resource.hasPermissions,
     hasCapabilities: true,
     createdAtColumnKey: _columnKeyOf(columns, 'createdAt'),
     updatedAtColumnKey: _columnKeyOf(columns, 'updatedAt'),
@@ -291,7 +331,7 @@ BeakColumnIr _column(
   BeakIssueSink issues,
 ) {
   final override = resource.fields[field.name];
-  final name = override?.name ?? field.name;
+  final name = field.name;
   final dbColumn = db.columns[field.columnName];
   if (dbColumn == null) {
     issues.add(
@@ -326,11 +366,7 @@ BeakColumnIr _column(
   }
   final defaultSource = _defaultSource(field, resource, type);
   if (defaultSource != null) args['defaultValue'] = defaultSource;
-  final rules = <String>[
-    if (override?.min case final num min) 'BeakMin($min)',
-    if (override?.max case final num max) 'BeakMax($max)',
-  ];
-  if (rules.isNotEmpty) args['rules'] = '[${rules.join(', ')}]';
+  args.addAll(override?.arguments ?? const {});
   return BeakColumnIr(
     fieldName: name,
     columnKey: field.columnName,
@@ -340,7 +376,8 @@ BeakColumnIr _column(
     enumTypeName: type.enumTypeName,
     declaredValueType: type.kind == BeakColumnKind.json ? 'BeakJson' : null,
     arguments: args,
-    docComment: 'Serverpod `${field.name}` (`${field.baseType}`).',
+    docComment:
+        override?.doc ?? 'Serverpod `${field.name}` (`${field.baseType}`).',
   );
 }
 
@@ -355,7 +392,8 @@ BeakColumnIr _fkColumn(
 }) {
   final uuid = column.dartType.startsWith('UuidValue');
   final kind = uuid ? BeakColumnKind.string : _kindOfDb(column.dartType);
-  final label = resource.fields[fieldName]?.label ?? titleCaseOf(fieldName);
+  final override = resource.fields[fieldName];
+  final label = override?.label ?? titleCaseOf(fieldName);
   return BeakColumnIr(
     fieldName: fieldName,
     columnKey: column.name,
@@ -370,8 +408,9 @@ BeakColumnIr _fkColumn(
           ? '{}'
           : '{BeakContext.detail}',
       'filterable': 'true',
+      ...?override?.arguments,
     },
-    docComment: 'The stored foreign key `${column.name}`.',
+    docComment: override?.doc ?? 'The stored foreign key `${column.name}`.',
     omitFromValues: omitFromValues,
   );
 }
@@ -547,7 +586,7 @@ void _addRelations(
         BeakRelationIr(
           fieldName: relationName,
           key: rel.name ?? relationName,
-          label: titleCaseOf(name),
+          label: resource.fields[relationName]?.label ?? titleCaseOf(name),
           kind: BeakRelationKind.hasMany,
           relatedSchema: targetName!,
           foreignKey: fk,
@@ -572,7 +611,7 @@ void _addRelations(
           BeakRelationIr(
             fieldName: relationName,
             key: rel.name ?? relationName,
-            label: titleCaseOf(name),
+            label: resource.fields[relationName]?.label ?? titleCaseOf(name),
             kind: BeakRelationKind.hasOne,
             relatedSchema: targetName!,
             foreignKey: counterpart,
@@ -593,7 +632,7 @@ void _addRelations(
       BeakRelationIr(
         fieldName: relationName,
         key: rel.name ?? relationName,
-        label: titleCaseOf(name),
+        label: resource.fields[relationName]?.label ?? titleCaseOf(name),
         kind: BeakRelationKind.belongsTo,
         relatedSchema: targetName!,
         foreignKey: fk,
@@ -706,7 +745,7 @@ String? _counterpart(
 BeakAdmissionIr _admissionFor(
   _Draft draft,
   InventoryResource resource,
-  BeakGenerateSettings settings,
+  String prefix,
   BeakIssueSink issues,
 ) {
   final columns = {
@@ -718,8 +757,8 @@ BeakAdmissionIr _admissionFor(
     if (!columns.contains(field)) {
       issues.add(
         resource.path,
-        '${resource.name}.writeFields names "$field", which is not a generated '
-        'column.',
+        '${resource.name}.$field is writable but has no column; declare its '
+        'relation or mark it @ReadOnly().',
       );
       continue;
     }
@@ -732,8 +771,7 @@ BeakAdmissionIr _admissionFor(
     }.contains(field)) {
       issues.add(
         resource.path,
-        '${resource.name}.writeFields names the '
-        'server-owned "$field".',
+        '${resource.name}.$field is server owned and never written.',
       );
       continue;
     }
@@ -741,12 +779,21 @@ BeakAdmissionIr _admissionFor(
       if (hidden == field) {
         issues.add(
           resource.path,
-          '${resource.name}.writeFields names the '
-          'hidden "$field".',
+          '${resource.name}.$field is hidden and never written.',
         );
       }
     }
     writable.add(field);
+  }
+  // The key a one-sided parent stores on this row is written with the row
+  // whenever its fields are.
+  if (writable.isNotEmpty) {
+    for (final column in draft.schema.columns) {
+      if (column.columnKey.startsWith('_') &&
+          !writable.contains(column.fieldName)) {
+        writable.add(column.fieldName);
+      }
+    }
   }
   final hidden = [
     for (final field in draft.hidden)
@@ -762,7 +809,7 @@ BeakAdmissionIr _admissionFor(
     restoreKey: restoreKey ?? const [],
     writeValue: resource.write == null
         ? null
-        : '${settings.prefix ?? 'Generated'}Write.${resource.write}',
+        : '${prefix}Write.${resource.write}',
     reason: resource.reason,
     translationOwner: translation?.owner,
     translationLocale: translation?.locale,
@@ -773,7 +820,7 @@ BeakAdmissionIr _admissionFor(
   _Draft draft,
   InventoryResource resource,
 ) {
-  if (resource.write != 'translation') return null;
+  if (resource.write == null) return null;
   final locale = draft.schema.columns
       .where((column) => column.columnKey.toLowerCase() == 'locale')
       .map((column) => column.fieldName)
@@ -904,7 +951,7 @@ List<BeakGeneratedInput> _inputs(
     final schema = BeakSchemaIr(
       className: input.name,
       table: input.table ?? 'input_${_snake(input.name)}',
-      libraryPath: 'src/models/${_snake(input.name)}.dart',
+      libraryPath: input.library,
       columns: columns,
       relations: relations,
       displayColumnKey: columns.isEmpty ? 'id' : columns.first.fieldName,

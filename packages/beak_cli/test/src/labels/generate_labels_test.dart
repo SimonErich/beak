@@ -1,87 +1,62 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:beak_cli/src/cli_runner.dart';
 import 'package:beak_cli/src/serverpod/generate_issue.dart';
 import 'package:beak_cli/src/serverpod/generator.dart';
-import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import '../serverpod/serverpod_fixture.dart';
+
 void main() {
-  late Directory root;
+  late ServerpodFixture fixture;
 
-  setUp(() => root = Directory.systemTemp.createTempSync('beak-gen-labels-'));
-  tearDown(() => root.deleteSync(recursive: true));
+  setUp(() => fixture = ServerpodFixture());
+  tearDown(() => fixture.delete());
 
-  void write(String path, String source) {
-    File(p.join(root.path, path))
-      ..parent.createSync(recursive: true)
-      ..writeAsStringSync(source);
-  }
+  BeakCliEnvironment env() => fixture.env();
 
-  BeakCliEnvironment env() => BeakCliEnvironment(
-    out: StringBuffer(),
-    rootDirectory: root,
-    now: () => DateTime.utc(2026),
-    probe: (host, port) async => false,
-  );
+  void write(String path, String source) => fixture.write(path, source);
 
-  String generated() => File(
-    p.join(root.path, 'generated/lib/src/models/product.dart'),
-  ).readAsStringSync();
+  String generated() =>
+      fixture.read('definitions/lib/src/catalog/product.beak.dart');
 
   void project({String labels = 'labels: {path: labels, template: de}'}) {
-    write('pubspec.yaml', 'name: shop_admin\n');
-    write('beak.yaml', '''
-$labels
-serverpod:
-  server: server
-  models: [lib/src]
-  migrations: migrations
-generate:
-  output: generated
-  inventory: definitions
-  prefix: Shop
-  areas:
-    catalog: {read: readCatalog, write: writeCatalog}
-  writes: [configuration]
-''');
-    write('generated/pubspec.yaml', 'name: shop_generated\n');
-    write('server/lib/src/product.spy.yaml', '''
+    fixture
+      ..project(labels: labels)
+      ..model('product', '''
 class: Product
 table: product_main
 fields:
   id: UuidValue
   name: String
   status: ProductStatus
-''');
-    write('server/lib/src/product_status.spy.yaml', '''
+''')
+      ..model('product_status', '''
 enum: ProductStatus
 serialized: byName
 values:
   - draft
   - active
-''');
-    write(
-      'server/migrations/0001/definition_project.json',
-      jsonEncode({
-        'tables': [
-          {
-            'name': 'product_main',
-            'columns': [
-              {'name': 'id', 'dartType': 'UuidValue?'},
-              {'name': 'name', 'dartType': 'String?'},
-              {'name': 'status', 'dartType': 'protocol:ProductStatus?'},
-            ],
-          },
-        ],
-      }),
-    );
-    write('definitions/catalog.yaml', '''
-area: catalog
-resources:
-  Product: {operations: [read], reason: Closed.}
-''');
+''')
+      ..database([
+        ServerpodFixture.table(
+          'product_main',
+          ['id', 'name', 'status'],
+          types: {'status': 'protocol:ProductStatus?'},
+        ),
+      ])
+      ..define(
+        'catalog/product',
+        '''
+@Resource()
+@ServerpodModel(area: 'catalog', reason: 'Closed.')
+final class Product extends BeakSchema {
+  late final String name;
+
+  late final ProductStatus status;
+}''',
+        imports: ['package:shop_definitions/src/generated/enums.dart'],
+      );
     write('labels/models_de.arb', '''
 {
   "@@locale": "de",
@@ -161,7 +136,7 @@ resources:
     project();
     write('labels/models_de.arb', '''
 {"@@locale": "de", "product.nmae": "Bezeichnung"}''');
-    File(p.join(root.path, 'labels/models_en.arb')).deleteSync();
+    File('${fixture.root.path}/labels/models_en.arb').deleteSync();
 
     expect(
       () => runServerpodGenerate(env()),

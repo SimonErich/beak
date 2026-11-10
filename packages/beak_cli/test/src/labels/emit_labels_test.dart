@@ -6,7 +6,7 @@ import 'package:test/test.dart';
 const _command = BeakSchemaIr(
   className: 'AccountRoleCommand',
   table: 'input_account_role_command',
-  libraryPath: 'src/models/account_role_command.dart',
+  libraryPath: 'src/access/account_role_command.dart',
   displayColumnKey: 'roleId',
   softDeletes: false,
   timestamps: false,
@@ -25,9 +25,9 @@ const _command = BeakSchemaIr(
 
 void main() {
   test('a command input carries its names and field labels', () {
-    final source = BeakSchemaEmitter.emitInputLibrary(
+    final source = BeakSchemaEmitter.emitServerpodInputPart(
       const BeakGeneratedInput(_command),
-      const [],
+      const <BeakGeneratedModel>[],
       labels: const BeakProjectLabels(
         template: 'de',
         bySchema: {

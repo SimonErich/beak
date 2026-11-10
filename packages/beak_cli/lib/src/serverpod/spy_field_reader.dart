@@ -161,8 +161,7 @@ SpyField _build(
     issues.add(
       path,
       '$owner.$name: the option "$key" is not one Beak understands. '
-      'Remove it, or exclude the field in the inventory if Beak should not '
-      'import it.',
+      'Remove it, or report it to Beak if Serverpod accepts it.',
     );
   }
   final String? scope = options['scope'];
@@ -179,6 +178,11 @@ SpyField _build(
     scope: scope,
     persist: persist,
     defaultValue: options['default'],
+    hasDefault: const {
+      'default',
+      'defaultModel',
+      'defaultPersist',
+    }.any(options.containsKey),
     column: options['column'],
   );
 }

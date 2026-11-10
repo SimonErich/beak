@@ -1,109 +1,80 @@
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:beak_cli/src/schema/beak_schema_ir.dart';
-import 'package:beak_cli/src/serverpod/database_definition.dart';
 import 'package:beak_cli/src/serverpod/generate_issue.dart';
-import 'package:beak_cli/src/serverpod/generate_settings.dart';
-import 'package:beak_cli/src/serverpod/inventory_reader.dart';
-import 'package:beak_cli/src/serverpod/serverpod_ir.dart';
-import 'package:beak_cli/src/serverpod/spy_reader.dart';
-import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'serverpod_fixture.dart';
+
 void main() {
-  late Directory root;
+  late ServerpodFixture fixture;
 
-  setUp(() => root = Directory.systemTemp.createTempSync('beak-gen-'));
-  tearDown(() => root.deleteSync(recursive: true));
+  setUp(() => fixture = ServerpodFixture());
+  tearDown(() => fixture.delete());
 
-  void write(String path, String source) {
-    File(p.join(root.path, path))
-      ..parent.createSync(recursive: true)
-      ..writeAsStringSync(source);
+  Matcher failsWith(String text) => throwsA(
+    isA<BeakGenerateException>().having(
+      (error) => error.issues.map((issue) => issue.message).join('\n'),
+      'messages',
+      contains(text),
+    ),
+  );
+
+  void sample(String fields) {
+    fixture
+      ..model('sample', '''
+class: Sample
+table: sample
+fields:
+  id: UuidValue
+$fields
+''')
+      ..database([
+        ServerpodFixture.table(
+          'sample',
+          [
+            'id',
+            for (final line in fields.trim().split('\n'))
+              line.trim().split(':').first,
+          ],
+          types: {'version': 'int?', 'count': 'int?'},
+        ),
+      ]);
   }
 
-  void database(List<Map<String, Object?>> tables) => write(
-    'server/migrations/0001/definition_project.json',
-    jsonEncode({'tables': tables}),
-  );
+  test('a writable model needs an area or roles', () {
+    sample('  title: String');
+    fixture.define('sample', '''
+@Resource()
+@ServerpodModel(create: BeakHandling.stock)
+final class Sample extends BeakSchema {
+  late final String title;
+}''');
 
-  Map<String, Object?> table(
-    String name,
-    List<String> columns, {
-    List<Map<String, Object?>> foreignKeys = const [],
-    List<Map<String, Object?>> indexes = const [],
-  }) => {
-    'name': name,
-    'columns': [
-      for (final column in columns)
-        {
-          'name': column,
-          'dartType':
-              column.startsWith('id') ||
-                  column.endsWith('Id') ||
-                  column.startsWith('_')
-              ? 'UuidValue?'
-              : 'String?',
-        },
-    ],
-    'foreignKeys': foreignKeys,
-    'indexes': indexes,
-  };
-
-  const serverpod = BeakServerpodSettings(server: 'server');
-  const settings = BeakGenerateSettings(
-    output: 'generated',
-    prefix: 'Shop',
-    areas: {
-      'catalog': BeakAreaRoles(read: ['readCatalog'], write: ['writeCatalog']),
-    },
-    writes: ['configuration', 'translation', 'menu', 'catalog'],
-    conventions: BeakGenerateConventions(dateOnly: ['*Date']),
-  );
-
-  ServerpodIr generate() => buildServerpodIr(
-    project: SpyReader(
-      Directory(p.join(root.path, 'server')),
-      serverpod,
-    ).read(),
-    database: DatabaseDefinition.read(
-      Directory(p.join(root.path, 'server')),
-      'migrations',
-    ),
-    inventory: readInventory(
-      Directory(p.join(root.path, 'definitions')),
-      settings,
-    ),
-    settings: settings,
-  );
-
-  test('a writable model needs a write binding, fields and an area', () {
-    write(
-      'server/lib/src/sample.spy.yaml',
-      'class: Sample\ntable: sample\nfields:\n  id: UuidValue\n  title: String\n',
-    );
-    write(
-      'definitions/catalog.yaml',
-      'area: catalog\nresources:\n  Sample:\n    operations: [read, create]\n',
-    );
-    database([
-      table('sample', ['id', 'title']),
-    ]);
-
-    expect(generate, throwsA(isA<BeakGenerateException>()));
+    expect(fixture.ir, failsWith('opens writes but names no area'));
   });
 
-  test('inherited audit columns stay, secrets never enter the model', () {
-    write('server/lib/src/base.spy.yaml', '''
+  test('a read-only model says why', () {
+    sample('  title: String');
+    fixture.define('sample', '''
+@Resource()
+@ServerpodModel(area: 'catalog')
+final class Sample extends BeakSchema {
+  late final String title;
+}''');
+
+    expect(fixture.ir, failsWith('@ServerpodModel(reason:) says why'));
+  });
+
+  test('audit columns stay, undeclared fields and secrets never enter', () {
+    fixture
+      ..model('base', '''
 class: Base
 fields:
   createdAt: DateTime, default=now
   updatedAt: DateTime, default=now
   isDeleted: bool, default=false
   deletedAt: DateTime?
-''');
-    write('server/lib/src/sample.spy.yaml', '''
+''')
+      ..model('sample', '''
 class: Sample
 extends: Base
 table: sample
@@ -112,60 +83,166 @@ fields:
   title: String
   unitPriceInCents: int, default=0
   passwordToken: String?
-  internalValue: String?, scope=serverOnly
-  cacheKey: String?, scope=none
-  presentationOnly: String?, !persist
-''');
-    write('definitions/catalog.yaml', '''
-area: catalog
-resources:
-  Sample:
-    display: title
-    operations: [read, create, update]
-    write: configuration
-    writeFields: [title, unitPriceInCents]
-''');
-    database([
-      table('sample', [
-        'id',
-        'createdAt',
-        'updatedAt',
-        'isDeleted',
-        'deletedAt',
-        'title',
-        'unitPriceInCents',
-        'passwordToken',
-        'internalValue',
-        'cacheKey',
-        'presentationOnly',
-      ]),
-    ]);
+  internalNote: String?
+''')
+      ..database([
+        ServerpodFixture.table('sample', [
+          'id',
+          'createdAt',
+          'updatedAt',
+          'isDeleted',
+          'deletedAt',
+          'title',
+          'unitPriceInCents',
+          'passwordToken',
+          'internalNote',
+        ]),
+      ])
+      ..define('sample', '''
+@Resource()
+@ServerpodModel(
+  area: 'catalog',
+  create: BeakHandling.stock,
+  update: BeakHandling.stock,
+)
+final class Sample extends BeakSchema {
+  @Display()
+  late final String title;
 
-    final model = generate().models.single;
+  late final int unitPriceInCents;
+}''', writes: true);
+
+    final model = fixture.ir().models.single;
     final names = {for (final column in model.schema.columns) column.fieldName};
     expect(names, containsAll(['createdAt', 'updatedAt', 'isDeleted']));
     expect(names, isNot(contains('passwordToken')));
-    expect(names, isNot(contains('internalValue')));
-    expect(names, isNot(contains('cacheKey')));
-    expect(names, isNot(contains('presentationOnly')));
-    expect(model.schema.createdAtColumnKey, 'createdAt');
+    expect(names, isNot(contains('internalNote')));
+    expect(model.schema.softDeletes, isTrue);
+    expect(model.schema.displayColumnKey, 'title');
     expect(model.admission.writable, ['title', 'unitPriceInCents']);
+    expect(model.admission.writeValue, 'ShopWrite.sample');
     final price = model.schema.columns.firstWhere(
       (column) => column.fieldName == 'unitPriceInCents',
     );
     expect(price.arguments['defaultValue'], '0');
   });
 
+  test('a declared secret is refused', () {
+    sample('  passwordToken: String?');
+    fixture.define('sample', '''
+@Resource()
+@ServerpodModel(area: 'catalog', reason: 'Closed.')
+final class Sample extends BeakSchema {
+  late final String? passwordToken;
+}''');
+
+    expect(fixture.ir, failsWith('looks like a secret'));
+  });
+
+  test('a declared field must exist with its Serverpod type and `?`', () {
+    sample('  title: String\n  count: int');
+    fixture.define('sample', '''
+@Resource()
+@ServerpodModel(area: 'catalog', reason: 'Closed.')
+final class Sample extends BeakSchema {
+  late final String? title;
+  late final String count;
+  late final String misspelled;
+}''');
+
+    expect(
+      fixture.ir,
+      throwsA(
+        isA<BeakGenerateException>().having(
+          (error) => error.issues.map((issue) => issue.message).toList(),
+          'messages',
+          containsAll([
+            contains('Sample.title is not nullable in Serverpod'),
+            contains('Sample.count is declared `String`'),
+            contains('Sample.misspelled is not a field'),
+          ]),
+        ),
+      ),
+    );
+  });
+
+  test('a stock create needs every required field', () {
+    sample('  title: String\n  code: String');
+    fixture.define('sample', '''
+@Resource()
+@ServerpodModel(area: 'catalog', create: BeakHandling.stock)
+final class Sample extends BeakSchema {
+  late final String title;
+}''', writes: true);
+
+    expect(fixture.ir, failsWith('required Serverpod field "code"'));
+  });
+
+  test('@ReadOnly, @Hidden and @Column shape admission and columns', () {
+    sample('  title: String\n  version: int, default=1\n  locks: List<String>');
+    fixture.define('sample', '''
+@Resource()
+@ServerpodModel(
+  area: 'catalog',
+  create: BeakHandling.stock,
+  update: BeakHandling.stock,
+)
+final class Sample extends BeakSchema {
+  @Column(label: 'Heading', searchable: false, rules: [BeakMin(1)])
+  late final String title;
+
+  @ReadOnly()
+  late final int version;
+
+  @Hidden(defaultValue: '[]')
+  late final BeakJson locks;
+}''', writes: true);
+
+    final model = fixture.ir().models.single;
+    expect(model.admission.writable, ['title']);
+    expect(model.admission.hidden, ['locks']);
+    final title = model.schema.columns.firstWhere(
+      (column) => column.fieldName == 'title',
+    );
+    expect(title.label, 'Heading');
+    expect(title.arguments['searchable'], 'false');
+    expect(title.arguments['rules'], '[BeakMin(1)]');
+    final locks = model.schema.columns.firstWhere(
+      (column) => column.fieldName == 'locks',
+    );
+    expect(locks.arguments['defaultValue'], "'[]'");
+  });
+
+  test('a commands-only model opens update and writes no field', () {
+    sample('  title: String');
+    fixture.define('sample', '''
+@Resource()
+@ServerpodModel(area: 'catalog', commands: ['archive'])
+final class Sample extends BeakSchema {
+  static BeakModelBehavior get behavior => const BeakModelBehavior();
+
+  late final String title;
+}''', writes: true);
+
+    final ir = fixture.ir();
+    final model = ir.models.single;
+    expect(model.capabilities, {'read', 'update'});
+    expect(model.admission.writable, isEmpty);
+    expect(model.schema.hasBehavior, isTrue);
+    expect(ir.writes, ['sample']);
+  });
+
   test('named inverse relations keep their actual foreign key', () {
-    write('server/lib/src/owner.spy.yaml', '''
+    fixture
+      ..model('owner', '''
 class: Owner
 table: owner
 fields:
   id: UuidValue
   title: String
   children: List<Child>?, relation(name=owner_children)
-''');
-    write('server/lib/src/child.spy.yaml', '''
+''')
+      ..model('child', '''
 class: Child
 table: child
 fields:
@@ -173,17 +250,31 @@ fields:
   title: String
   ownerRefId: UuidValue
   owner: Owner?, relation(name=owner_children, field=ownerRefId, onDelete=Cascade)
-''');
-    write(
-      'definitions/catalog.yaml',
-      'area: catalog\nresources:\n  Owner: {reason: Closed.}\n  Child: {reason: Closed.}\n',
-    );
-    database([
-      table('owner', ['id', 'title']),
-      table('child', ['id', 'title', 'ownerRefId']),
-    ]);
+''')
+      ..database([
+        ServerpodFixture.table('owner', ['id', 'title']),
+        ServerpodFixture.table('child', ['id', 'title', 'ownerRefId']),
+      ])
+      ..define('owner', '''
+@Resource()
+@ServerpodModel(area: 'catalog', reason: 'Closed.')
+final class Owner extends BeakSchema {
+  late final String title;
 
-    final ir = generate();
+  @HasMany()
+  late final List<Child> children;
+}''')
+      ..define('child', '''
+@Resource()
+@ServerpodModel(area: 'catalog', reason: 'Closed.')
+final class Child extends BeakSchema {
+  late final String title;
+
+  @BelongsTo()
+  late final Owner? owner;
+}''');
+
+    final ir = fixture.ir();
     final owner = ir.models.firstWhere((m) => m.schema.className == 'Owner');
     final child = ir.models.firstWhere((m) => m.schema.className == 'Child');
     expect(owner.schema.relations.single.foreignKey, 'ownerRefId');
@@ -191,75 +282,131 @@ fields:
     expect(child.schema.relations.single.kind, BeakRelationKind.belongsTo);
   });
 
+  test('a relation annotated as the wrong kind is refused', () {
+    fixture
+      ..model('owner', '''
+class: Owner
+table: owner
+fields:
+  id: UuidValue
+  title: String
+''')
+      ..model('child', '''
+class: Child
+table: child
+fields:
+  id: UuidValue
+  owner: Owner?, relation
+''')
+      ..database([
+        ServerpodFixture.table('owner', ['id', 'title']),
+        ServerpodFixture.table('child', ['id', 'ownerId']),
+      ])
+      ..define('owner', '''
+@Resource()
+@ServerpodModel(area: 'catalog', reason: 'Closed.')
+final class Owner extends BeakSchema {
+  late final String title;
+}''')
+      ..define('child', '''
+@Resource()
+@ServerpodModel(area: 'catalog', reason: 'Closed.')
+final class Child extends BeakSchema {
+  @HasOne()
+  late final Owner? owner;
+}''');
+
+    expect(fixture.ir, failsWith('is a belongsTo relation in Serverpod'));
+  });
+
   test('a one-sided has-many takes the shadow key from the migration', () {
-    write('server/lib/src/parent.spy.yaml', '''
+    fixture
+      ..model('parent', '''
 class: Parent
 table: parent_main
 fields:
   id: UuidValue
   name: String
   variants: List<Variant>?, relation
-''');
-    write('server/lib/src/variant.spy.yaml', '''
+''')
+      ..model('variant', '''
 class: Variant
 table: variant
 fields:
   id: UuidValue
   name: String
-''');
-    write(
-      'definitions/catalog.yaml',
-      'area: catalog\nresources:\n  Parent: {reason: Closed.}\n  Variant: {reason: Closed.}\n',
-    );
-    database([
-      table('parent_main', ['id', 'name']),
-      table(
-        'variant',
-        ['id', 'name', '_parentMainVariantsParentMainId'],
-        foreignKeys: [
-          {
-            'referenceTable': 'parent_main',
-            'columns': ['_parentMainVariantsParentMainId'],
-          },
-        ],
-      ),
-    ]);
+''')
+      ..database([
+        ServerpodFixture.table('parent_main', ['id', 'name']),
+        ServerpodFixture.table(
+          'variant',
+          ['id', 'name', '_parentMainVariantsParentMainId'],
+          foreignKeys: [
+            {
+              'referenceTable': 'parent_main',
+              'columns': ['_parentMainVariantsParentMainId'],
+            },
+          ],
+        ),
+      ])
+      ..define('parent', '''
+@Resource()
+@ServerpodModel(area: 'catalog', reason: 'Closed.')
+final class Parent extends BeakSchema {
+  late final String name;
 
-    final ir = generate();
-    final variant = ir.models.firstWhere(
+  @HasMany(owned: true)
+  late final List<Variant> variants;
+}''')
+      ..define('variant', '''
+@Resource()
+@ServerpodModel.editable(area: 'catalog')
+final class Variant extends BeakSchema {
+  late final String name;
+}''', writes: true);
+
+    final variant = fixture.ir().models.firstWhere(
       (m) => m.schema.className == 'Variant',
     );
     expect(
       variant.schema.columns.map((column) => column.columnKey),
       contains('_parentMainVariantsParentMainId'),
     );
+    // The key the parent stores is written with the variant.
+    expect(variant.admission.writable, ['name', 'parentId']);
   });
 
-  test('an external module reference stays a scalar foreign key', () {
-    write('server/lib/src/account.spy.yaml', '''
+  test('a foreign key without its relation stays a scalar column', () {
+    fixture
+      ..model('account', '''
 class: Account
 table: account
 fields:
   id: UuidValue
   firstName: String?
   authUser: module:serverpod_auth_core:AuthUser?, relation(onDelete=Cascade)
-''');
-    write(
-      'definitions/catalog.yaml',
-      'area: catalog\nresources:\n  Account: {reason: Closed.}\n',
-    );
-    database([
-      table('account', ['id', 'firstName', 'authUserId']),
-    ]);
+''')
+      ..database([
+        ServerpodFixture.table('account', ['id', 'firstName', 'authUserId']),
+      ])
+      ..define('account', '''
+@Resource()
+@ServerpodModel(area: 'catalog', reason: 'Closed.')
+final class Account extends BeakSchema {
+  late final String? firstName;
 
-    final model = generate().models.single;
+  late final String? authUserId;
+}''');
+
+    final model = fixture.ir().models.single;
     final names = {for (final column in model.schema.columns) column.fieldName};
     expect(names, contains('authUserId'));
     expect(model.schema.relations, isEmpty);
   });
 
-  test('enum wire names and properties come from the single source', () {
-    write('server/lib/src/state.spy.yaml', '''
+  test('enum wire names and properties come from Serverpod', () {
+    fixture
+      ..model('state', '''
 enum: State
 properties:
   description: String
@@ -268,110 +415,86 @@ values:
       description: Ready to serve
   - done:
       description: Finished
-''');
-    write('server/lib/src/sample.spy.yaml', '''
+''')
+      ..model('sample', '''
 class: Sample
 table: sample
 fields:
   id: UuidValue
   state: State, default=ready
-''');
-    write(
-      'definitions/catalog.yaml',
-      'area: catalog\nresources:\n  Sample: {reason: Closed.}\n',
-    );
-    database([
-      table('sample', ['id', 'state']),
-    ]);
+''')
+      ..database([
+        ServerpodFixture.table('sample', ['id', 'state']),
+      ])
+      ..define('sample', '''
+@Resource()
+@ServerpodModel(area: 'catalog', reason: 'Closed.')
+final class Sample extends BeakSchema {
+  late final State state;
+}''');
 
-    final ir = generate();
-    final state = ir.enums.single;
+    final state = fixture.ir().enums.single;
     expect(state.name, 'State');
     expect(state.values.first.name, 'ready');
     expect(state.values.first.properties, ["'Ready to serve'"]);
     expect(state.properties, {'description': 'String'});
   });
 
-  test('a new source field stays unwritable and an unknown review fails', () {
-    write('server/lib/src/sample.spy.yaml', '''
-class: Sample
-table: sample
-fields:
-  id: UuidValue
-  title: String
-  serverCounter: int, default=0
-''');
-    write('definitions/catalog.yaml', '''
-area: catalog
-resources:
-  Sample:
-    operations: [read, create]
-    write: configuration
-    writeFields: [title]
-''');
-    database([
-      table('sample', ['id', 'title', 'serverCounter']),
-    ]);
-
-    final model = generate().models.single;
-    expect(model.admission.writable, ['title']);
-
-    write('definitions/catalog.yaml', '''
-area: catalog
-resources:
-  Sample:
-    operations: [read, create]
-    write: configuration
-    writeFields: [misspelled]
-''');
-    expect(generate, throwsA(isA<BeakGenerateException>()));
-  });
-
   test('a translation table detects its restore key from the unique index', () {
-    write('server/lib/src/product.spy.yaml', '''
+    fixture
+      ..model('product', '''
 class: Product
 table: product
 fields:
   id: UuidValue
   name: String
   translations: List<ProductTranslation>?, relation
-''');
-    write('server/lib/src/product_translation.spy.yaml', '''
+''')
+      ..model('product_translation', '''
 class: ProductTranslation
 table: product_translation
 fields:
   id: UuidValue
   locale: String
   name: String
-''');
-    write('definitions/catalog.yaml', '''
-area: catalog
-resources:
-  Product: {operations: [read], reason: Closed.}
-  ProductTranslation:
-    operations: [read, update]
-    write: translation
-    writeFields: [name]
-''');
-    database([
-      table('product', ['id', 'name']),
-      table(
-        'product_translation',
-        ['id', 'locale', 'name', '_productTranslationsProductId'],
-        indexes: [
-          {
-            'indexName': 'product_translation_locale',
-            'isUnique': true,
-            'elements': [
-              {'definition': '_productTranslationsProductId'},
-              {'definition': 'locale'},
-            ],
-          },
-        ],
-      ),
-    ]);
+''')
+      ..database([
+        ServerpodFixture.table('product', ['id', 'name']),
+        ServerpodFixture.table(
+          'product_translation',
+          ['id', 'locale', 'name', '_productTranslationsProductId'],
+          indexes: [
+            {
+              'indexName': 'product_translation_locale',
+              'isUnique': true,
+              'elements': [
+                {'definition': '_productTranslationsProductId'},
+                {'definition': 'locale'},
+              ],
+            },
+          ],
+        ),
+      ])
+      ..define('product', '''
+@Resource()
+@ServerpodModel(area: 'catalog', reason: 'Closed.')
+final class Product extends BeakSchema {
+  late final String name;
 
-    final model = generate().models.firstWhere(
+  @HasMany(owned: true)
+  late final List<ProductTranslation> translations;
+}''')
+      ..define('product_translation', '''
+@Resource()
+@ServerpodModel(area: 'catalog', update: BeakHandling.stock)
+final class ProductTranslation extends BeakSchema {
+  @ReadOnly()
+  late final String locale;
+
+  late final String name;
+}''', writes: true);
+
+    final model = fixture.ir().models.firstWhere(
       (m) => m.schema.className == 'ProductTranslation',
     );
     expect(model.admission.restoreKey, isNotEmpty);
