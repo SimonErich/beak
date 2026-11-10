@@ -6,7 +6,7 @@
   "files": {
     "SUMMARY.md": "13e041759f39f9032623f3ba39092d97d9fcb8bb1dc6317e48afd81afda49a68",
     "_agents/blocks/embedded.md": "d674e504d7a5a422faaf93233a5e55213aad1fca6bb2470cf77d44de455def66",
-    "_agents/blocks/serverpod-admin.md": "76f7dfeed8b12ba9949d281ee4b6fb7f3e88158bae018122fe02cbef8f807245",
+    "_agents/blocks/serverpod-admin.md": "090f80aed965353b8eefdb3f1175959ef5cc63e7fbde5bf46cdd32704496654c",
     "_agents/blocks/standalone.md": "46e868c3f544933a144d879a09dc5f86c55a7087452d218868c07de72e4925b1",
     "_agents/blocks/workspace-root.md": "86ecb29a5a6feacd7a9ca92bc9c88477ab85c8878be49ce927de97f1b1e7753f",
     "ai-index.md": "9bb3b396ebd1f6af67a2a849d78bec6b4b3f88a0e2d76257d69965a728a078bb",

@@ -486,6 +486,36 @@ void main() {
       },
     );
 
+    test('leaves a hand-curated Serverpod admin AGENTS.md alone', () {
+      fixture
+        ..writeProject(
+          name: 'acme_admin',
+          dependencies: const [
+            'beak',
+            'beak_serverpod_flutter',
+            'acme_client',
+          ],
+        )
+        ..write(
+          'app/lib/admin.dart',
+          'final source = serverpodBeakDataSource(dispatch);\n',
+        )
+        ..writeBundle()
+        ..resolve(['beak_core']);
+      const String mine = '# Acme Admin\n\nOur layout and rules.\n';
+      fixture.write('app/AGENTS.md', mine);
+
+      final BeakAgentReport report = sync();
+
+      expect(fixture.read('AGENTS.md'), mine);
+      expect(actions(report).containsKey('AGENTS.md'), isFalse);
+      expect(fixture.exists('CLAUDE.md'), isFalse);
+      expect(
+        report.notes,
+        contains('AGENTS.md documents this admin; left alone.'),
+      );
+    });
+
     test('an app that only borrows the Serverpod sign-in gets no admin '
         'rules', () {
       fixture
