@@ -17,28 +17,30 @@ class BeakAuthGate extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => Watch((context) {
-    final strings = BeakLocalizations.of(context);
-    return switch (adapter.state.value) {
-      BeakAuthAuthenticated(:final identity) when identity.canAccessPanel =>
-        KeyedSubtree(key: ValueKey(identity.id), child: child),
-      BeakAuthFailure(:final error) => Center(
-        child: OiColumn(
-          breakpoint: context.breakpoint,
-          gap: OiResponsive(context.spacing.md),
-          children: [
-            OiLabel.body(strings.authError(error)),
-            OiButton.primary(label: strings.retry, onTap: adapter.refresh),
-            OiButton.ghost(
-              label: strings.authBackToLogin,
-              onTap: adapter.logout,
-            ),
-          ],
+  Widget build(BuildContext context) => SignalBuilder(
+    builder: (context) {
+      final strings = BeakLocalizations.of(context);
+      return switch (adapter.state.value) {
+        BeakAuthAuthenticated(:final identity) when identity.canAccessPanel =>
+          KeyedSubtree(key: ValueKey(identity.id), child: child),
+        BeakAuthFailure(:final error) => Center(
+          child: OiColumn(
+            breakpoint: context.breakpoint,
+            gap: OiResponsive(context.spacing.md),
+            children: [
+              OiLabel.body(strings.authError(error)),
+              OiButton.primary(label: strings.retry, onTap: adapter.refresh),
+              OiButton.ghost(
+                label: strings.authBackToLogin,
+                onTap: adapter.logout,
+              ),
+            ],
+          ),
         ),
-      ),
-      _ => Center(child: OiLabel.body(strings.loading)),
-    };
-  });
+        _ => Center(child: OiLabel.body(strings.loading)),
+      };
+    },
+  );
 }
 
 /// Bridges the adapter's signal to GoRouter without mirroring session state.

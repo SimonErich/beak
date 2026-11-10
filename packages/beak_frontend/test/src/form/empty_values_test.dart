@@ -69,8 +69,8 @@ void main() {
     );
 
     expect(find.text('Lonely'), findsOneWidget);
-    expect(find.text('Category: n/a'), findsOneWidget);
-    expect(find.text('n/a'), findsOneWidget);
+    expect(find.text('Category'), findsOneWidget);
+    expect(find.text('n/a'), findsNWidgets(2));
   });
 
   testWidgets('a related field of a missing record shows the empty value', (

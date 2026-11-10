@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:test/test.dart';
 import 'package:worm_lints/worm_lints.dart';
 
@@ -71,7 +72,7 @@ void main() {
   });
 
   group('rule scans the worm fixture file', () {
-    test('reports exactly one error per ticket-reference line', () async {
+    test('finds exactly one comment per ticket-reference line', () async {
       // Resolve the fixture path through the package-resolution
       // machinery instead of the process CWD so the test passes
       // regardless of where `dart test` is invoked from.
@@ -94,16 +95,17 @@ void main() {
         isTrue,
         reason: 'fixture missing at ${fixture.path}',
       );
-      final errors = await NoTicketReferenceRule().testAnalyzeAndRun(fixture);
-      final reportedNames = errors
-          .map((e) => e.diagnosticCode.name)
-          .toList(growable: false);
+      final unit = parseString(
+        content: fixture.readAsStringSync(),
+        throwIfDiagnostics: false,
+      ).unit;
+      final comments = NoTicketReferenceRule.ticketCommentsIn(unit);
+      expect(comments, hasLength(5));
       expect(
-        reportedNames,
-        everyElement('no_ticket_reference'),
-        reason: 'every reported error must come from this rule',
+        comments.map((comment) => comment.lexeme),
+        everyElement(matches(NoTicketReferenceRule.pattern)),
+        reason: 'every reported comment must carry a ticket reference',
       );
-      expect(errors, hasLength(5));
     });
   });
 }

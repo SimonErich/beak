@@ -29,58 +29,60 @@ class BeakPendingActions extends HookWidget {
   Widget build(BuildContext context) {
     final busy = useState(false);
     final failure = useState<BeakException?>(null);
-    return Watch((context) {
-      final pending = runner.unresolved.value
-          .where((entry) => entry.principal == principal)
-          .toList();
-      if (pending.isEmpty) return child;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                OiLabel.body(
-                  BeakLocalizations.of(context).pendingActionsNotice,
-                ),
-                for (final entry in pending)
-                  OiButton.secondary(
-                    label: BeakLocalizations.of(
-                      context,
-                    ).checkPendingAction(entry.action.label),
-                    loading: busy.value,
-                    onTap: busy.value
-                        ? null
-                        : () async {
-                            busy.value = true;
-                            final result = await runner.execute(
-                              model: entry.model,
-                              source: entry.source,
-                              recordId: entry.recordId,
-                              action: entry.action,
-                              principal: entry.principal,
-                              registry: entry.registry,
-                              prepare: (_) async => null,
-                            );
-                            if (!context.mounted) return;
-                            failure.value = result.error;
-                            busy.value = false;
-                          },
+    return SignalBuilder(
+      builder: (context) {
+        final pending = runner.unresolved.value
+            .where((entry) => entry.principal == principal)
+            .toList();
+        if (pending.isEmpty) return child;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  OiLabel.body(
+                    BeakLocalizations.of(context).pendingActionsNotice,
                   ),
-                if (failure.value case final BeakException error)
-                  OiLabel.caption(
-                    BeakLocalizations.of(context).errorMessage(error),
-                  ),
-              ],
+                  for (final entry in pending)
+                    OiButton.secondary(
+                      label: BeakLocalizations.of(
+                        context,
+                      ).checkPendingAction(entry.action.label),
+                      loading: busy.value,
+                      onTap: busy.value
+                          ? null
+                          : () async {
+                              busy.value = true;
+                              final result = await runner.execute(
+                                model: entry.model,
+                                source: entry.source,
+                                recordId: entry.recordId,
+                                action: entry.action,
+                                principal: entry.principal,
+                                registry: entry.registry,
+                                prepare: (_) async => null,
+                              );
+                              if (!context.mounted) return;
+                              failure.value = result.error;
+                              busy.value = false;
+                            },
+                    ),
+                  if (failure.value case final BeakException error)
+                    OiLabel.caption(
+                      BeakLocalizations.of(context).errorMessage(error),
+                    ),
+                ],
+              ),
             ),
-          ),
-          Expanded(child: child),
-        ],
-      );
-    });
+            Expanded(child: child),
+          ],
+        );
+      },
+    );
   }
 }

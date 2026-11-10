@@ -25,11 +25,10 @@ final class BeakTableViewModel extends BeakViewModel {
     this.model,
     BeakDataSource dataSource, {
     BeakQuerySpec? initial,
-    BeakFilter? baseFilter,
+    this._baseFilter,
     this.queryController,
     this.queryFields = const [],
-  }) : _repository = BeakResourceRepository(dataSource),
-       _baseFilter = baseFilter {
+  }) : _repository = BeakResourceRepository(dataSource) {
     _spec = ownedSignal(
       _scoped(
         beakWithFieldLoads(

@@ -19,15 +19,32 @@ import 'beak_panel_config.dart';
 /// config, so every navigable destination is reachable in two keystrokes with
 /// no per-app wiring.
 // --8<-- [start:openBeakCommandBar]
+OverlayEntry? _commandBarOverlay;
+
+/// Closes the command bar if it is open.
+///
+/// The panel calls this when it locks, so the palette cannot float above the
+/// lock screen. Opening the bar twice closes the first one.
+void closeBeakCommandBar() {
+  final entry = _commandBarOverlay;
+  _commandBarOverlay = null;
+  if (entry != null && entry.mounted) entry.remove();
+}
+
+/// Opens the command palette over the panel's root overlay.
+///
+/// Closes a palette that is already open.
 void openBeakCommandBar(BuildContext context, BeakPanelConfig config) {
   final GoRouter router = GoRouter.of(context);
   final overlay = Overlay.of(context, rootOverlay: true);
+  closeBeakCommandBar();
   late final OverlayEntry entry;
   void close() {
+    if (identical(_commandBarOverlay, entry)) _commandBarOverlay = null;
     if (entry.mounted) entry.remove();
   }
 
-  entry = OverlayEntry(
+  entry = _commandBarOverlay = OverlayEntry(
     builder: (_) => BeakSearchPalette(
       config: config,
       onSelect: (route) {

@@ -6,7 +6,7 @@ class _BeakSummaryBlockView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = BeakQueryScope.maybeOf(context);
-    return Watch.builder(
+    return SignalBuilder(
       builder: (_) {
         final inherited = switch (block.scope) {
           BeakSummaryScope.active => controller?.query,

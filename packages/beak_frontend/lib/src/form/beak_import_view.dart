@@ -127,123 +127,128 @@ class _BeakBatchView extends HookWidget {
       return null;
     }, [definition, source, formatting, records, changes]);
     useEffect(() => state.dispose, [state]);
-    return Watch((context) {
-      final definition = state.definition;
-      final records = state.records;
-      final preview = state.preview.value;
-      final receipts = state.receipts.value;
-      final locked = state.locked;
-      final unknown = receipts.any((receipt) => receipt.hasUnknown);
-      return OiColumn(
-        breakpoint: context.breakpoint,
-        gap: const OiResponsive(16),
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          OiLabel.h3(title),
-          if (records == null) ...[
-            OiLabel.body(
-              strings.importPasteHint(
-                definition.fields.map(definition.header).join(', '),
-              ),
-            ),
-            OiTextInput(
-              controller: controller,
-              label: strings.importCsvData,
-              maxLines: 8,
-              enabled: !locked,
-              onChanged: (_) => state.invalidate(),
-            ),
-          ],
-          OiButton.secondary(
-            label: records == null
-                ? strings.importPreview
-                : strings.importPreviewChanges,
-            onTap: locked ? null : () => state.prepare(controller.text),
-          ),
-          if (state.configurationChanged.value) ...[
-            OiLabel.body(strings.importConfigurationChanged),
-            OiButton.secondary(
-              label: strings.importStartNewReview,
-              onTap: !state.busy.value && !unknown
-                  ? () {
-                      if (state.acceptConfiguration()) {
-                        controller.text = state.initialCsv;
-                      }
-                    }
-                  : null,
-            ),
-          ],
-          if (state.editing.value && records == null)
-            OiLabel.caption(strings.importCorrectUnsaved),
-          if (state.error.value case final String error) OiLabel.body(error),
-          if (preview != null) ...[
-            OiLabel.body(
-              strings.importSummary(
-                preview.rows.length,
-                preview.rows.where((row) => !row.valid).length,
-              ),
-            ),
-            for (final row in preview.rows.take(20))
-              OiCard(
-                child: OiColumn(
-                  breakpoint: context.breakpoint,
-                  gap: const OiResponsive(8),
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    OiLabel.body(strings.importRow(row.number)),
-                    for (final field in definition.fields)
-                      OiLabel.body(
-                        '${definition.header(field)}: ${row.initial == null ? '' : '${formatting.formatCell(field.column, row.initial!)} → '}${formatting.formatCell(field.column, row.values)}',
-                      ),
-                    for (final errors in row.errors.values)
-                      for (final error in errors) OiLabel.body(error),
-                  ],
+    return SignalBuilder(
+      builder: (context) {
+        final definition = state.definition;
+        final records = state.records;
+        final preview = state.preview.value;
+        final receipts = state.receipts.value;
+        final locked = state.locked;
+        final unknown = receipts.any((receipt) => receipt.hasUnknown);
+        return OiColumn(
+          breakpoint: context.breakpoint,
+          gap: const OiResponsive(16),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            OiLabel.h3(title),
+            if (records == null) ...[
+              OiLabel.body(
+                strings.importPasteHint(
+                  definition.fields.map(definition.header).join(', '),
                 ),
               ),
-            if (preview.rows.length > 20)
-              OiLabel.caption(strings.importShowingFirst(20)),
-            OiLabel.caption(strings.importSavesIndividually),
-            OiButton.primary(
-              label: receipts.isEmpty
-                  ? records == null
-                        ? strings.importSubmit(preview.rows.length)
-                        : strings.importUpdate(preview.rows.length)
-                  : records == null
-                  ? strings.importResume
-                  : strings.importResumeUpdates,
-              onTap:
-                  preview.valid &&
-                      !state.busy.value &&
-                      !unknown &&
-                      !state.configurationChanged.value &&
-                      state.completed.value < preview.rows.length
-                  ? state.submit
-                  : null,
-            ),
-          ],
-          if (state.canCorrect)
+              OiTextInput(
+                controller: controller,
+                label: strings.importCsvData,
+                maxLines: 8,
+                enabled: !locked,
+                onChanged: (_) => state.invalidate(),
+              ),
+            ],
             OiButton.secondary(
               label: records == null
-                  ? strings.importEditRemaining
-                  : strings.importReloadRemaining,
-              onTap: records == null ? state.correct : state.reloadRemaining,
+                  ? strings.importPreview
+                  : strings.importPreviewChanges,
+              onTap: locked ? null : () => state.prepare(controller.text),
             ),
-          if (state.busy.value) ...[
-            OiLabel.body(strings.importWorking),
-            OiButton.secondary(label: strings.importStop, onTap: state.cancel),
+            if (state.configurationChanged.value) ...[
+              OiLabel.body(strings.importConfigurationChanged),
+              OiButton.secondary(
+                label: strings.importStartNewReview,
+                onTap: !state.busy.value && !unknown
+                    ? () {
+                        if (state.acceptConfiguration()) {
+                          controller.text = state.initialCsv;
+                        }
+                      }
+                    : null,
+              ),
+            ],
+            if (state.editing.value && records == null)
+              OiLabel.caption(strings.importCorrectUnsaved),
+            if (state.error.value case final String error) OiLabel.body(error),
+            if (preview != null) ...[
+              OiLabel.body(
+                strings.importSummary(
+                  preview.rows.length,
+                  preview.rows.where((row) => !row.valid).length,
+                ),
+              ),
+              for (final row in preview.rows.take(20))
+                OiCard(
+                  child: OiColumn(
+                    breakpoint: context.breakpoint,
+                    gap: const OiResponsive(8),
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      OiLabel.body(strings.importRow(row.number)),
+                      for (final field in definition.fields)
+                        OiLabel.body(
+                          '${definition.header(field)}: ${row.initial == null ? '' : '${formatting.formatCell(field.column, row.initial!)} → '}${formatting.formatCell(field.column, row.values)}',
+                        ),
+                      for (final errors in row.errors.values)
+                        for (final error in errors) OiLabel.body(error),
+                    ],
+                  ),
+                ),
+              if (preview.rows.length > 20)
+                OiLabel.caption(strings.importShowingFirst(20)),
+              OiLabel.caption(strings.importSavesIndividually),
+              OiButton.primary(
+                label: receipts.isEmpty
+                    ? records == null
+                          ? strings.importSubmit(preview.rows.length)
+                          : strings.importUpdate(preview.rows.length)
+                    : records == null
+                    ? strings.importResume
+                    : strings.importResumeUpdates,
+                onTap:
+                    preview.valid &&
+                        !state.busy.value &&
+                        !unknown &&
+                        !state.configurationChanged.value &&
+                        state.completed.value < preview.rows.length
+                    ? state.submit
+                    : null,
+              ),
+            ],
+            if (state.canCorrect)
+              OiButton.secondary(
+                label: records == null
+                    ? strings.importEditRemaining
+                    : strings.importReloadRemaining,
+                onTap: records == null ? state.correct : state.reloadRemaining,
+              ),
+            if (state.busy.value) ...[
+              OiLabel.body(strings.importWorking),
+              OiButton.secondary(
+                label: strings.importStop,
+                onTap: state.cancel,
+              ),
+            ],
+            if (receipts.isNotEmpty)
+              OiLabel.body(
+                strings.importProgress(state.completed.value, state.total),
+              ),
+            if (unknown)
+              OiButton.secondary(
+                label: strings.importCheckInterrupted,
+                onTap: state.busy.value ? null : state.recover,
+              ),
           ],
-          if (receipts.isNotEmpty)
-            OiLabel.body(
-              strings.importProgress(state.completed.value, state.total),
-            ),
-          if (unknown)
-            OiButton.secondary(
-              label: strings.importCheckInterrupted,
-              onTap: state.busy.value ? null : state.recover,
-            ),
-        ],
-      );
-    });
+        );
+      },
+    );
   }
 }
 

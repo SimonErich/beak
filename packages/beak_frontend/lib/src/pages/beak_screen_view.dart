@@ -21,22 +21,24 @@ class BeakScreenView extends StatelessWidget {
   final BeakScreen screen;
 
   @override
-  Widget build(BuildContext context) => Watch((context) {
-    if (!screen.isAccessible) return OiErrorPage.forbidden();
-    final body = BeakBlockHost(block: screen.body);
-    if (!screen.framed) {
-      return body;
-    }
-    return OiPageLayout(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-      gap: 16,
-      header: OiPageHeader(
-        title: screen.title,
-        titleVariant: OiLabelVariant.h1,
-        padding: EdgeInsets.zero,
-      ),
-      scrollable: true,
-      child: body,
-    );
-  });
+  Widget build(BuildContext context) => SignalBuilder(
+    builder: (context) {
+      if (!screen.isAccessible) return OiErrorPage.forbidden();
+      final body = BeakBlockHost(block: screen.body);
+      if (!screen.framed) {
+        return body;
+      }
+      return OiPageLayout(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+        gap: 16,
+        header: OiPageHeader(
+          title: screen.title,
+          titleVariant: OiLabelVariant.h1,
+          padding: EdgeInsets.zero,
+        ),
+        scrollable: true,
+        child: body,
+      );
+    },
+  );
 }

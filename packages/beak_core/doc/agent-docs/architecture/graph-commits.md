@@ -382,9 +382,7 @@ final class BeakSaveOperationWrite {
   /// Merges trusted, registered scalar values into the authorized input before
   /// ordinary persistence. Values are validated and cannot replace identity.
   /// Use this for server-owned bookkeeping without duplicating stock writes.
-  const BeakSaveOperationWrite.withValues(BeakRecord values)
-    : values = values,
-      record = null;
+  const BeakSaveOperationWrite.withValues(this.values) : record = null;
 
   /// Persisted record; the service rereads it before accepting the write.
   final BeakRecord? record;

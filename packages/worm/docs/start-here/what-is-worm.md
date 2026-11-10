@@ -56,7 +56,7 @@ Seven packages live in the beak monorepo. You install two or three of them.
 | --- | --- | --- |
 | `worm` | The ORM core: models, queries, migrations, seeders, CLI, in-memory adapter | Always (regular dependency) |
 | `worm_generator` | build_runner codegen emitting typed companions from annotations | You use annotation-driven codegen (dev dependency) |
-| `worm_lints` | A `custom_lint` plugin with worm's coding-convention rules | You want the repo's lint rules (dev dependency) |
+| `worm_lints` | An analyzer plugin with worm's coding-convention rules | You want the repo's lint rules (`plugins:` entry in `analysis_options.yaml`) |
 | `worm_sqlite` | SQLite driver (`SqliteAdapter`) | Your data lives in SQLite |
 | `worm_postgres` | PostgreSQL driver (`PostgresAdapter`) with connection pooling | Your data lives in PostgreSQL |
 | `worm_mysql` | MySQL driver (`MysqlAdapter`) | Your data lives in MySQL |
