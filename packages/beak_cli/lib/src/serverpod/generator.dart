@@ -63,14 +63,19 @@ BeakGenerateResult runServerpodGenerate(
       : Directory(p.join(environment.rootDirectory.path, project));
   final configFile = File(p.join(root.path, 'beak.yaml'));
   final pubspec = File(p.join(root.path, 'pubspec.yaml'));
-  if (!configFile.existsSync() || !pubspec.existsSync()) {
+  if (!configFile.existsSync()) {
     throw BeakGenerateException.single(
       'beak.yaml',
       'No Beak project at ${root.path}. Run this from the panel package, or '
           'pass --project <path>.',
     );
   }
-  final packageName = _packageName(pubspec);
+  // A container build copies the panel's beak.yaml and dictionaries without
+  // its pubspec (it would be a stray workspace member); the directory name is
+  // the package name then.
+  final packageName = pubspec.existsSync()
+      ? _packageName(pubspec)
+      : p.basename(root.path);
   final config = BeakProjectConfig.parse(
     configFile.readAsStringSync(),
     packageName: packageName,
