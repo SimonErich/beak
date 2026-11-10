@@ -89,6 +89,7 @@ const List<String> panelEntrypoints = [
   'packages/beak_core/lib/schema.dart',
   'packages/beak_frontend/lib/beak_frontend.dart',
   'packages/beak_serverpod/lib/beak_serverpod.dart',
+  'packages/beak_serverpod/lib/schema.dart',
   'packages/beak_serverpod/lib/wire.dart',
   'packages/beak_serverpod_flutter/lib/beak_serverpod_flutter.dart',
   'packages/beak_serverpod_flutter/lib/tunnel.dart',
