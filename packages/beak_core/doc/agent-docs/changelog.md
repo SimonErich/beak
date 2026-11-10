@@ -15,20 +15,16 @@ Three things to know before you read on:
   are released together. Each package's own `CHANGELOG.md` points back to this file. The
   vendored `worm*` packages keep their own `0.1.0` line and are not part of a
   Beak release.
-- **The obers_ui pin must be fetchable, and current.** `beak` and `beak_frontend`
-  depend on obers_ui by git commit (`c956d25634c93e23847ec5a4150c1d62fe3a7c90`, in
-  the `pubspec.yaml` of both). Any `melos bootstrap`, and any project that
-  resolves Beak from git, needs that commit to exist on
-  `github.com/SimonErich/obers_ui`. It does, but it lacks 175 classes,
-  parameters and theme fields in 14 files that `beak_frontend` calls
-  (`OiPageLayout`, `OiFilterChip`, `OiCapacityIndicator`, `OiFieldLabel`,
-  `OiIcon.raw` and more, listed under Known issues), so the pin resolves and the
-  panel then fails to compile. The obers_ui state that has them is not
-  published. The fix is to commit and push those obers_ui changes and move the
-  SHA in every pubspec that pins it (`test/obers_ui_pin_test.dart` keeps the
-  copies identical). Until then, work against a local checkout with
-  `melos run link-obers-ui`, and go back to the pin with
-  `melos run unlink-obers-ui`.
+- **The obers_ui pin must be fetchable, and current.** `beak`, `beak_frontend`,
+  `beak_theme_gabel` and `beak_test_flutter` depend on obers_ui by git commit
+  (`2cecec0f724cfc0b2cdd36aae46396960008f80e`). Any `melos bootstrap`, and any
+  project that resolves Beak from git, needs that commit to exist on
+  `github.com/SimonErich/obers_ui`. It does, and it contains the components the
+  panel uses (`OiPageLayout`, `OiFilterChip`, `OiCapacityIndicator`,
+  `OiFieldLabel`, `OiIcon.raw` and the compact sidebar). To work against a local
+  checkout instead, run `melos run link-obers-ui`, and go back to the pin with
+  `melos run unlink-obers-ui`; `test/obers_ui_pin_test.dart` keeps every copy
+  identical.
 - **Nothing is tagged yet.** A scaffold written by `beak create` pins
   `ref: v0.9.0`, so until that tag exists use
   `beak create --beak-path <repo root of a checkout>` (absolute; `packages/<name>`

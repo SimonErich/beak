@@ -89,13 +89,12 @@ Build it in `main`, after the client has restored its stored session, and call `
 /// `client.beakAdmin.dispatch`.
 Future<void> main() => runServerpodBeakAdmin<Client>(
   apiUrl: getServerUrl,
-  client: (url) =>
-      Client(
-        url,
-        // Buffered CSV export rides the tunnel too; the 20 second default is
-        // for ordinary calls.
-        connectionTimeout: const Duration(seconds: 60),
-      )..connectivityMonitor = FlutterConnectivityMonitor(),
+  client: (url) => Client(
+    url,
+    // Buffered CSV export rides the tunnel too; the 20 second default is
+    // for ordinary calls.
+    connectionTimeout: const Duration(seconds: 60),
+  )..connectivityMonitor = FlutterConnectivityMonitor(),
   initialize: (client) => client.auth.initialize(),
   dispatch: (client) => client.beakAdmin.dispatch,
   roles: (client) async =>

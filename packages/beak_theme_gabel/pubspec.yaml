@@ -25,7 +25,7 @@ dependencies:
   obers_ui:
     git:
       url: https://github.com/SimonErich/obers_ui
-      ref: c956d25634c93e23847ec5a4150c1d62fe3a7c90
+      ref: 2cecec0f724cfc0b2cdd36aae46396960008f80e
 
 dev_dependencies:
   flutter_test:

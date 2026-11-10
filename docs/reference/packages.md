@@ -206,7 +206,7 @@ Beak pins `obers_ui`, `obers_ui_autoforms` and `obers_ui_charts` by git commit, 
   obers_ui:
     git:
       url: https://github.com/SimonErich/obers_ui
-      ref: c956d25634c93e23847ec5a4150c1d62fe3a7c90
+      ref: 2cecec0f724cfc0b2cdd36aae46396960008f80e
 ```
 
 Two pubspecs declare the three dependencies: `packages/beak/pubspec.yaml` and `packages/beak_frontend/pubspec.yaml`. `packages/beak_theme_gabel/pubspec.yaml` declares `obers_ui` alone, with the same ref. Examples and apps get them through `beak`. `test/obers_ui_pin_test.dart` fails if a pubspec under `packages/` or `examples/` points at a path above the repo root, or if the SHA differs anywhere. To work against a local checkout run `melos run link-obers-ui`, see [Working with obers_ui](../contributing/working-with-obers-ui.md).

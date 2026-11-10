@@ -34,17 +34,17 @@ dependencies:
   obers_ui:
     git:
       url: https://github.com/SimonErich/obers_ui
-      ref: c956d25634c93e23847ec5a4150c1d62fe3a7c90
+      ref: 2cecec0f724cfc0b2cdd36aae46396960008f80e
   obers_ui_autoforms:
     git:
       url: https://github.com/SimonErich/obers_ui
       path: packages/obers_ui_autoforms
-      ref: c956d25634c93e23847ec5a4150c1d62fe3a7c90
+      ref: 2cecec0f724cfc0b2cdd36aae46396960008f80e
   obers_ui_charts:
     git:
       url: https://github.com/SimonErich/obers_ui
       path: packages/obers_ui_charts
-      ref: c956d25634c93e23847ec5a4150c1d62fe3a7c90
+      ref: 2cecec0f724cfc0b2cdd36aae46396960008f80e
   signals: ^7.1.0
   signals_flutter: ^7.1.0
   url_launcher: ^6.3.2

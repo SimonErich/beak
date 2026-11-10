@@ -289,15 +289,11 @@ them, so delete stale `packages/*/coverage` first. After a change to `docs/`, a
 file a page quotes, or this changelog, run `melos run agent-docs` and commit the
 bundle; `melos run check-agent-docs` fails when it is stale.
 
-`beak` and `beak_frontend` depend on obers_ui by pinned git commit
-(`c956d25634c93e23847ec5a4150c1d62fe3a7c90`), so `melos bootstrap` needs that
-commit to be fetchable from `github.com/SimonErich/obers_ui`, and a bootstrap
-that resolves is not yet a build that compiles. The commit is fetchable, but it
-predates components `beak_frontend` uses (`OiFilterChip`, `OiPageLayout`,
-`OiCapacityIndicator`, `OiFieldLabel`, `OiIcon.raw` and more), and the obers_ui
-state that has them is not published. Until it is, and the pin moves to it, you
-work against a local checkout that has them. With such a checkout next to this
-repository (`../obers_ui`), run:
+`beak`, `beak_frontend`, `beak_theme_gabel` and `beak_test_flutter` depend on
+obers_ui by pinned git commit (`2cecec0f724cfc0b2cdd36aae46396960008f80e`), so
+`melos bootstrap` needs that commit to be fetchable from
+`github.com/SimonErich/obers_ui`. It is, and it carries the components the panel
+uses. To develop against a local checkout instead (`../obers_ui`), run:
 
 ```console
 $ melos run link-obers-ui
