@@ -1,10 +1,14 @@
 import 'package:beak_core/beak_core.dart';
 import 'package:flutter/widgets.dart';
 
+import '../filters/beak_filter_widget.dart';
 import '../form/beak_form_layout.dart';
 import '../form/beak_form_drafts.dart';
 import '../query/beak_list_definition.dart';
+import '../presentation/beak_action_presentation.dart';
 import '../presentation/beak_record_template.dart';
+import '../query/beak_list_defaults.dart';
+import 'beak_standard_resource.dart';
 
 /// A conventional resource route supplied by a screen definition.
 enum BeakScreenRole {
@@ -196,6 +200,31 @@ class BeakTableScreen extends BeakResourceScreen {
   /// Null [fields] retains the model's generated table presentation.
   const BeakTableScreen({this.fields, this.query, this.definition})
     : super(roles: const {BeakScreenRole.list});
+
+  /// The list [BeakResource.standard] shows, for a resource with its own
+  /// screens: [columns] (the model's table fields by default) after
+  /// [leadingColumns], titled with the model's plural label unless [title]
+  /// is given, with the panel's list conventions from [defaults] and a CSV
+  /// export of the shown fields.
+  factory BeakTableScreen.standard(
+    BeakModel model, {
+    List<BeakScalarField<Object>>? columns,
+    List<BeakTableColumn> leadingColumns = const [],
+    List<BeakFilterDef> filters = const [],
+    List<BeakActionPresentation>? rowActions,
+    BeakQuerySpec? query,
+    String? title,
+    BeakListDefaults defaults = const BeakListDefaults(),
+  }) => buildStandardTableScreen(
+    model,
+    columns: columns,
+    leadingColumns: leadingColumns,
+    filters: filters,
+    rowActions: rowActions,
+    query: query,
+    title: title,
+    defaults: defaults,
+  );
 
   /// Scalar field references, including related paths, in display order.
   final List<BeakScalarField<Object>>? fields;

@@ -4,6 +4,7 @@ import 'package:obers_ui/obers_ui.dart';
 import '../actions/beak_action.dart';
 import '../filters/beak_filter_widget.dart';
 import '../form/beak_form_layout.dart';
+import '../presentation/beak_action_presentation.dart';
 import '../presentation/beak_record_template.dart';
 import '../query/beak_list_defaults.dart';
 import '../query/beak_list_definition.dart';
@@ -38,13 +39,6 @@ BeakResource buildStandardResource(
   final canCreate = !readOnly && capabilities.contains(BeakOperation.create);
   final canEdit = !readOnly && capabilities.contains(BeakOperation.update);
   final canDelete = !readOnly && capabilities.contains(BeakOperation.delete);
-  final shown = columns ?? _defaultColumns(model);
-  final exportFields = <BeakScalarField<Object>>[];
-  final exportKeys = <String>{model.primaryKey.key};
-  for (final field in shown) {
-    if (field.path.isNotEmpty || !exportKeys.add(field.key)) continue;
-    exportFields.add(field);
-  }
   return BeakResource(
     model: model,
     title: title,
@@ -60,30 +54,12 @@ BeakResource buildStandardResource(
     bulkActions: bulkActions,
     globalActions: globalActions,
     screens: [
-      BeakTableScreen(
-        fields: shown,
-        query: model.query(),
-        definition: BeakListDefinition(
-          title: title,
-          columns: [for (final field in shown) BeakTableColumn.field(field)],
-          filters: filters,
-          quickFilters: filters.take(defaults.quickFilters).toList(),
-          pageSize: defaults.pageSize,
-          fitTableToRows: defaults.fitRows,
-          scrollMode: defaults.scroll,
-          export: defaults.export
-              ? BeakListExport(
-                  fileName: '${model.table}.csv',
-                  fields: [
-                    BeakScalarField<Object>(
-                      model: model,
-                      column: model.primaryKey,
-                    ),
-                    ...exportFields,
-                  ],
-                )
-              : null,
-        ),
+      buildStandardTableScreen(
+        model,
+        columns: columns,
+        filters: filters,
+        defaults: defaults,
+        title: title,
       ),
       BeakFormScreen(
         roles: {
@@ -120,3 +96,52 @@ List<BeakScalarField<Object>> _defaultColumns(BeakModel model) => [
     if (column.key != model.primaryKey.key && column is! BeakCustomColumn)
       BeakScalarField<Object>(model: model, column: column),
 ];
+
+/// The list [BeakResource.standard] shows, for a resource with its own
+/// screens: [columns] (the model's table fields by default) after
+/// [leadingColumns], the panel's list conventions from [defaults], and a CSV
+/// export of the primary key and the shown fields of the model itself.
+BeakTableScreen buildStandardTableScreen(
+  BeakModel model, {
+  List<BeakScalarField<Object>>? columns,
+  List<BeakTableColumn> leadingColumns = const [],
+  List<BeakFilterDef> filters = const [],
+  List<BeakActionPresentation>? rowActions,
+  BeakQuerySpec? query,
+  String? title,
+  BeakListDefaults defaults = const BeakListDefaults(),
+}) {
+  final shown = columns ?? _defaultColumns(model);
+  final exportFields = <BeakScalarField<Object>>[];
+  final exportKeys = <String>{model.primaryKey.key};
+  for (final field in shown) {
+    if (field.path.isNotEmpty || !exportKeys.add(field.key)) continue;
+    exportFields.add(field);
+  }
+  return BeakTableScreen(
+    fields: shown,
+    query: query ?? model.query(),
+    definition: BeakListDefinition(
+      title: title,
+      columns: [
+        ...leadingColumns,
+        for (final field in shown) BeakTableColumn.field(field),
+      ],
+      filters: filters,
+      quickFilters: filters.take(defaults.quickFilters).toList(),
+      rowActions: rowActions,
+      pageSize: defaults.pageSize,
+      fitTableToRows: defaults.fitRows,
+      scrollMode: defaults.scroll,
+      export: defaults.export
+          ? BeakListExport(
+              fileName: '${model.table}.csv',
+              fields: [
+                BeakScalarField<Object>(model: model, column: model.primaryKey),
+                ...exportFields,
+              ],
+            )
+          : null,
+    ),
+  );
+}

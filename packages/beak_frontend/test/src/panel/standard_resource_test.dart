@@ -61,4 +61,34 @@ void main() {
     expect(resource.title, isNull);
     expect(resource.effectiveLabel, 'Products');
   });
+
+  test('a standard table screen keeps the conventions with its own parts', () {
+    const model = _ProductModel();
+    final name = BeakScalarField<Object>(
+      model: model,
+      column: model.columnByKey('name')!,
+    );
+    final leading = BeakTableColumn(
+      key: 'summary',
+      label: 'Summary',
+      template: BeakRecordTemplate.fields(title: name),
+    );
+    final query = model.query(withTrashed: true);
+    final screen = BeakTableScreen.standard(
+      model,
+      columns: [name],
+      leadingColumns: [leading],
+      query: query,
+    );
+    final definition = screen.definition!;
+
+    expect(screen.query, same(query));
+    expect(definition.title, isNull);
+    expect(definition.columns.first, same(leading));
+    expect(definition.columns.last.label, 'Name');
+    expect(definition.pageSize, const BeakListDefaults().pageSize);
+    expect(definition.fitTableToRows, const BeakListDefaults().fitRows);
+    expect(definition.export?.fileName, 'products.csv');
+  });
 }
+
