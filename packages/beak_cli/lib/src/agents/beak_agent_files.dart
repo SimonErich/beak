@@ -700,12 +700,24 @@ final class _Writing extends _Editor {
                     .firstOrNull ??
                 '${base}_client'
           : null,
-      schemaPkg: isServerpod
-          ? dependencies.where((name) => name.endsWith('_beak')).firstOrNull ??
-                '${base}_beak'
-          : null,
+      schemaPkg: isServerpod ? _definitionsPackage(base) : null,
       mainIsGenerated: _mainIsGenerated(),
     );
+  }
+
+  /// The name of the `generate.definitions` package, or the conventional
+  /// `<base>_definitions` before it exists.
+  String _definitionsPackage(String base) {
+    final folder = config.generate?.definitions ?? 'definitions';
+    final pubspec = File(p.join(projectRoot.path, folder, 'pubspec.yaml'));
+    if (pubspec.existsSync()) {
+      final match = RegExp(
+        r'^name:\s*(\S+)',
+        multiLine: true,
+      ).firstMatch(pubspec.readAsStringSync());
+      if (match != null) return match.group(1)!;
+    }
+    return '${base}_definitions';
   }
 
   /// Where the schema classes are, from where the reader found them.

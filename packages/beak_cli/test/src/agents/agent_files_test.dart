@@ -463,7 +463,6 @@ void main() {
               'beak',
               'beak_serverpod_flutter',
               'acme_client',
-              'acme_beak',
             ],
           )
           ..write(
@@ -482,8 +481,8 @@ void main() {
           contains('Beak 0.9.0 admin panel for the `acme_server`'),
         );
         expect(agents, contains('`acme_client`'));
-        expect(agents, contains('in `acme_beak`'));
-        expect(agents, contains('run `beak prepare` in `acme_beak`'));
+        expect(agents, contains('`acme_definitions`'));
+        expect(agents, contains('run `beak generate` here'));
       },
     );
 
@@ -526,7 +525,7 @@ void main() {
         sync();
 
         expect(fixture.read('AGENTS.md'), contains('`shop_client`'));
-        expect(fixture.read('AGENTS.md'), contains('`shop_beak`'));
+        expect(fixture.read('AGENTS.md'), contains('`shop_definitions`'));
       },
     );
   });

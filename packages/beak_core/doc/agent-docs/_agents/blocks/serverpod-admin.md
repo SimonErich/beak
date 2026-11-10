@@ -9,12 +9,14 @@ missing? Run `beak docs`.
 - Serverpod owns the database, auth and migrations; Beak never opens a
   database. Beak's API runs inside `{{serverPkg}}` behind one gated endpoint,
   and this app reaches it through `{{clientPkg}}`.
-- Each table the panel shows is mirrored as a Beak schema class in
-  `{{schemaPkg}}`. After a model change: edit the `.spy.yaml`, run
-  `serverpod generate` in `{{serverPkg}}`, update the matching schema class,
-  then run `beak prepare` in `{{schemaPkg}}`.
-- Never edit generated files: `lib/src/generated/` in the server,
-  `{{clientPkg}}`, `*.beak.dart` and `*.g.dart`.
+- Each Serverpod model the panel shows has a definition class in
+  `{{schemaPkg}}`; its fields are the allowlist. After a model change: edit
+  the `.spy.yaml`, run `serverpod generate` in `{{serverPkg}}`, update the
+  class, then run `beak generate` here.
+- Custom writes and commands are methods of the generated handler bases,
+  implemented in `{{serverPkg}}` with its own use cases.
+- Never edit generated files: `lib/src/generated/`, `{{clientPkg}}`,
+  `*.beak.dart` and `*.g.dart`.
 - Never start the server yourself; `serverpod start` is interactive. Ask the
   user to run it when you need it.
 - Resources are `lib/resources/*_resource.dart`, registered in
