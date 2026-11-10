@@ -1,7 +1,5 @@
-/// Authored behavior and rules for the bookshop admin, bound to the generated
-/// models in [bookshopDefinitions].
+/// The bookshop admin's definition classes and the models `beak generate`
+/// writes from them.
 library;
 
-export 'package:bookshop_generated/bookshop_generated.dart';
-
-export 'src/definitions.dart' show bookshopDefinitions;
+export 'src/generated/models.dart';

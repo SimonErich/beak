@@ -22,7 +22,7 @@ final class FakeBookshopServer {
 
   /// Seeds two authors and three books.
   static Future<FakeBookshopServer> seeded() async {
-    final registry = createBookshopRegistry(bookshopDefinitions);
+    final registry = createBookshopRegistry();
     final adapter = _SerialIdAdapter(InMemoryAdapter());
     for (final model in registry.all) {
       await adapter.executeSchema(

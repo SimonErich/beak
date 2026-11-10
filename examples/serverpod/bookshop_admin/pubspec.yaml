@@ -18,8 +18,6 @@ dependencies:
     path: ../bookshop_client
   bookshop_definitions:
     path: definitions
-  bookshop_generated:
-    path: generated
   flutter:
     sdk: flutter
   serverpod_auth_core_flutter: 4.0.4

@@ -1,5 +1,6 @@
 # Beak project configuration of the bookshop admin. `beak generate` reads the
-# Serverpod models, the newest migration and the reviewed inventory below.
+# Serverpod models, the newest migration and the definition classes in
+# definitions/, and writes a part next to each class.
 name: Bookshop Admin
 
 # Model, field and enum names in every language, keyed by Dart names
@@ -12,9 +13,8 @@ serverpod:
   migrations: migrations
 
 generate:
-  output: generated
-  inventory: definitions/resources
+  definitions: definitions
+  handlers: ../bookshop_server/lib/src/beak/generated
   prefix: Bookshop
   areas:
     catalog: {read: bookshop.staff, write: bookshop.staff}
-  writes: [configuration]

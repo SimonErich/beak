@@ -8,6 +8,5 @@ workspace:
   - bookshop_client
   - bookshop_server
   - bookshop_flutter
-  - bookshop_admin/generated
   - bookshop_admin/definitions
   - bookshop_admin

@@ -92,7 +92,9 @@ void main() {
             'POST',
             '/api/author/query',
             json: const AuthorModel()
-                .query(relationLoads: [BeakRelationLoad('books')])
+                .query(
+                  relationLoads: [BeakRelationLoad(AuthorRelations.book.key)],
+                )
                 .toJson(),
           ),
           'one': await staff.call('GET', '/api/book/${bookId()}'),
