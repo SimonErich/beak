@@ -46,6 +46,7 @@ Every package has `publish_to: none`. Nothing is on pub.dev yet, so a git depend
 | `beak_backend` | 0.9.0 | Dart VM | server | never; it comes with `beak` |
 | `beak_frontend` | 0.9.0 | Flutter | panel | never; it comes with `beak` |
 | `beak_test` | 0.9.0 | pure Dart | tests | never in an app; it comes with `beak` as `testing.dart` |
+| `beak_test_flutter` | 0.9.0 | Flutter | tests | the widget-side helpers, including `beakRouteSweep` |
 | `beak_cli` | 0.9.0 | Dart VM | dev machine | never as a dependency; `dart pub global activate` |
 | `beak_image` | 0.9.0 | pure Dart | server | never; `beak_backend` depends on it |
 | `beak_storage_s3` | 0.9.0 | pure Dart | server | when uploads live in S3 or MinIO |
@@ -119,6 +120,7 @@ flowchart TD
   backend[beak_backend]
   frontend[beak_frontend]
   testkit[beak_test]
+  testkitf[beak_test_flutter]
   image[beak_image]
   s3[beak_storage_s3]
   ftp[beak_storage_ftp]
@@ -144,6 +146,8 @@ flowchart TD
   backend --> wsq
   frontend --> core
   testkit --> core
+  testkitf --> testkit
+  testkitf --> frontend
   image --> core
   s3 --> core
   ftp --> core
