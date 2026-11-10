@@ -17,6 +17,24 @@ final class _StubModel extends BeakModel {
   List<BeakColumn> get columns => const [_name];
 }
 
+/// A model whose permissions name a command its behavior never declares.
+final class _GrantsUnknownCommand extends BeakModel {
+  const _GrantsUnknownCommand();
+
+  @override
+  String get table => 'orders';
+
+  @override
+  String get displayColumnKey => 'name';
+
+  @override
+  List<BeakColumn> get columns => const [_name];
+
+  @override
+  BeakPermissions get permissions =>
+      const BeakPermissions(actions: {'archive': BeakAccess.anyone});
+}
+
 void main() {
   late BeakModelRegistry registry;
 
@@ -64,6 +82,40 @@ void main() {
           (exception) => exception.message,
           'message',
           contains('products'),
+        ),
+      ),
+    );
+  });
+
+  test('of registers every model it is given', () {
+    const first = _StubModel('products');
+    const second = _StubModel('orders');
+
+    final built = BeakModelRegistry.of(const [first, second]);
+
+    expect(built.all, const [first, second]);
+    expect(built.byTable('orders'), same(second));
+  });
+
+  test('of refuses two models that share a table', () {
+    expect(
+      () => BeakModelRegistry.of(const [
+        _StubModel('products'),
+        _StubModel('products'),
+      ]),
+      throwsA(isA<BeakConfigurationException>()),
+    );
+  });
+
+  test('a permission for a command the behavior does not declare is '
+      'refused', () {
+    expect(
+      () => registry.register(const _GrantsUnknownCommand()),
+      throwsA(
+        isA<BeakConfigurationException>().having(
+          (exception) => exception.message,
+          'message',
+          allOf(contains('"archive"'), contains('does not declare')),
         ),
       ),
     );

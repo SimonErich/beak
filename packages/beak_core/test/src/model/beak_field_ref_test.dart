@@ -32,6 +32,18 @@ final class _Model extends BeakModel {
 }
 
 void main() {
+  test('a money integer column reads back as an int, not a decimal', () {
+    const cost = BeakIntColumn(
+      key: 'cost',
+      label: 'Cost',
+      semantic: BeakSemantic.money(currency: 'EUR'),
+    );
+    const field = BeakScalarField<int>(model: _Model('orders'), column: cost);
+
+    expect(field.readFrom(BeakRecord.fromRow({'cost': 1250})), 1250);
+    expect(field.readFrom(BeakRecord.fromRow({'cost': null})), isNull);
+  });
+
   test('a root scalar field yields the sort for its own storage key', () {
     const field = BeakScalarField<String>(
       model: _Model('orders'),
