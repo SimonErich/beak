@@ -150,7 +150,12 @@ void main() {
     final router = await open(tester, panelConfig, '/notes');
     openBeakCommandBar(tester.element(find.byType(OiAppShell)), panelConfig);
     await tester.pumpAndSettle();
-    final palette = tester.getCenter(find.byType(BeakSearchPalette));
+    final palette = tester.getCenter(
+      find.descendant(
+        of: find.byType(BeakSearchPalette),
+        matching: find.byType(EditableText),
+      ),
+    );
 
     // The first tap starts a fresh countdown; each later one restarts it.
     await tester.tapAt(palette);
