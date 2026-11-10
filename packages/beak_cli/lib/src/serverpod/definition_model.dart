@@ -40,6 +40,7 @@ final class DefinitionClass {
     this.update = DefinitionHandling.off,
     this.delete = DefinitionHandling.off,
     this.commands = const [],
+    this.commandInputs = const {},
     this.access = const {},
     this.reason,
     this.restoreKey,
@@ -87,6 +88,9 @@ final class DefinitionClass {
 
   /// The commands the server handler runs.
   final List<String> commands;
+
+  /// The `@CommandInput` class per command that takes one.
+  final Map<String, String> commandInputs;
 
   /// Per-operation role overrides.
   final Map<String, List<String>> access;

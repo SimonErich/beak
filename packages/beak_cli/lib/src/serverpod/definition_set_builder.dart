@@ -59,6 +59,17 @@ DefinitionSet definitionSetOf(
     );
     if (resource != null) resources[definition.name] = resource;
   }
+  for (final definition in classes) {
+    for (final input in definition.commandInputs.values) {
+      if (!inputs.containsKey(input)) {
+        issues.add(
+          definition.path,
+          '${definition.name} names $input as a command input, but no '
+          '@CommandInput class has that name.',
+        );
+      }
+    }
+  }
   return DefinitionSet(resources: resources, inputs: inputs);
 }
 

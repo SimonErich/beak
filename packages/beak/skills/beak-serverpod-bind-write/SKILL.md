@@ -19,7 +19,7 @@ allow.
 @ServerpodModel(
   area: 'sales',
   create: BeakHandling.custom,
-  commands: ['cancelOrder'],
+  commands: [BeakCommand('cancelOrder')],
 )
 final class PlacedOrder extends BeakSchema {
   static BeakModelBehavior get behavior =>
@@ -34,7 +34,8 @@ final class PlacedOrder extends BeakSchema {
 - `custom`: the handler runs the operation through the use case.
 - `commands:`: each name is a model action the behavior declares; it is saved
   as an update that changes no field. A plain update stays refused unless
-  `update` is opened too.
+  `update` is opened too. `BeakCommand('addRole', input: AccountRoleCommand)`
+  gives the handler `AccountRoleCommandWrite` and `write.input.roleId`.
 - `list: BeakHandling.custom`: the handler's `scope` narrows list, count,
   export and opening a record.
 - An operation left `off` is refused on the server.
@@ -126,7 +127,7 @@ Run `beak generate --check` before committing.
 
 > Run the writes of the `PlacedOrder` admin model through the existing order use
 > cases: cancelling uses `CancelOrderUseCase`, every other change is refused.
-> Open `commands: ['cancelOrder']` on its definition class, implement the
+> Open `commands: [BeakCommand('cancelOrder')]` on its definition class, implement the
 > generated handler, pass it to the handlers aggregate, and write tests proving
 > a command with extra field changes is refused and that the panel reads back
 > the persisted row.

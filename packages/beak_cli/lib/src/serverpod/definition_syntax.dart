@@ -44,6 +44,50 @@ List<String> stringsOf(
   return const [];
 }
 
+/// The command names and their optional `@CommandInput` class names.
+({List<String> names, Map<String, String> inputs}) commandsOf(
+  Expression? expression,
+  String what,
+  String path,
+  BeakIssueSink issues,
+) {
+  if (expression == null) return (names: const [], inputs: const {});
+  if (expression is! ListLiteral) {
+    issues.add(path, '$what is a list literal.');
+    return (names: const [], inputs: const {});
+  }
+  final names = <String>[];
+  final inputs = <String, String>{};
+  for (final element in expression.elements) {
+    if (element is SimpleStringLiteral) {
+      names.add(element.value);
+      continue;
+    }
+    if (element is MethodInvocation &&
+        element.methodName.name == 'BeakCommand') {
+      final arguments = element.argumentList.arguments;
+      final name = arguments.where((a) => a.argumentName == null).firstOrNull;
+      if (name is! SimpleStringLiteral) {
+        issues.add(path, '$what needs a command name as its first argument.');
+        continue;
+      }
+      names.add(name.value);
+      for (final argument in arguments) {
+        if (argument.argumentName != 'input') continue;
+        final input = argument.argumentExpression.toSource();
+        if (!RegExp(r'^[A-Z]\w*$').hasMatch(input)) {
+          issues.add(path, '$what input must be a command input class.');
+        } else {
+          inputs[name.value] = input;
+        }
+      }
+      continue;
+    }
+    issues.add(path, '$what lists only BeakCommand values.');
+  }
+  return (names: names, inputs: inputs);
+}
+
 /// A `{'operation': ['role', ...]}` literal.
 Map<String, List<String>> rolesOf(
   Expression? expression,

@@ -43,6 +43,7 @@ GeneratedArea? _emitHandlers({
     models: [
       for (final model in ir.models) (model, byName[model.schema.className]!),
     ],
+    inputs: ir.inputs,
   );
   for (final entry in emitted.entries) {
     files[p.join(folder, entry.key)] = entry.value;

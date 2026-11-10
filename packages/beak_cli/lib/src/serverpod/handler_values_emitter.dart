@@ -50,6 +50,25 @@ void writeTypedWrite(StringBuffer buffer, BeakSchemaIr schema) {
     ..writeln();
 }
 
+/// Writes `<CommandInput>Write`: the command's write with a typed `input`.
+void writeTypedCommandWrite(StringBuffer buffer, BeakSchemaIr schema) {
+  final name = schema.className;
+  buffer
+    ..writeln('/// A $name write: the command and its typed input.')
+    ..writeln(
+      'extension type ${name}Write._(BeakServerpodWrite _write) '
+      'implements BeakServerpodWrite {',
+    )
+    ..writeln('  /// Wraps the command Beak is saving.')
+    ..writeln('  ${name}Write.of(BeakSaveOperationContext context)')
+    ..writeln('    : _write = BeakServerpodWrite(context);')
+    ..writeln()
+    ..writeln('  /// The typed command input.')
+    ..writeln('  ${name}Values get input => ${name}Values(arguments);')
+    ..writeln('}')
+    ..writeln();
+}
+
 /// Writes `<Model>Values`: one getter per column, typed as Serverpod reads
 /// it (`UuidValue`, the protocol enum).
 void writeTypedValues(StringBuffer buffer, BeakSchemaIr schema) {

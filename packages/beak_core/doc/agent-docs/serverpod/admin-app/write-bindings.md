@@ -33,7 +33,7 @@ compile.
 | Plain persistence | `create: BeakHandling.stock` (or `@ServerpodModel.editable()`) | nothing |
 | A server stamp, then persistence | `update: BeakHandling.derived` | `derive(write)` |
 | An existing use case owns the write | `create: BeakHandling.custom` | `create(write)` |
-| A command such as cancel or revoke | `commands: ['cancelOrder']` | `cancelOrder(write)` |
+| A command such as cancel or revoke | `commands: [BeakCommand('cancelOrder')]` | `cancelOrder(write)` |
 | Fewer rows for some accounts | `list: BeakHandling.custom` | `scope(principal)` |
 | A tree that stays a tree | `BeakTreeRule` in `trees:` | nothing |
 
@@ -44,7 +44,7 @@ compile.
 @ServerpodModel(
   area: 'sales',
   create: BeakHandling.custom,
-  commands: ['revokeVoucher'],
+  commands: [BeakCommand('revokeVoucher')],
 )
 final class Voucher extends BeakSchema {
   static BeakModelBehavior get behavior =>
@@ -73,6 +73,17 @@ final class Voucher extends BeakSchema {
 - A command in `commands:` is saved as an update that changes no field; the
   model's behavior must declare an action of that name, or the engine refuses
   to start. A plain update of a model whose `update` is `off` is refused.
+- A command that takes an input names its `@CommandInput` class:
+
+  ```dart
+  commands: [
+    BeakCommand('addRole', input: AccountRoleCommand),
+  ],
+  ```
+
+  Its handler method receives `AccountRoleCommandWrite`, and
+  `write.input.roleId` is the typed `UuidValue`. A command without `input:`
+  keeps the model's `<Model>Write`.
 - An operation that stays `off` is not offered and is refused on the server.
 
 Beak has checked permissions, admission and rules before a handler runs, the

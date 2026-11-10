@@ -12,7 +12,7 @@ part 'book.beak.dart';
   area: 'catalog',
   create: BeakHandling.stock,
   update: BeakHandling.stock,
-  commands: ['restock'],
+  commands: [BeakCommand('restock')],
 )
 final class Book extends BeakSchema {
   /// The commands staff can run on a book.

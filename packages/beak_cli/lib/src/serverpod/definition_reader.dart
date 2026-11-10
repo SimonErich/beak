@@ -116,6 +116,7 @@ DefinitionClass? _readClass(
   final resource = namedArguments(
     annotationOf(declaration.metadata, 'Resource')!,
   );
+  final commands = commandsOf(args['commands'], '$name.commands', path, issues);
   final fields = <DefinitionField>[];
   for (final member in declaration.classMembers) {
     if (member is! FieldDeclaration || member.isStatic) continue;
@@ -148,7 +149,8 @@ DefinitionClass? _readClass(
     create: handling('create', DefinitionHandling.off),
     update: handling('update', DefinitionHandling.off),
     delete: handling('delete', DefinitionHandling.off),
-    commands: stringsOf(args['commands'], '$name.commands', path, issues),
+    commands: commands.names,
+    commandInputs: commands.inputs,
     access: rolesOf(args['access'], '$name.access', path, issues),
     reason: stringOf(args['reason']),
     restoreKey: args['restoreKey'] == null

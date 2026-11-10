@@ -182,7 +182,7 @@ final class Product extends BeakSchema {
       handlers: 'server/lib/src/admin',
       annotation:
           "@ServerpodModel(area: 'catalog', create: BeakHandling.custom, "
-          "update: BeakHandling.derived, commands: ['archive'])",
+          "update: BeakHandling.derived, commands: [BeakCommand('archive')])",
     );
     runServerpodGenerate(fixture.env());
 
@@ -211,6 +211,46 @@ final class Product extends BeakSchema {
     );
     expect(aggregate, contains('admin.ShopWrite.product => product.writes,'));
     expect(runServerpodGenerate(fixture.env(), check: true).isSuccess, isTrue);
+  });
+
+  test('a command with an input exposes it as a typed write', () {
+    fixture
+      ..project(handlers: 'server/lib/src/admin')
+      ..model('product', '''
+class: Product
+table: product
+fields:
+  id: UuidValue
+  name: String
+''')
+      ..database([
+        ServerpodFixture.table('product', ['id', 'name']),
+      ])
+      ..define('catalog/role_command', '''
+@Resource()
+@CommandInput()
+final class RoleCommand extends BeakSchema {
+  late final String roleId;
+}''')
+      ..define('catalog/product', '''
+@Resource()
+@ServerpodModel(
+  area: 'catalog',
+  commands: [BeakCommand('assign', input: RoleCommand)],
+)
+final class Product extends BeakSchema {
+  late final String name;
+}''', writes: true);
+
+    runServerpodGenerate(fixture.env());
+
+    final handler = fixture.read('server/lib/src/admin/product_handler.dart');
+    expect(handler, contains('extension type RoleCommandWrite'));
+    expect(handler, contains('RoleCommandValues get input'));
+    expect(
+      handler,
+      contains('Future<Object?> assign(RoleCommandWrite write);'),
+    );
   });
 
   test('a stock-only project gets a handler aggregate without arguments', () {

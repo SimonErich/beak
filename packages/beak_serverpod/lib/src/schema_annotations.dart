@@ -93,7 +93,7 @@ final class ServerpodModel {
   /// The model commands (`BeakModelAction` names, such as `cancelOrder`) the
   /// model's server handler runs. A command is saved as an update that
   /// changes no field.
-  final List<String> commands;
+  final List<BeakCommand> commands;
 
   /// Roles that replace the area's for one operation (`read`, `write`,
   /// `create`, `update`, `delete`); all of them must be held.
@@ -105,6 +105,22 @@ final class ServerpodModel {
   /// The fields that identify a soft-deleted row to restore, or `null` to
   /// detect them.
   final List<String>? restoreKey;
+}
+
+/// One server command a definition opens.
+///
+/// [input] names a `@CommandInput` class, whose typed values the generated
+/// handler exposes as `write.input`.
+@immutable
+final class BeakCommand {
+  /// Declares the command [name], optionally with a typed [input].
+  const BeakCommand(this.name, {this.input});
+
+  /// Stable wire identity, the `BeakModelAction` name.
+  final String name;
+
+  /// The `@CommandInput` model, or `null` for a command without input.
+  final Type? input;
 }
 
 /// A field the server owns: the admin shows it and never writes it.

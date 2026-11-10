@@ -239,7 +239,7 @@ final class Sample extends BeakSchema {
     sample('  title: String');
     fixture.define('sample', '''
 @Resource()
-@ServerpodModel(area: 'catalog', commands: ['archive'])
+@ServerpodModel(area: 'catalog', commands: [BeakCommand('archive')])
 final class Sample extends BeakSchema {
   static BeakModelBehavior get behavior => const BeakModelBehavior();
 

@@ -724,6 +724,11 @@ migration table at the end collects the common ones.
 
 ### Changed
 
+- Breaking: `@ServerpodModel(commands:)` is a `List<BeakCommand>`, not a
+  `List<String>`. `BeakCommand('cancelOrder')` keeps a command without input;
+  `BeakCommand('addRole', input: AccountRoleCommand)` links a `@CommandInput`
+  and gives the generated handler a typed `AccountRoleCommandWrite` with
+  `write.input`.
 - Breaking: `BeakServerpodEngine.admitted` requires `handlers:`. It also refuses
   an aggregate that returns no write bindings while a model admits writes,
   instead of silently saving that model the stock way.

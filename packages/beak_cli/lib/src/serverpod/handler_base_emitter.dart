@@ -7,8 +7,9 @@ import 'definition_model.dart';
 void writeHandlerBase(
   StringBuffer buffer,
   BeakGeneratedModel model,
-  DefinitionClass definition,
-) {
+  DefinitionClass definition, {
+  Map<String, String> commandWrites = const {},
+}) {
   final name = definition.name;
   final write = '${name}Write';
   final derived = [
@@ -72,12 +73,13 @@ void writeHandlerBase(
       ..writeln();
   }
   for (final command in definition.commands) {
+    final type = commandWrites[command] ?? write;
     buffer
       ..writeln(
         '  /// Runs the `$command` command; returns the id of the record',
       )
       ..writeln('  /// it changed, or `null`.')
-      ..writeln('  Future<Object?> $command($write write);')
+      ..writeln('  Future<Object?> $command($type write);')
       ..writeln();
   }
   final stockFallback =
@@ -93,8 +95,9 @@ void writeHandlerBase(
   if (definition.commands.isNotEmpty) {
     buffer.writeln('    actions: beakServerpodCommands($modelSource, {');
     for (final command in definition.commands) {
+      final type = commandWrites[command] ?? write;
       buffer.writeln(
-        "      '$command': (context) => $command($write.of(context)),",
+        "      '$command': (context) => $command($type.of(context)),",
       );
     }
     buffer.writeln('    }),');
