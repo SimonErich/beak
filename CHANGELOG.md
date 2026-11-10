@@ -11,7 +11,7 @@ Three things to know before you read on:
 - **Lockstep.** `beak`, `beak_core`, `beak_backend`, `beak_frontend`,
   `beak_cli`, `beak_test`, `beak_image`, `beak_storage_s3`, `beak_storage_ftp`,
   `beak_serverpod`, `beak_serverpod_flutter`, `beak_serverpod_generator`,
-  `beak_serverpod_server` and `beak_theme_gabel` share one version, `0.9.0`, and
+  `beak_serverpod_server`, `beak_theme_gabel` and `beak_test_flutter` share one version, `0.9.0`, and
   are released together. Each package's own `CHANGELOG.md` points back to this file. The
   vendored `worm*` packages keep their own `0.1.0` line and are not part of a
   Beak release.
@@ -165,7 +165,7 @@ migration table at the end collects the common ones.
   default.
 - `runServerpodBeakAdmin` boots the whole Serverpod admin (path URLs, session,
   roles, tunnel data source) in one call.
-- `beakRouteSweep` in `beak_test` mounts a panel at several widths and visits
+- `beakRouteSweep` in `beak_test_flutter` mounts a panel at several widths and visits
   every visible route.
 #### Server APIs
 

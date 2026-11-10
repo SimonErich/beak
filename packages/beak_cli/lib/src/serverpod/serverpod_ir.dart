@@ -77,7 +77,7 @@ ServerpodIr buildServerpodIr({
     for (final entry in drafts.entries)
       project.classes[entry.key]!.table!: entry.key,
   };
-  final usedEnums = <String>{};
+  final usedEnums = <String>{if (settings.roles case final String role) role};
   final models = <BeakGeneratedModel>[];
   for (final entry in drafts.entries) {
     final resource = inventory.resources[entry.key]!;
@@ -248,10 +248,7 @@ _Draft _draftFor(
   }
   if (!seen.contains('id')) {
     if (db.columns['id'] case final DbColumn id) {
-      columns.insert(
-        0,
-        _fkColumn(id, 'id', resource, settings, hidden: false),
-      );
+      columns.insert(0, _fkColumn(id, 'id', resource, settings, hidden: false));
     }
   }
   final display = resource.display ?? _displayOf(columns);
@@ -328,13 +325,11 @@ BeakColumnIr _column(
   }
   final defaultSource = _defaultSource(field, resource, type);
   if (defaultSource != null) args['defaultValue'] = defaultSource;
-  if (override?.min case final num min) args['rules'] = 'BeakMin($min)';
-  if (override?.max case final num max) {
-    final existing = args.remove('rules');
-    args['rules'] = existing == null
-        ? 'BeakMax($max)'
-        : '[$existing, BeakMax($max)]';
-  }
+  final rules = <String>[
+    if (override?.min case final num min) 'BeakMin($min)',
+    if (override?.max case final num max) 'BeakMax($max)',
+  ];
+  if (rules.isNotEmpty) args['rules'] = '[${rules.join(', ')}]';
   return BeakColumnIr(
     fieldName: name,
     columnKey: field.columnName,
@@ -342,6 +337,7 @@ BeakColumnIr _column(
     kind: type.kind,
     isRequired: !field.nullable,
     enumTypeName: type.enumTypeName,
+    declaredValueType: type.kind == BeakColumnKind.json ? 'BeakJson' : null,
     arguments: args,
     docComment: 'Serverpod `${field.name}` (`${field.baseType}`).',
   );
@@ -527,6 +523,10 @@ void _addRelations(
   for (final name in draft.relationFields) {
     final field = fields[name]!;
     final rel = field.relation!;
+    // A foreign key declared as `authorId` reads as the `author` relation.
+    final relationName = name.endsWith('Id')
+        ? name.substring(0, name.length - 2)
+        : name;
     if (field.isCollection) {
       final targetName = field.elementType;
       final target = targetName == null ? null : schemas[targetName];
@@ -544,12 +544,13 @@ void _addRelations(
       if (fk.startsWith('_')) _ensureShadowColumn(target, draft, fk);
       relations.add(
         BeakRelationIr(
-          fieldName: name,
-          key: rel.name ?? name,
+          fieldName: relationName,
+          key: rel.name ?? relationName,
           label: titleCaseOf(name),
           kind: BeakRelationKind.hasMany,
           relatedSchema: targetName!,
           foreignKey: fk,
+          owned: resource.ownedRelations.contains(name),
         ),
       );
       continue;
@@ -568,8 +569,8 @@ void _addRelations(
       if (counterpart != null) {
         relations.add(
           BeakRelationIr(
-            fieldName: name,
-            key: rel.name ?? name,
+            fieldName: relationName,
+            key: rel.name ?? relationName,
             label: titleCaseOf(name),
             kind: BeakRelationKind.hasOne,
             relatedSchema: targetName!,
@@ -589,8 +590,8 @@ void _addRelations(
     }
     relations.add(
       BeakRelationIr(
-        fieldName: name,
-        key: rel.name ?? name,
+        fieldName: relationName,
+        key: rel.name ?? relationName,
         label: titleCaseOf(name),
         kind: BeakRelationKind.belongsTo,
         relatedSchema: targetName!,
@@ -669,10 +670,7 @@ void _ensureShadowColumn(BeakSchemaIr child, _Draft owner, String foreignKey) {
       label: titleCaseOf(field),
       kind: BeakColumnKind.string,
       isRequired: false,
-      arguments: const {
-        'semantic': 'BeakSemantic.uuid()',
-        'visibleOn': '{}',
-      },
+      arguments: const {'semantic': 'BeakSemantic.uuid()', 'visibleOn': '{}'},
       docComment: 'The stored foreign key `$foreignKey`.',
     ),
   );
@@ -829,7 +827,16 @@ List<BeakGeneratedInput> _inputs(
 ) {
   final inputs = <BeakGeneratedInput>[];
   for (final input in inventory.inputs.values) {
-    final columns = <BeakColumnIr>[];
+    final columns = <BeakColumnIr>[
+      const BeakColumnIr(
+        fieldName: 'id',
+        columnKey: 'id',
+        label: 'Id',
+        kind: BeakColumnKind.string,
+        isRequired: false,
+        arguments: {'visibleOn': '{}'},
+      ),
+    ];
     final relations = <BeakRelationIr>[];
     for (final entry in input.fields.entries) {
       final name = entry.key;

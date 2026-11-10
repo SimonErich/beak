@@ -6,7 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
 import 'package:signals/signals.dart';
 
-import 'in_memory_beak_data_source.dart';
+import 'package:beak_test/beak_test.dart' show InMemoryBeakDataSource;
 
 /// Visits every route a panel offers and fails on a rendering error.
 ///

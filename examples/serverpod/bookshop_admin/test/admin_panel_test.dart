@@ -13,7 +13,9 @@ import 'support/fake_bookshop_server.dart';
 /// `admin_login_test.dart` through the real ServerpodAuthAdapter.
 final class _SignedInAdmin extends BeakAuthAdapter {
   final Signal<BeakAuthState> _state = signal(
-    const BeakAuthAuthenticated(BeakAuthIdentity(id: 'admin', roles: {'bookshop.staff'})),
+    const BeakAuthAuthenticated(
+      BeakAuthIdentity(id: 'admin', roles: {'bookshop.staff'}),
+    ),
   );
 
   @override

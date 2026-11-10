@@ -1107,6 +1107,8 @@ abstract final class BeakSchemaEmitter {
     } else
       'foreignKey': "'${relation.foreignKey}'",
     'searchColumnKeys': _searchKeysOf(relation, related),
+    if (relation.kind == BeakRelationKind.hasMany && relation.owned)
+      'owned': 'true',
     ...relation.arguments,
   };
 

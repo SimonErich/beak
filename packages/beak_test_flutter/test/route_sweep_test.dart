@@ -1,9 +1,10 @@
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_frontend/beak_frontend.dart';
 import 'package:beak_test/beak_test.dart';
+import 'package:beak_test_flutter/beak_test_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../support/contract_models.dart';
+import '../../beak_test/test/support/contract_models.dart';
 
 void main() {
   testWidgets('sweeps every visible route at both widths', (tester) async {

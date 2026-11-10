@@ -11,23 +11,10 @@ topics: [admin-panel, testing, fakes]
 
 environment:
   sdk: ^3.11.0
-  flutter: '>=3.41.0'
 
 dependencies:
   beak_core:
     path: ../beak_core
-  beak_frontend:
-    path: ../beak_frontend
-  flutter:
-    sdk: flutter
-  flutter_test:
-    sdk: flutter
-  go_router: ^18.1.1
-  obers_ui:
-    git:
-      url: https://github.com/SimonErich/obers_ui
-      ref: c956d25634c93e23847ec5a4150c1d62fe3a7c90
-  signals: ^7.1.0
   # A `test` dependency in a testing package is the point, not an accident:
   # runBeakDataSourceContract declares real groups and expectations.
   test: ^1.25.6

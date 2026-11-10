@@ -21,4 +21,3 @@ export 'src/beak_schema_parity.dart';
 export 'src/data_source_contract.dart';
 export 'src/data_source_contract_types.dart';
 export 'src/in_memory_beak_data_source.dart';
-export 'src/route_sweep.dart';

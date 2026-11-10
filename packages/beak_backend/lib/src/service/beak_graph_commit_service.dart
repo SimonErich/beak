@@ -788,11 +788,27 @@ final class BeakGraphCommitService {
         'A command needs a root update operation.',
       );
     }
+    // Only the records the request names need an explicit read check. The
+    // graph also loads relationship parents and children to evaluate their
+    // behavior; checking those against the caller's table permissions would
+    // refuse a legitimate order edit because the caller cannot list every
+    // customer account it points at.
+    final requestRefs = {
+      for (final operation in plan.operations) ...[
+        operation.target,
+        ?operation.owner,
+        ?operation.related,
+      ],
+    };
     final graph = await BeakCandidateGraph.open(
       plan: plan,
       source: transactional,
       registry: registry,
-      authorizeRead: transactional.authorizeRead,
+      authorizeRead: (ref) async {
+        if (requestRefs.contains(ref)) {
+          await transactional.authorizeRead?.call(ref);
+        }
+      },
     );
     for (final operation in plan.operations.where(
       (op) =>

@@ -39,6 +39,12 @@ BeakResource buildStandardResource(
   final canEdit = !readOnly && capabilities.contains(BeakOperation.update);
   final canDelete = !readOnly && capabilities.contains(BeakOperation.delete);
   final shown = columns ?? _defaultColumns(model);
+  final exportFields = <BeakScalarField<Object>>[];
+  final exportKeys = <String>{model.primaryKey.key};
+  for (final field in shown) {
+    if (field.path.isNotEmpty || !exportKeys.add(field.key)) continue;
+    exportFields.add(field);
+  }
   return BeakResource(
     model: model,
     title: title,
@@ -74,7 +80,7 @@ BeakResource buildStandardResource(
                       model: model,
                       column: model.primaryKey,
                     ),
-                    ...shown,
+                    ...exportFields,
                   ],
                 )
               : null,

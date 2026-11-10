@@ -17,7 +17,7 @@ A Beak project has two halves and they need different tests. The panel is Flutte
 | Who may read or write what | the real server, one client per role | `packages/beak_backend/test/src/auth/beak_policies_handlers_test.dart` |
 | That models and migrations agree | `expectSchemaParity` over a migrated database | `examples/clean_beak_config/test/shop_migration_test.dart` |
 | A `BeakDataSource` you wrote | `runBeakDataSourceContract` | `packages/beak_backend/test/src/data/worm/worm_data_source_contract_test.dart` |
-| That every screen renders at phone and desktop widths | `beakRouteSweep` | `packages/beak_test/lib/src/route_sweep.dart` |
+| That every screen renders at phone and desktop widths | `beakRouteSweep` | `packages/beak_test_flutter/lib/src/route_sweep.dart` |
 
 `beak create` writes the first row for you. This is the whole file:
 

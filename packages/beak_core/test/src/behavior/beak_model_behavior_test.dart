@@ -121,35 +121,38 @@ void main() {
     },
   );
 
-  test('persisted suggestions follow their source but retain explicit values and nulls', () {
-    final behavior = _behavior();
-    final initial = behavior.apply(
-      BeakRecord.fromRow({'quantity': 3, 'price': 5}),
-    );
-    expect(
-      _suggestion.readFrom(
-        behavior.apply(_quantity.writeTo(initial, 4), initial: initial),
-      ),
-      4,
-    );
-    final override = _suggestion.writeTo(initial, 8);
-    expect(
-      _suggestion.readFrom(
-        behavior.apply(_quantity.writeTo(override, 4), initial: override),
-      ),
-      8,
-    );
-    final nullableOverride = _suggestion.writeTo(initial, null);
-    expect(
-      _suggestion.readFrom(
-        behavior.apply(
-          _quantity.writeTo(nullableOverride, 4),
-          initial: nullableOverride,
+  test(
+    'persisted suggestions follow their source but retain explicit values and nulls',
+    () {
+      final behavior = _behavior();
+      final initial = behavior.apply(
+        BeakRecord.fromRow({'quantity': 3, 'price': 5}),
+      );
+      expect(
+        _suggestion.readFrom(
+          behavior.apply(_quantity.writeTo(initial, 4), initial: initial),
         ),
-      ),
-      isNull,
-    );
-  });
+        4,
+      );
+      final override = _suggestion.writeTo(initial, 8);
+      expect(
+        _suggestion.readFrom(
+          behavior.apply(_quantity.writeTo(override, 4), initial: override),
+        ),
+        8,
+      );
+      final nullableOverride = _suggestion.writeTo(initial, null);
+      expect(
+        _suggestion.readFrom(
+          behavior.apply(
+            _quantity.writeTo(nullableOverride, 4),
+            initial: nullableOverride,
+          ),
+        ),
+        isNull,
+      );
+    },
+  );
 
   test(
     'named transition freezes snapshot and ordinary state edits are rejected',
@@ -306,107 +309,113 @@ void main() {
     expect(plain.runs(_issue), isFalse);
     expect(plain.runsAny([_issue, other]), isFalse);
   });
-  test('initialization, original values and command-aware edit validation preserve explicit input', () {
-    final behavior = _behavior();
-    const empty = BeakRecord(values: {});
-    final initial = behavior.initialize(empty);
-    expect(_state.readFrom(initial), 'draft');
-    expect(
-      behavior.initialize(_state.writeTo(initial, null))['state']?.raw,
-      isNull,
-    );
-    behavior.validateEdits(empty);
-    behavior.validateEdits(
-      _state.writeTo(initial, 'issued'),
-      initial: initial,
-      actionName: 'issue',
-    );
-    behavior.validateEdits(
-      BeakRecord.fromRow({'state': 'draft', 'snapshot': null, 'price': 1}),
-      initial: initial,
-      isCreate: true,
-    );
-    expect(
-      () => behavior.validateEdits(
-        BeakRecord.fromRow({'state': 'draft', 'snapshot': 5}),
+  test(
+    'initialization, original values and command-aware edit validation preserve explicit input',
+    () {
+      final behavior = _behavior();
+      const empty = BeakRecord(values: {});
+      final initial = behavior.initialize(empty);
+      expect(_state.readFrom(initial), 'draft');
+      expect(
+        behavior.initialize(_state.writeTo(initial, null))['state']?.raw,
+        isNull,
+      );
+      behavior.validateEdits(empty);
+      behavior.validateEdits(
+        _state.writeTo(initial, 'issued'),
+        initial: initial,
+        actionName: 'issue',
+      );
+      behavior.validateEdits(
+        BeakRecord.fromRow({'state': 'draft', 'snapshot': null, 'price': 1}),
         initial: initial,
         isCreate: true,
-      ),
-      throwsA(isA<BeakValidationException>()),
-    );
-    expect(const BeakValueContext(record: empty).original(_price), isNull);
-    expect(
-      BeakValueContext(
-        record: empty,
-        initial: _price.writeTo(empty, 4),
-      ).original(_price),
-      4,
-    );
-    expect(
-      () => behavior.action('missing'),
-      throwsA(isA<BeakConfigurationException>()),
-    );
-  });
+      );
+      expect(
+        () => behavior.validateEdits(
+          BeakRecord.fromRow({'state': 'draft', 'snapshot': 5}),
+          initial: initial,
+          isCreate: true,
+        ),
+        throwsA(isA<BeakValidationException>()),
+      );
+      expect(const BeakValueContext(record: empty).original(_price), isNull);
+      expect(
+        BeakValueContext(
+          record: empty,
+          initial: _price.writeTo(empty, 4),
+        ).original(_price),
+        4,
+      );
+      expect(
+        () => behavior.action('missing'),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+    },
+  );
 
-  test('configuration diagnostics reject mismatched behavior and dependency models', () {
-    const wrong = BeakScalarField<int>(
-      model: _model,
-      column: BeakIntColumn(key: 'missing', label: 'Missing'),
-    );
-    expect(
-      () => BeakModelBehavior(
-        values: [
-          BeakValueBehavior<int>.derived(field: wrong, resolve: (_) => 1),
-        ],
-      ).validate(_model),
-      throwsA(isA<BeakConfigurationException>()),
-    );
-    const other = _Other();
-    const dependency = BeakScalarField<int>(
-      model: other,
-      column: BeakIntColumn(key: 'price', label: 'Price'),
-    );
-    expect(
-      () => BeakModelBehavior(
+  test(
+    'configuration diagnostics reject mismatched behavior and dependency models',
+    () {
+      const wrong = BeakScalarField<int>(
+        model: _model,
+        column: BeakIntColumn(key: 'missing', label: 'Missing'),
+      );
+      expect(
+        () => BeakModelBehavior(
+          values: [
+            BeakValueBehavior<int>.derived(field: wrong, resolve: (_) => 1),
+          ],
+        ).validate(_model),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+      const other = _Other();
+      const dependency = BeakScalarField<int>(
+        model: other,
+        column: BeakIntColumn(key: 'price', label: 'Price'),
+      );
+      expect(
+        () => BeakModelBehavior(
+          values: [
+            BeakValueBehavior<int>.derived(
+              field: _total,
+              dependencies: [dependency],
+              resolve: (_) => 1,
+            ),
+          ],
+        ).validate(_model),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+      expect(
+        () => const BeakModelBehavior(
+          actions: [BeakModelAction(name: '', label: 'Invalid')],
+        ).validate(_model),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+      const relation = BeakBelongsTo(
+        key: 'item',
+        label: 'Item',
+        relatedTable: 'other',
+        displayColumnKey: 'price',
+        foreignKey: 'item_id',
+      );
+      const path = BeakScalarField<int>(
+        model: _model,
+        column: BeakIntColumn(key: 'price', label: 'Price'),
+        path: [relation],
+      );
+      final behavior = BeakModelBehavior(
         values: [
           BeakValueBehavior<int>.derived(
             field: _total,
-            dependencies: [dependency],
+            dependencies: [path],
             resolve: (_) => 1,
           ),
         ],
-      ).validate(_model),
-      throwsA(isA<BeakConfigurationException>()),
-    );
-    expect(
-      () => const BeakModelBehavior(
-        actions: [BeakModelAction(name: '', label: 'Invalid')],
-      ).validate(_model),
-      throwsA(isA<BeakConfigurationException>()),
-    );
-    const relation = BeakBelongsTo(
-      key: 'item',
-      label: 'Item',
-      relatedTable: 'other',
-      displayColumnKey: 'price',
-      foreignKey: 'item_id',
-    );
-    const path = BeakScalarField<int>(
-      model: _model,
-      column: BeakIntColumn(key: 'price', label: 'Price'),
-      path: [relation],
-    );
-    final behavior = BeakModelBehavior(
-      values: [
-        BeakValueBehavior<int>.derived(
-          field: _total,
-          dependencies: [path],
-          resolve: (_) => 1,
-        ),
-      ],
-    );
-    expect(behavior.relationLoads.single.relationKey, 'item');
-  });
+      );
+      expect(behavior.relationLoads.single.relationKey, 'item');
+    },
+  );
   test('commands require a named nonempty operation graph before dispatch', () {
     final registry = BeakModelRegistry()..register(_model);
     const root = BeakRecordRef.existing('orders', 1);

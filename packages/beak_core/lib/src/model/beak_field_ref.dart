@@ -110,6 +110,16 @@ class BeakScalarField<T extends Object> extends BeakFieldRef<T> {
   T? readFrom(BeakRecord record) {
     final owner = ownerRecord(record);
     if (owner == null) return null;
+    // Money on an integer column is stored in minor units: the Dart type is
+    // still `int`, so the semantic must not widen it to a decimal.
+    if (column case final BeakIntColumn intColumn
+        when intColumn.semantic.kind == BeakSemanticKind.money && T == int) {
+      final int? value = intColumn.readFrom(owner);
+      return switch (value) {
+        final T typed => typed,
+        _ => null,
+      };
+    }
     if (column.semantic.hasCodec) {
       return switch (column.semantic.tryDecode(owner[key])) {
         final T value => value,

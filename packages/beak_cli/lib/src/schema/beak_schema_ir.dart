@@ -185,6 +185,7 @@ final class BeakRelationIr {
     this.docComment,
     this.generateInverse = true,
     this.isRequired = false,
+    this.owned = false,
   });
 
   /// The Dart field this relationship came from.
@@ -233,6 +234,9 @@ final class BeakRelationIr {
 
   /// Whether the schema declares a non-nullable to-one relationship.
   final bool isRequired;
+
+  /// Whether the rows belong exclusively to their parent.
+  final bool owned;
 }
 
 /// One resource, as read from a schema class.
