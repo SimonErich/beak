@@ -608,25 +608,31 @@ packages:
     source: hosted
     version: "2.0.2"
   obers_ui:
-    dependency: "direct overridden"
+    dependency: transitive
     description:
-      path: "../../../obers_ui"
-      relative: true
-    source: path
+      path: "."
+      ref: "2cecec0f724cfc0b2cdd36aae46396960008f80e"
+      resolved-ref: "2cecec0f724cfc0b2cdd36aae46396960008f80e"
+      url: "https://github.com/SimonErich/obers_ui"
+    source: git
     version: "0.1.2"
   obers_ui_autoforms:
-    dependency: "direct overridden"
+    dependency: transitive
     description:
-      path: "../../../obers_ui/packages/obers_ui_autoforms"
-      relative: true
-    source: path
+      path: "packages/obers_ui_autoforms"
+      ref: "2cecec0f724cfc0b2cdd36aae46396960008f80e"
+      resolved-ref: "2cecec0f724cfc0b2cdd36aae46396960008f80e"
+      url: "https://github.com/SimonErich/obers_ui"
+    source: git
     version: "0.1.0"
   obers_ui_charts:
-    dependency: "direct overridden"
+    dependency: transitive
     description:
-      path: "../../../obers_ui/packages/obers_ui_charts"
-      relative: true
-    source: path
+      path: "packages/obers_ui_charts"
+      ref: "2cecec0f724cfc0b2cdd36aae46396960008f80e"
+      resolved-ref: "2cecec0f724cfc0b2cdd36aae46396960008f80e"
+      url: "https://github.com/SimonErich/obers_ui"
+    source: git
     version: "0.1.0"
   objective_c:
     dependency: transitive
