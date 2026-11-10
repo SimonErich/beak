@@ -63,7 +63,8 @@
 - [The panel](panel/index.md): What a Beak panel stands up on first build, which routes it owns, which file decides what, and which page of this section covers each part.
 - [Resources](panel/resources.md): Declare how a model appears in the panel with a BeakResource, from its title and sidebar group to its screens, filters, search sources and actions.
 - [Navigation](panel/navigation.md): Order the automatic sidebar, replace it with sections and counts, and configure the command bar, notification bell and shell actions.
-- [Defaults, labels and standard resources](panel/defaults-and-labels.md): One conventional resource, one list shape and one label mapping for the whole panel, so a resource declaration stays a few lines.
+- [Defaults, labels and standard resources](panel/defaults-and-labels.md): One conventional resource and one list shape for the whole panel, so a resource declaration stays a few lines.
+- [Labels in every language](panel/labels.md): Name models, fields, relationships, enum values and commands once, in ARB files keyed by Dart names, and let the panel show them in its language.
 - [Tables and filters](panel/tables-and-filters.md): Choose the columns of a resource list, scope and sort its rows, and put typed filters above it. Every change is one server-side query.
 - [Composed lists and query state](panel/composed-lists.md): Share one typed query across preset tabs, staged filters, columns, an overview, saved views and CSV export with a BeakListDefinition.
 - [View modes](panel/view-modes.md): Look at one model as a table, a kanban board, a calendar or a timeline, with the resource list plus data blocks on a BeakScreen.

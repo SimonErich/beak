@@ -39,6 +39,31 @@ migration table at the end collects the common ones.
 
 ### Added
 
+#### Labels
+
+- Label files: `labels:` in `beak.yaml` points at ARB files with path keys
+  (`placedOrder.email`, `*.sortOrder`, `orderStatus.pending`,
+  `placedOrder.actions.cancel`, `.hint`). `beak prepare`, `beak generate` and
+  `beak doctor` resolve them the same way and write every language onto the
+  generated models. A key that names nothing fails with the nearest real key;
+  a key missing in one language fails; `require: shown` fails on a shown field
+  without a label. `@Resource(labelKey:)` and the inventory's `labelKey` file a
+  model under another key.
+- `BeakColumn.translations` and `.hints`, `BeakRelationship.translations`,
+  `BeakEnumColumn.valueTranslations` and `BeakModel.labels`
+  (`BeakModelLabels`) with `singularLabel`, `pluralLabel`, `actionLabelOf` and
+  `actionDescriptionOf`. Every label is read when shown, in the panel's
+  `BeakLabels.language`.
+- `BeakLocalizedPanel` builds the configuration in a context that holds the
+  app's localizations; `runServerpodBeakAdmin` takes `locale`,
+  `supportedLocales`, `localizationsDelegates` and passes `context` to
+  `config`.
+- `BeakTableScreen.standard`, `BeakCalculated.field`, `model.recordLink()`,
+  `translationsForm(presentation: BeakRelationTablePresentation.rows)`,
+  `BeakTab.general`, `BeakTab.details` and `BeakCard.general`.
+- `beakLocalizedRouteSweep` and `BeakSignedInAuthAdapter` in
+  `beak_test_flutter`.
+
 #### Serverpod
 
 - Existing application integration: `BeakServerpodEngine` accepts live `admit`,
@@ -677,6 +702,21 @@ migration table at the end collects the common ones.
 
 ### Changed
 
+- Breaking: `BeakResource.standard(model, title)` takes `title:` as an optional
+  named parameter; without it the title is the model's plural label. Its form
+  card and first tab are Beak's General, not the title.
+- Breaking: `runServerpodBeakAdmin(config:)` is
+  `BeakPanelConfig Function(BuildContext context, BeakAuthAdapter auth)`.
+- Breaking: `BeakModelAction.label` is the declared label only; the panel shows
+  `model.actionLabelOf(action)`.
+- `BeakTableColumn.field`, field filters and `BeakFormattedField` read their
+  field's label when shown instead of copying it, so they follow the panel's
+  language. `BeakGlobalAction.openList` and `BeakListDefinition.recordNoun`
+  default to the model's plural label; a choice filter's `allLabel` and the
+  filter sheet's record noun are Beak's own words.
+- A field reached through a relationship that shows the related record's
+  display column reads as the relationship (`role.displayName` reads "Role").
+
 - **Breaking, `beak_frontend`: one theme value.** `BeakPanelConfig.theme` and
   `BeakPanel(theme:)` take a `BeakTheme` and replace the `theme` and `darkTheme`
   pair, so a panel cannot get a dark mode that is not part of its look. Wrap the
@@ -906,6 +946,10 @@ migration table at the end collects the common ones.
   `mongo_dart ^0.10.10` (was `^0.9`).
 
 ### Removed
+
+- `BeakLabels.current` and the `BeakLabels` `field`, `enumValue` and `action`
+  callbacks, and `BeakPanelConfig.labels`. Labels come from the model's
+  translations instead; `BeakLabels.language` is the panel's language.
 
 - **Breaking.** `WormDataSource.softDeleteColumnKey` and
   `BeakResourceService.createdAtColumnKey` / `updatedAtColumnKey`: use
@@ -1404,6 +1448,9 @@ From the pre-0.9 line, the renames people meet first:
 
 | Before | Now |
 | --- | --- |
+| `BeakPanelConfig(labels: BeakLabels(field: ..., enumValue: ...))` | Label files in `beak.yaml` `labels:`, see [Labels in every language](docs/panel/labels.md) |
+| `BeakResource.standard(model, 'Products')` | `BeakResource.standard(model)`, or `title: 'Products'` |
+| `runServerpodBeakAdmin(config: (auth) => ...)` | `config: (context, auth) => ...` |
 | `@Column(maxLength: 80)`, `min:`, `max:` | `rules: [BeakMaxLength(80)]`, `[BeakMin(n)]`, `[BeakMax(n)]` |
 | `@BelongsTo(searchOn: ['email'])` | `@BelongsTo(searchOn: [#email])` |
 | `BeakResource(label:, section:)`, `BeakScreen(label:, section:)` | `title:`, `navigationTitle:`, `navigationGroup:` |

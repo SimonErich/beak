@@ -28,6 +28,7 @@ _rejectUnknownKeys(root, const {
   'resources',
   'serverpod',
   'generate',
+  'labels',
 }, '');
 
 final YamlMap? api = _optionalMap(root['api'], 'api');
@@ -78,6 +79,9 @@ if (sidebar != null) {
 | [`theme.preset`](#theme) | `standard`, `gabel` | `standard` | The built-in theme the generated panel uses |
 | [`theme.sidebar.collapsible`](#theme) | bool | `true` | The sidebar can collapse to an icon rail |
 | [`theme.sidebar.startCollapsed`](#theme) | bool | `false` | It starts collapsed |
+| [`labels.path`](#labels) | folder path | none | ARB files naming models, fields, enum values and commands in each language |
+| [`labels.template`](#labels) | locale | the first by name | The language generated default labels use |
+| [`labels.require`](#labels) | `none`, `shown` | `none` | Whether a shown field without a label fails the run |
 | [`resources.<table>.icon`](#resources) | lowerCamelCase string | `table` | `OiIcons` name of the sidebar icon |
 | [`resources.<table>.label`](#resources) | string | the model's label | Page and navigation title |
 | [`resources.<table>.section`](#resources) | string | none | Sidebar group heading |
@@ -278,6 +282,28 @@ generate:
 
 Inventory files are the single source of truth for what may be written; see
 [Writes, commands and trees](../serverpod/admin-app/write-bindings.md).
+
+## `labels`
+
+Where the label files are. `labels: labels` is the short form of `path`.
+
+```yaml
+labels:
+  path: labels
+  template: de
+  require: shown
+```
+
+- `path` is a folder of `*.arb` files, one per language, each with
+  `@@locale`. Keys are paths of Dart names (`placedOrder.email`,
+  `*.sortOrder`, `orderStatus.pending`, `placedOrder.actions.cancel`).
+- `template` is the language the generated `label:` defaults use; the others
+  go into `translations`.
+- `require: shown` fails `beak generate` and `beak prepare` when a shown
+  model, field, relationship or enum value has no label in some language.
+
+`beak generate`, `beak prepare` and `beak doctor` read the folder; see
+[Labels in every language](../panel/labels.md).
 
 ## `resources`
 

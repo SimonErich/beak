@@ -37,16 +37,19 @@ sealed class BeakFilterDef {
   /// Creates a filter over [field] labelled [label].
   const BeakFilterDef({
     required this.column,
-    required this.label,
     required this.field,
+    this._label,
     this.advanced = false,
   });
 
   /// The column the filter constrains.
   final BeakColumn column;
 
-  /// The control label.
-  final String label;
+  final String? _label;
+
+  /// The control label: the one given, else the field's label in the panel's
+  /// language, read when the filter is shown.
+  String get label => _label ?? field.label;
 
   /// Keeps a less frequent filter in the expandable section of a stacked editor.
   final bool advanced;
@@ -73,7 +76,7 @@ Definitions with a public constructor: `BeakTextFilter`, `BeakBoolFilter`, `Beak
 
 ```dart title="packages/beak_frontend/lib/src/filters/beak_filter_widget.dart"
 BeakTextFilter textFilter({String? label, bool advanced = false}) =>
-    BeakTextFilter(
+    BeakTextFilter(field: this, label: label, advanced: advanced);
 // ...
 BeakNumberRangeFilter numberRangeFilter({
   String? label,
@@ -86,13 +89,13 @@ BeakNumberRangeFilter numberRangeFilter({
 }) => BeakNumberRangeFilter(
 // ...
 BeakBoolFilter boolFilter({String? label, bool advanced = false}) =>
-    BeakBoolFilter(
+    BeakBoolFilter(field: this, label: label, advanced: advanced);
 // ...
 BeakSelectFilter selectFilter({String? label, bool advanced = false}) =>
-    BeakSelectFilter(
+    BeakSelectFilter(field: this, label: label, advanced: advanced);
 // ...
 BeakDateRangeFilter dateRangeFilter({String? label, bool advanced = false}) =>
-    BeakDateRangeFilter(
+    BeakDateRangeFilter(field: this, label: label, advanced: advanced);
 // ...
 BeakSemanticRangeFilter dateRangeFilter({
   String? label,
@@ -133,7 +136,7 @@ These four definitions take only the base fields. Their constructor is `(field: 
 ```dart title="packages/beak_frontend/lib/src/filters/beak_filter_widget.dart"
 BeakNumberRangeFilter({
   required BeakScalarField<Object> field,
-  required super.label,
+  super.label,
   super.advanced,
   this.showMinimum = true,
   this.showMaximum = true,
@@ -173,7 +176,7 @@ The snippet comes from the filter bar test, where `field` is a `BeakScalarField<
 ```dart title="packages/beak_frontend/lib/src/filters/beak_filter_widget.dart"
 BeakSemanticRangeFilter({
   required BeakScalarField<Object> field,
-  required super.label,
+  super.label,
   super.advanced,
   this.inline = false,
   this.presets = const [],
@@ -231,11 +234,11 @@ The control is a searchable combo box. Typing runs a query on the target model w
 ```dart title="packages/beak_frontend/lib/src/filters/beak_filter_widget.dart"
 BeakChoiceFilter({
   required BeakScalarField<Object> field,
-  required super.label,
+  super.label,
   required this.options,
   this.presentation = BeakChoiceFilterPresentation.checkboxes,
   this.columns = 1,
-  this.allLabel = 'All',
+  this.allLabel,
   this.showCounts = false,
   this.addItemLabel,
   this.showLabel = true,
@@ -353,7 +356,7 @@ filters: [
   BookModel.title.textFilter(),
   BookModel.author.relationFilter(),
   BookModel.format.selectFilter(),
-  BookModel.priceInCents.numberRangeFilter(label: 'Price'),
+  BookModel.priceInCents.numberRangeFilter(),
 ],
 ```
 

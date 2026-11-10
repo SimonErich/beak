@@ -28,6 +28,7 @@ Rows marked `(removed)` name symbols that no Beak package declares any more. The
 
 | You may remember | Beak 0.9 does | Read |
 | --- | --- | --- |
+| `BeakLabels.current`, the `BeakLabels.field`, `BeakLabels.enumValue` and `BeakLabels.action` callbacks, `BeakPanelConfig.labels` (removed) | Models carry their labels in every language from ARB label files (`labels:` in `beak.yaml`, keys like `placedOrder.email`); the panel reads them in `BeakLabels.language`. App copy is read from the context `BeakLocalizedPanel` builds the config in | [Labels in every language](../panel/labels.md) |
 | `BeakResource.label`, `BeakResource.section`, `BeakScreen.label` (removed) | `title` is the page title, `navigationTitle` the sidebar entry, `navigationGroup` the sidebar heading. The generated panel fills `title` and `navigationGroup` from `label` and `section` in `beak.yaml` | [Resources](../panel/resources.md) |
 | `viewModes`, `BeakTableView`, `BeakCalendarView`, `BeakResource.detail` (removed) | `screens:` on `BeakResource` holds a `BeakTableScreen` for the list and a `BeakFormScreen` whose `roles` say read, create or edit. Board and calendar are `BeakKanbanBlock` and `BeakCalendarBlock` on a `BeakScreen`, switched by `BeakTabsBlock`. The show page is derived from the model | [View modes](../panel/view-modes.md) |
 | `createFields`, `editFields`, `createBuilder`, `editBuilder`, `formValueMode` (removed) | One `BeakFormScreen` layout serves every role. A custom screen uses `BeakConfiguredForm(valueMode:)` | [Form screens](../forms/form-screens.md) |

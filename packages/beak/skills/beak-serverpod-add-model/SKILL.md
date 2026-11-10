@@ -47,9 +47,16 @@ resources:
 - `scalarRelations:` exposes only a relation's stored foreign key.
 - `access:` overrides the area's roles for one operation.
 - `fields:` renames or constrains one column (`label`, `min`, `max`, `text`,
-  `semantic`).
+  `semantic`). A `label` here is one language; a panel in several languages
+  names its models in label files instead (`labelKey:` files a model under
+  another key).
 
 The file-level `area:` and `generate.areas` decide the read/write roles.
+
+When `beak.yaml` has `labels:`, add the model's names to each
+`labels/models_<locale>.arb` (`product`, `product.sku`,
+`productStatus.active`); `beak generate` names any key that matches nothing
+and, with `require: shown`, any shown field without a label.
 
 ## 3. Generate
 

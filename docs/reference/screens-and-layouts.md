@@ -360,8 +360,11 @@ const BeakCard({
   super.spacingInPixels,
   super.visibleIf,
   super.enabledIf,
-});
+}) : _standardTitle = null;
 ```
+
+`BeakCard.general(children: ...)` is a card headed "General" in the panel's
+language.
 
 | Parameter | Type | Default | Meaning |
 | --- | --- | --- | --- |
@@ -480,8 +483,11 @@ const BeakTab({
   this.showValidationBadge = true,
   super.visibleIf,
   super.enabledIf,
-});
+}) : _standardTitle = null;
 ```
+
+`BeakTab.general` and `BeakTab.details` take the same parameters except
+`title`, which Beak words in the panel's language ("General", "Details").
 
 | Parameter | Type | Default | Meaning |
 | --- | --- | --- | --- |

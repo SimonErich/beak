@@ -1,6 +1,6 @@
 ---
 title: Defaults, labels and standard resources
-description: One conventional resource, one list shape and one label mapping for the whole panel, so a resource declaration stays a few lines.
+description: One conventional resource and one list shape for the whole panel, so a resource declaration stays a few lines.
 type: guide
 audience: [beginner, expert]
 status: stable
@@ -9,8 +9,7 @@ status: stable
 # Defaults, labels and standard resources
 
 After this page you can declare a resource in one line, change the list shape
-for every resource at once, and translate enum values, column labels and model
-commands through a single mapping.
+for every resource at once, and leave every label to the model.
 
 ## At a glance
 
@@ -18,7 +17,8 @@ commands through a single mapping.
 | --- | --- |
 | A list, detail page and forms in one line | `BeakResource.standard` |
 | One list shape for every resource | `BeakPanelConfig.defaults` |
-| German enum, column and command labels | `BeakPanelConfig.labels` |
+| The same list on a resource with its own screens | `BeakTableScreen.standard` |
+| Model, field, enum and command names in each language | [Label files](labels.md) |
 | The open record's children | `BeakRelatedList` |
 
 ## The conventional resource
@@ -27,7 +27,7 @@ commands through a single mapping.
 page and the create/edit forms, with the model's own fields.
 
 ```dart
-BeakResource.standard(const ProductModel(), 'Products')
+BeakResource.standard(const ProductModel())
 ```
 
 Pass `columns` to choose the table columns, `form` for the form's own inputs,
@@ -36,7 +36,6 @@ and `tabs` to replace the single card with a General tab plus your tabs:
 ```dart
 BeakResource.standard(
   const ProductModel(),
-  'Products',
   columns: [ProductModel.sku, ProductModel.name, ProductModel.status],
   form: [ProductModel.name.input(), ProductModel.status.input()],
   tabs: [BeakTab(title: 'Pricing', children: priceInputs)],
@@ -72,30 +71,14 @@ BeakPanelConfig(
 `standard` reads the same defaults, so a conventional resource and a bare one
 page the same way.
 
-## One label mapping
+## Labels
 
-A generated model carries wire values, not display names: an enum value is its
-`name`, a column its inventory label. Set one `BeakLabels` and every table
-cell, filter, form input and export reads it:
-
-```dart
-BeakPanelConfig(
-  labels: BeakLabels(
-    enumValue: (value) => switch (value) {
-      OrderStatus.pending => strings.pending,
-      OrderStatus.shipped => strings.shipped,
-      _ => null,
-    },
-    field: (column) => column.key == 'sku' ? strings.sku : null,
-    action: (action) => strings.action(action.name),
-  ),
-)
-```
-
-Returning `null` keeps the generated default, so the mapping only lists what it
-renames. `BeakColumn.label`, `BeakEnumColumn.labelFor` and
-`BeakModelAction.label` consult the mapping, which is why one declaration
-reaches tables, filters, forms, exports and confirmation dialogs.
+`BeakResource.standard` and `BeakTableScreen.standard` take no labels: the
+title is the model's plural, each column and input reads its field's label,
+and the General and Details tabs are Beak's own words. The labels come from the
+schema, or from label files in every language the panel speaks; see
+[Labels in every language](labels.md). A `label:` where a field is placed
+always wins.
 
 ## Related records
 
@@ -122,13 +105,13 @@ For the common relationship shapes there are two shortcuts:
 
 - A `standard` resource still follows the model's capabilities and
   permissions; `readOnly` only closes what the panel offers.
-- A label mapping only renames: a missing entry keeps the generated label.
+- A `label:` where a field is placed beats the model's label; without one the field reads the model's label in the panel's language.
 - `translationsForm` requires `BeakAdmission.translation` on the target model.
 
 ## Verify it
 
-- A panel with the mapping renders the translated enum in a table cell and a
-  filter.
+- `BeakResource.standard(model)` titles its list with the model's plural and
+  its form tab "General" in the panel's language.
 - `beakRouteSweep` visits the standard resource's list, detail and form routes.
 
 ## Reference
@@ -136,9 +119,11 @@ For the common relationship shapes there are two shortcuts:
 - `packages/beak_frontend/lib/src/panel/beak_standard_resource.dart`
 - `packages/beak_frontend/lib/src/panel/beak_panel_config.dart`
 - `packages/beak_core/lib/src/localization/beak_labels.dart`
+- `packages/beak_frontend/lib/src/panel/beak_resource_screen.dart`
 
 ## Continue reading
 
+- [Labels in every language](labels.md): model and field names from ARB files.
 - [Resources](resources.md): the resource declaration and its actions.
 - [Tables and filters](tables-and-filters.md): columns, filters and list presets.
 - [Testing](../shipping/testing.md): the route sweep that proves every screen renders.

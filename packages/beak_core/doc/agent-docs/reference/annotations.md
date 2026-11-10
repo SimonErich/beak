@@ -69,6 +69,7 @@ const Resource({
   this.updatedAtColumnKey = 'updated_at',
   this.deletedAtColumnKey = 'deleted_at',
   this.isDeletedColumnKey,
+  this.labelKey,
 });
 ```
 

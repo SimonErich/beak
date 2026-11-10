@@ -89,18 +89,19 @@ Future<void> main() => runServerpodBeakAdmin<Client>(
   roles: (client) async =>
       client.authSessionManager.authInfo?.scopeNames ?? const <String>{},
   panelRole: 'beak.admin',
-  config: (auth) => BeakPanelConfig(
+  config: (context, auth) => BeakPanelConfig(
     title: 'Shop',
-    resources: [
-      BeakResource.standard(const BookModel(), 'Books'),
-    ],
+    resources: [BeakResource.standard(const BookModel())],
     auth: BeakAuthConfig(adapter: auth),
   ),
 );
 ```
 
 `runServerpodBeakAdmin` installs path-based URLs, restores the session, resolves
-the roles and builds the tunnel data source.
+the roles and builds the tunnel data source. It calls `config` in a context
+that holds `localizationsDelegates` for `locale`, so the panel's own copy is
+read from `context`; model and field names come from the label files
+([Labels in every language](../../panel/labels.md)).
 
 ## Rules and limits
 

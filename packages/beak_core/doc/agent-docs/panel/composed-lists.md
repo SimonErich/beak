@@ -175,14 +175,15 @@ Without `columns` the list shows `BeakTableScreen.fields`, and without those the
 ```dart title="packages/beak_frontend/lib/src/presentation/beak_record_template.dart"
 const BeakTableColumn({
   required this.key,
-  required this.label,
+  required String this._label,
   required BeakRecordTemplate this.template,
   this.sortBy,
   this.widthInPixels,
   this.minWidthInPixels = 160,
   this.textAlign = TextAlign.start,
   this.cellPadding,
-}) : actionSelector = null,
+}) : _labelField = null,
+     actionSelector = null,
      actionChoices = const {},
      fallbackAction = null;
 
@@ -190,7 +191,7 @@ const BeakTableColumn({
 /// Unavailable actions remain absent; presentation never grants permission.
 const BeakTableColumn.action({
   required this.key,
-  required this.label,
+  required String this._label,
   required BeakValueBinding<String> selector,
   required Map<String, BeakActionPresentation> choices,
   BeakActionPresentation? fallback,
@@ -198,11 +199,26 @@ const BeakTableColumn.action({
   this.minWidthInPixels = 160,
   this.textAlign = TextAlign.start,
   this.cellPadding,
-}) : actionSelector = selector,
+}) : _labelField = null,
+     actionSelector = selector,
      actionChoices = choices,
      fallbackAction = fallback,
      template = null,
      sortBy = null;
+
+BeakTableColumn._({
+  required this.key,
+  required BeakFieldRef<Object> this._labelField,
+  required BeakRecordTemplate this.template,
+  this.sortBy,
+  this.widthInPixels,
+  this.minWidthInPixels = 160,
+  this.textAlign = TextAlign.start,
+  this.cellPadding,
+}) : _label = null,
+     actionSelector = null,
+     actionChoices = const {},
+     fallbackAction = null;
 ```
 
 `BeakTableColumn.field(field, {widthInPixels, minWidthInPixels, textAlign, cellPadding})` is the shorthand for one scalar field, and it is what `fields` turns into. Foodio's first column shows a reference with a placement line under it. Its Total column right-aligns money that is stored in cents:
@@ -521,7 +537,7 @@ const BeakListDefinition({
   this.filterDescription,
   this.advancedFilterDescription,
   this.advancedFilterColumns = 1,
-  this.recordNoun = 'records',
+  this.recordNoun,
   this.header,
   this.collapsedHeader,
   this.initialPreset,
@@ -604,9 +620,9 @@ factory BeakTableColumn.field(
   double minWidthInPixels = 160,
   TextAlign textAlign = TextAlign.start,
   EdgeInsetsGeometry? cellPadding,
-}) => BeakTableColumn(
+}) => BeakTableColumn._(
   key: field.qualifiedKey,
-  label: field.label,
+  labelField: field,
   template: BeakRecordTemplate.fields(title: field),
   sortBy: field,
   widthInPixels: widthInPixels,

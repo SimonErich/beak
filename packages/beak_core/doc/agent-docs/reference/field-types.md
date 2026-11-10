@@ -86,6 +86,8 @@ const BeakColumn({
   this.unique = false,
   this.rules = const [],
   this.semantic = const BeakSemantic(),
+  this.translations = const {},
+  this.hints = const {},
   Object? defaultValue,
 }) : _label = label,
      _defaultValue = defaultValue,
@@ -137,6 +139,8 @@ const BeakStringColumn({
   super.unique,
   super.rules,
   super.semantic,
+  super.translations,
+  super.hints,
   super.defaultValue,
   this.placeholder = '',
   this.maxLength,
@@ -164,6 +168,8 @@ const BeakTextColumn({
   super.unique,
   super.rules,
   super.semantic,
+  super.translations,
+  super.hints,
   super.defaultValue,
 });
 ```
@@ -184,6 +190,8 @@ const BeakRichTextColumn({
   super.unique,
   super.rules,
   super.semantic,
+  super.translations,
+  super.hints,
   super.defaultValue,
 });
 ```
@@ -204,6 +212,8 @@ const BeakJsonColumn({
   super.unique,
   super.rules,
   super.semantic,
+  super.translations,
+  super.hints,
   super.defaultValue,
 });
 ```
@@ -232,6 +242,8 @@ const BeakIntColumn({
   super.unique,
   super.rules,
   super.semantic,
+  super.translations,
+  super.hints,
   super.defaultValue,
   this.min,
   this.max,
@@ -265,6 +277,8 @@ const BeakDecimalColumn({
   super.unique,
   super.rules,
   super.semantic,
+  super.translations,
+  super.hints,
   super.defaultValue,
   this.precision = 2,
   this.totalDigits = 10,
@@ -304,6 +318,8 @@ const BeakBoolColumn({
   super.unique,
   super.rules,
   super.semantic,
+  super.translations,
+  super.hints,
   super.defaultValue,
   this.tristate = false,
   this.trueLabel,
@@ -335,6 +351,8 @@ const BeakDateTimeColumn({
   super.unique,
   super.rules,
   super.semantic,
+  super.translations,
+  super.hints,
   super.defaultValue,
   this.format = BeakDateFormat.standard,
 });
@@ -384,10 +402,13 @@ const BeakEnumColumn({
   super.unique,
   super.rules,
   super.semantic,
+  super.translations,
+  super.hints,
   this.defaultValue,
   this.badgeColors = const <Never, BeakColor>{},
   this.labelOf,
   this.labels = const <Never, String>{},
+  this.valueTranslations = const <String, Map<Never, String>>{},
 });
 ```
 
@@ -423,6 +444,8 @@ const BeakColorColumn({
   super.unique,
   super.rules,
   super.semantic,
+  super.translations,
+  super.hints,
   super.defaultValue,
 });
 ```
@@ -446,6 +469,8 @@ sealed class BeakUploadColumn extends BeakColumn {
     super.unique,
     super.rules,
     super.semantic,
+    super.translations,
+    super.hints,
     super.defaultValue,
     this.maxSizeInBytes,
     this.allowedTypes = const [],
@@ -486,6 +511,8 @@ const BeakImageColumn({
   super.unique,
   super.rules,
   super.semantic,
+  super.translations,
+  super.hints,
   super.defaultValue,
   super.maxSizeInBytes,
   super.allowedTypes = BeakFileType.images,
@@ -519,6 +546,8 @@ const BeakFileColumn({
   super.unique,
   super.rules,
   super.semantic,
+  super.translations,
+  super.hints,
   super.defaultValue,
   super.maxSizeInBytes,
   super.allowedTypes,
@@ -542,6 +571,8 @@ const BeakCustomColumn({
   super.unique,
   super.rules,
   super.semantic,
+  super.translations,
+  super.hints,
   super.defaultValue,
 });
 ```

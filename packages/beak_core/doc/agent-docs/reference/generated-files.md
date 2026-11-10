@@ -131,10 +131,10 @@ A hidden resource (`beak.yaml`) keeps its model and its API and drops out of `pa
 `beak prepare` writes six things into each part, in this order:
 
 ```dart
-_writeColumns(buffer, schema);
-_writeRelations(buffer, schema, byClass, all);
+_writeColumns(buffer, schema, names);
+_writeRelations(buffer, schema, byClass, all, names);
 _writeFields(buffer, schema, byClass);
-_writeModel(buffer, schema, all);
+_writeModel(buffer, schema, all, names);
 _writeDraft(buffer, schema, byClass);
 _writeRecord(buffer, schema, byClass);
 // Formatted here rather than by the caller, so any consumer of the
@@ -200,6 +200,7 @@ One `static const` per relationship, named after the field, of the `BeakBelongsT
 const BeakHasMany({
   required super.key,
   required super.label,
+  super.translations,
   required super.relatedTable,
   required super.displayColumnKey,
   required this.foreignKey,

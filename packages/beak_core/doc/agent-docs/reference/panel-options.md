@@ -205,7 +205,6 @@ const BeakPanelConfig({
   this.shellActions,
   this.mapException,
   this.defaults = const BeakListDefaults(),
-  this.labels = const BeakLabels(),
   this.definitions,
 });
 ```
@@ -223,7 +222,7 @@ const BeakPanelConfig({
 | `locale` | `Locale?` | `null` | Explicit app locale; `null` follows the platform's supported locale. |
 | `formatting` | `BeakFormatting?` | `null` | Shared date, number and currency display policy. |
 | `supportedLocales` | `Iterable<Locale>` | `BeakLocalizations.supportedLocales` | Locales supported by the panel and its application-owned labels. |
-| `localizationsDelegates` | `Iterable<LocalizationsDelegate<Object?>>` | `const []` | Application translation delegates, installed before Beak's default. Beak always appends its delegate. A custom delegate for `BeakLocalizations` may override that default when translating framework text into another language; application resource labels use their own delegate. |
+| `localizationsDelegates` | `Iterable<LocalizationsDelegate<Object?>>` | `const []` | Application translation delegates, installed before Beak's default. Beak always appends its delegate. A custom delegate for `BeakLocalizations` may override that default when translating framework text into another language. Model and field labels come from the label files, not from a delegate. |
 | `sidebarCollapsible` | `bool` | `true` | Whether the sidebar can collapse to an icon rail. |
 | `sidebarDefaultCollapsed` | `bool` | `false` | Whether the sidebar starts collapsed (an icon-only rail). |
 | `home` | `BeakDestination?` | `null` | Where `/` sends the user when no `BeakScreen` claims it, for example a resource's list page or an overview screen. Sign-in and the error pages' back actions land here. `null` picks the first visible navigation destination. Ignored while its resource is not visible. |

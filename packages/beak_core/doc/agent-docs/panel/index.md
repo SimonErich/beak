@@ -168,7 +168,8 @@ Permissions are not on this list on purpose. The panel hides what an account may
 
 ## Which page to read
 
-- [Defaults, labels and standard resources](defaults-and-labels.md): one conventional resource, one list shape, one label mapping.
+- [Defaults, labels and standard resources](defaults-and-labels.md): one conventional resource and one list shape.
+- [Labels in every language](labels.md): model, field, enum and command names from ARB files, app copy from the context.
 
 | You want to... | Read | For that |
 | --- | --- | --- |

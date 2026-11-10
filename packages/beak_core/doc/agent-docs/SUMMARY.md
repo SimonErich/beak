@@ -54,6 +54,7 @@
     - [Resources](panel/resources.md)
     - [Navigation](panel/navigation.md)
     - [Defaults, labels and standard resources](panel/defaults-and-labels.md)
+    - [Labels in every language](panel/labels.md)
     - [Tables and filters](panel/tables-and-filters.md)
     - [Composed lists and query state](panel/composed-lists.md)
     - [View modes](panel/view-modes.md)

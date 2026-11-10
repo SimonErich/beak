@@ -23,7 +23,6 @@ Each gap below is a part of Beak the tunnel does not mount yet, not a bug in the
 | Default-deny row scopes | The generated policy has no per-account filter | Add a `BeakRowScope` to `BeakPolicies.admitted` |
 | Generated code in CI | `generated/lib` is gitignored | Run `beak generate --check` before analyze and tests |
 | Policy decisions per record | Role rules are exact; row rules may be a lower bound | Ask capabilities with a record id, or keep a server policy test |
-| Multi-language enum labels | The generated model carries wire names | Set `BeakPanelConfig.labels` with a `BeakLabels` mapping |
 
 ## Why it is shaped this way
 

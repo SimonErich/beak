@@ -182,6 +182,7 @@ One `static const` per relationship, named after the field, of the `BeakBelongsT
 const BeakHasMany({
   required super.key,
   required super.label,
+  super.translations,
   required super.relatedTable,
   required super.displayColumnKey,
   required this.foreignKey,
