@@ -258,19 +258,20 @@ class BeakResourceListPage extends HookWidget {
             if (panelAccess.canAction(model, commanded))
               BeakTableAction(
                 id: BeakActionPresentation.keyOfModelAction(commanded),
-                label: model.behavior.action(commanded.name).label,
+                label: model.actionLabelOf(commanded),
                 icon: OiIcons.play,
                 onRun: (ids) async {
                   final action = model.behavior.action(commanded.name);
+                  final label = model.actionLabelOf(action);
                   final confirmed = await showOiDialog<bool>(
                     context,
                     builder: (context, close) => OiDialog.confirm(
-                      label: action.label,
-                      title: action.label,
+                      label: label,
+                      title: label,
                       content: OiLabel.body(
                         BeakLocalizations.of(
                           context,
-                        ).applyToSelection(action.label, ids.length),
+                        ).applyToSelection(label, ids.length),
                       ),
                       actions: [
                         OiButton.ghost(
@@ -278,7 +279,7 @@ class BeakResourceListPage extends HookWidget {
                           onTap: () => close(false),
                         ),
                         OiButton.primary(
-                          label: action.label,
+                          label: label,
                           onTap: () => close(true),
                         ),
                       ],
@@ -453,7 +454,7 @@ class BeakResourceListPage extends HookWidget {
               if (panelAccess.canAction(model, action))
                 BeakTableAction(
                   id: BeakActionPresentation.keyOfModelAction(action),
-                  label: action.label,
+                  label: model.actionLabelOf(action),
                   icon: OiIcons.play,
                   visibleWhen: action.isAvailable,
                   onRun: (ids) async {
@@ -632,7 +633,8 @@ class BeakResourceListPage extends HookWidget {
                   child: Align(
                     alignment: Alignment.bottomCenter,
                     child: _FloatingSelectionBar(
-                      recordNoun: definition.recordNoun,
+                      recordNoun:
+                          definition.recordNoun ?? resource.model.pluralLabel,
                       actions: configuredBulkActions,
                       selection: selected,
                     ),

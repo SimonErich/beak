@@ -2715,9 +2715,9 @@ class _ModelActions extends HookWidget {
         session.conflicts.isNotEmpty;
     Widget button(BeakModelAction action, {bool constrained = false}) =>
         OiButton.secondary(
-          label: action.label,
+          label: session.model.actionLabelOf(action),
           fullWidth: constrained,
-          tooltip: constrained ? action.label : null,
+          tooltip: constrained ? session.model.actionLabelOf(action) : null,
           onTap: busy ? null : () => execute(action),
         );
     // Page-frame chrome (`compact` without `iconOnly`) keeps labelled buttons
@@ -2806,7 +2806,7 @@ class _FormCard extends HookWidget {
     if (card.presentation == BeakCardPresentation.plain) {
       if (card.collapsible) {
         return OiDisclosure(
-          title: card.title ?? 'Details',
+          title: card.titleIn(context) ?? BeakLocalizations.of(context).details,
           headerPadding:
               card.disclosurePadding ?? const EdgeInsets.symmetric(vertical: 8),
           description: card.headerSubtitle == null
@@ -2831,7 +2831,7 @@ class _FormCard extends HookWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         gap: const OiResponsive<double>(12),
         children: [
-          if (card.title case final title?) OiLabel.h4(title),
+          if (card.titleIn(context) case final title?) OiLabel.h4(title),
           if (card.description case final description?)
             OiLabel.body(description),
           content,
@@ -2855,15 +2855,15 @@ class _FormCard extends HookWidget {
       trailing: metadata(card.headerTrailing),
       collapseLeading: card.collapseLeading,
       headerGap: card.headerGapInPixels,
-      title: card.title == null
+      title: card.titleIn(context) == null
           ? null
           : OiLabel.variant(
-              card.title!,
+              card.titleIn(context)!,
               variant: card.collapseLeading
                   ? OiLabelVariant.bodyStrong
                   : OiLabelVariant.h4,
             ),
-      label: card.title,
+      label: card.titleIn(context),
       collapsible: card.collapsible,
       collapsed: collapsed.value,
       onCollapsedChanged: (value) => collapsed.value = value,
@@ -2912,7 +2912,7 @@ class _FormTabs extends HookWidget {
             tabs: [
               for (final tab in visible)
                 OiTabItem(
-                  label: tab.title,
+                  label: tab.titleIn(context),
                   icon: tab.icon,
                   badge: !tab.showValidationBadge || _errorsIn(tab, draft) == 0
                       ? ((tab.badge?.dependencies.every(
@@ -3095,7 +3095,8 @@ class _ScalarInput extends HookWidget {
             BeakAttributeType.text,
         value: draft.controller.valueOf<String>(column),
         label: label,
-        description: input.description ?? definition?.description,
+        description:
+            input.description ?? definition?.description ?? column.hint,
         options: definition != null
             ? [
                 for (final choice in definition.choices)
@@ -3124,7 +3125,7 @@ class _ScalarInput extends HookWidget {
         controller: draft.controller,
         column: column,
         label: showLabel ? label : '',
-        description: input.description,
+        description: input.description ?? column.hint,
         enabled: enabled,
         error: error,
         presentation: input.presentation,
@@ -3168,7 +3169,7 @@ class _ScalarInput extends HookWidget {
           controller: draft.controller,
           column: column,
           label: label,
-          description: input.description,
+          description: input.description ?? column.hint,
           enabled: enabled,
           obscureText: input.obscureText,
           uploader: draft.session.uploader,
@@ -5548,13 +5549,15 @@ Future<BeakRecord?> showBeakActionInput(
   final canonical = session.model.behavior.action(action.name);
   if (!session.canExecuteAction(canonical)) return null;
   final input = canonical.inputModel;
-  final description = action.description ?? canonical.description;
+  final label = session.model.actionLabelOf(action);
+  final description =
+      session.model.actionDescriptionOf(action) ?? canonical.description;
   if (input == null) {
     final accepted = await showOiDialog<bool>(
       context,
       builder: (context, close) => OiDialog.confirm(
-        label: action.label,
-        title: action.label,
+        label: label,
+        title: label,
         content: OiLabel.body(
           description ?? BeakLocalizations.of(context).confirmAction,
         ),
@@ -5565,9 +5568,9 @@ Future<BeakRecord?> showBeakActionInput(
           ),
           IntrinsicWidth(
             child: OiButton.primary(
-              label: action.label,
+              label: label,
               fullWidth: true,
-              tooltip: action.label,
+              tooltip: label,
               onTap: () => close(true),
             ),
           ),
@@ -5588,7 +5591,7 @@ Future<BeakRecord?> showBeakActionInput(
       context,
       arguments.root,
       arguments.root.layout,
-      title: action.label,
+      title: label,
       description: description,
     );
     return accepted == true ? arguments.root.buildRecord() : null;

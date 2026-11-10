@@ -90,7 +90,6 @@ final class BeakPanelConfig {
     this.shellActions,
     this.mapException,
     this.defaults = const BeakListDefaults(),
-    this.labels = const BeakLabels(),
     this.definitions,
   });
   // --8<-- [end:BeakPanelConfig]
@@ -178,9 +177,6 @@ final class BeakPanelConfig {
   /// List presentation every resource without its own table screen inherits.
   final BeakListDefaults defaults;
 
-  /// Localized enum values, column labels and command labels for the panel.
-  final BeakLabels labels;
-
   /// Authored definitions the generated models resolve their behavior and
   /// rules through.
   ///
@@ -222,7 +218,6 @@ final class BeakPanelConfig {
     BeakException? Function(Exception exception, StackTrace stackTrace)?
     mapException,
     BeakListDefaults? defaults,
-    BeakLabels? labels,
     BeakDefinitions? definitions,
   }) => BeakPanelConfig(
     title: title ?? this.title,
@@ -248,7 +243,6 @@ final class BeakPanelConfig {
     shellActions: shellActions ?? this.shellActions,
     mapException: mapException ?? this.mapException,
     defaults: defaults ?? this.defaults,
-    labels: labels ?? this.labels,
     definitions: definitions ?? this.definitions,
   );
 

@@ -41,16 +41,19 @@ sealed class BeakFilterDef {
   /// Creates a filter over [field] labelled [label].
   const BeakFilterDef({
     required this.column,
-    required this.label,
     required this.field,
+    this._label,
     this.advanced = false,
   });
 
   /// The column the filter constrains.
   final BeakColumn column;
 
-  /// The control label.
-  final String label;
+  final String? _label;
+
+  /// The control label: the one given, else the field's label in the panel's
+  /// language, read when the filter is shown.
+  String get label => _label ?? field.label;
 
   /// Keeps a less frequent filter in the expandable section of a stacked editor.
   final bool advanced;
@@ -105,11 +108,11 @@ final class BeakChoiceFilter extends BeakFilterDef {
   /// [field] identifies the filter without user-authored storage keys.
   BeakChoiceFilter({
     required BeakScalarField<Object> field,
-    required super.label,
+    super.label,
     required this.options,
     this.presentation = BeakChoiceFilterPresentation.checkboxes,
     this.columns = 1,
-    this.allLabel = 'All',
+    this.allLabel,
     this.showCounts = false,
     this.addItemLabel,
     this.showLabel = true,
@@ -127,7 +130,7 @@ final class BeakChoiceFilter extends BeakFilterDef {
   final int columns;
 
   /// Label of the unconstrained option in the radio and select presentations.
-  final String allLabel;
+  final String? allLabel;
 
   /// Shows authoritative option counts for the applied query population: in
   /// a column beside each checkbox, and appended to the label as `Label (12)`
@@ -150,7 +153,7 @@ final class BeakSelectFilter extends BeakFilterDef {
   /// Creates the select filter.
   BeakSelectFilter({
     required BeakScalarField<Object> field,
-    required super.label,
+    super.label,
     super.advanced,
   }) : super(column: field.column, field: field);
 }
@@ -160,7 +163,7 @@ final class BeakBoolFilter extends BeakFilterDef {
   /// Creates the boolean filter.
   BeakBoolFilter({
     required BeakScalarField<Object> field,
-    required super.label,
+    super.label,
     super.advanced,
   }) : super(column: field.column, field: field);
 }
@@ -173,7 +176,7 @@ final class BeakTextFilter extends BeakFilterDef {
   /// Creates the text filter.
   BeakTextFilter({
     required BeakScalarField<Object> field,
-    required super.label,
+    super.label,
     super.advanced,
   }) : super(column: field.column, field: field);
 }
@@ -187,7 +190,7 @@ final class BeakDateRangeFilter extends BeakFilterDef {
   /// Creates the date-range filter.
   BeakDateRangeFilter({
     required BeakScalarField<Object> field,
-    required super.label,
+    super.label,
     super.advanced,
   }) : super(column: field.column, field: field);
 }
@@ -804,7 +807,7 @@ final class BeakNumberRangeFilter extends BeakFilterDef {
   /// Creates a numeric range over a typed field, including related paths.
   BeakNumberRangeFilter({
     required BeakScalarField<Object> field,
-    required super.label,
+    super.label,
     super.advanced,
     this.showMinimum = true,
     this.showMaximum = true,
@@ -855,11 +858,7 @@ final class BeakRelationSelectFilter extends BeakFilterDef {
 extension BeakTextFieldFilters on BeakScalarField<String> {
   /// Matches a case-insensitive substring.
   BeakTextFilter textFilter({String? label, bool advanced = false}) =>
-      BeakTextFilter(
-        field: this,
-        label: label ?? this.label,
-        advanced: advanced,
-      );
+      BeakTextFilter(field: this, label: label, advanced: advanced);
 }
 
 /// Numeric range filters from generated numeric fields.
@@ -875,7 +874,7 @@ extension BeakNumberFieldFilters<T extends num> on BeakScalarField<T> {
     String? placeholder,
   }) => BeakNumberRangeFilter(
     field: this,
-    label: label ?? this.label,
+    label: label,
     advanced: advanced,
     showMinimum: showMinimum,
     showMaximum: showMaximum,
@@ -889,33 +888,21 @@ extension BeakNumberFieldFilters<T extends num> on BeakScalarField<T> {
 extension BeakBooleanFieldFilters on BeakScalarField<bool> {
   /// Offers yes, no, and clearing back to every record.
   BeakBoolFilter boolFilter({String? label, bool advanced = false}) =>
-      BeakBoolFilter(
-        field: this,
-        label: label ?? this.label,
-        advanced: advanced,
-      );
+      BeakBoolFilter(field: this, label: label, advanced: advanced);
 }
 
 /// Enum filters from generated enum fields.
 extension BeakEnumFieldFilters<T extends Enum> on BeakScalarField<T> {
   /// Offers the model enum's labels and serialized values.
   BeakSelectFilter selectFilter({String? label, bool advanced = false}) =>
-      BeakSelectFilter(
-        field: this,
-        label: label ?? this.label,
-        advanced: advanced,
-      );
+      BeakSelectFilter(field: this, label: label, advanced: advanced);
 }
 
 /// Calendar ranges from generated date fields.
 extension BeakDateFieldFilters on BeakScalarField<DateTime> {
   /// Includes the whole selected final calendar day.
   BeakDateRangeFilter dateRangeFilter({String? label, bool advanced = false}) =>
-      BeakDateRangeFilter(
-        field: this,
-        label: label ?? this.label,
-        advanced: advanced,
-      );
+      BeakDateRangeFilter(field: this, label: label, advanced: advanced);
 }
 
 /// Calendar-date ranges preserve the date without timezone conversion.
@@ -1204,7 +1191,7 @@ final class BeakSemanticRangeFilter extends BeakFilterDef {
   /// Creates a range whose endpoints use the model's semantic codec.
   BeakSemanticRangeFilter({
     required BeakScalarField<Object> field,
-    required super.label,
+    super.label,
     super.advanced,
     this.inline = false,
     this.presets = const [],
@@ -1227,7 +1214,7 @@ extension BeakSemanticFieldFilters<T extends Object> on BeakScalarField<T> {
     List<BeakRangePreset<T>> presets = const [],
   }) => BeakSemanticRangeFilter(
     field: this,
-    label: label ?? this.label,
+    label: label,
     advanced: advanced,
     inline: inline,
     presets: presets,
@@ -1350,7 +1337,10 @@ class _ChoiceFilterControl extends HookWidget {
         label: def.showLabel ? def.label : null,
         value: selected.firstOrNull ?? '',
         options: [
-          OiSelectOption(value: '', label: def.allLabel),
+          OiSelectOption(
+            value: '',
+            label: def.allLabel ?? BeakLocalizations.of(context).all,
+          ),
           for (final option in def.options)
             OiSelectOption(value: option.key, label: labelOf(option)),
         ],
@@ -1396,7 +1386,10 @@ class _ChoiceFilterControl extends HookWidget {
             direction: Axis.horizontal,
             value: selected.firstOrNull ?? '',
             options: [
-              OiRadioOption(value: '', label: def.allLabel),
+              OiRadioOption(
+                value: '',
+                label: def.allLabel ?? BeakLocalizations.of(context).all,
+              ),
               for (final option in def.options)
                 OiRadioOption(value: option.key, label: labelOf(option)),
             ],

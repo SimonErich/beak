@@ -16,6 +16,7 @@ import '../auth/beak_auth_adapter.dart';
 import '../auth/beak_auth_gate.dart';
 import '../auth/beak_session_store.dart';
 import '../auth/beak_logout_button.dart';
+import '../localization/beak_label_language.dart';
 import '../localization/beak_localizations.dart';
 import '../di/beak_locator.dart';
 import 'beak_panel_access.dart';
@@ -94,30 +95,31 @@ List<RouteBase> beakPanelRoutes(
   BeakPanelAccess accessNow() => access ?? _registeredAccess();
   return [
     ShellRoute(
-      builder: (context, state, child) =>
-          _watchAuth(context, config, (context) {
-            final shell = _fullScreenRoute(config, state.uri.path)
-                ? child
-                : _BeakShell(
-                    config: config,
-                    currentPath: state.uri.path,
-                    child: child,
-                  );
-            final auth = config.auth;
-            if (auth == null) return shell;
-            return BeakAuthGate(
-              adapter:
-                  auth.adapter ?? beakDependencies(context)<BeakSessionStore>(),
-              child: switch (auth.idleLockTimeout) {
-                final Duration timeout => _BeakIdleLock(
-                  timeout: timeout,
-                  authRefresh: authRefresh,
-                  child: shell,
-                ),
-                null => shell,
-              },
-            );
-          }),
+      builder: (context, state, child) => BeakLabelLanguage(
+        child: _watchAuth(context, config, (context) {
+          final shell = _fullScreenRoute(config, state.uri.path)
+              ? child
+              : _BeakShell(
+                  config: config,
+                  currentPath: state.uri.path,
+                  child: child,
+                );
+          final auth = config.auth;
+          if (auth == null) return shell;
+          return BeakAuthGate(
+            adapter:
+                auth.adapter ?? beakDependencies(context)<BeakSessionStore>(),
+            child: switch (auth.idleLockTimeout) {
+              final Duration timeout => _BeakIdleLock(
+                timeout: timeout,
+                authRefresh: authRefresh,
+                child: shell,
+              ),
+              null => shell,
+            },
+          );
+        }),
+      ),
       routes: [
         // `/` is claimed by a screen, or forwards to the panel's home; sign-in
         // and the error pages' back actions rely on it landing somewhere real.

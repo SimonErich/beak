@@ -16,6 +16,7 @@ export 'src/blocks/beak_block.dart';
 export 'src/blocks/beak_block_host.dart';
 export 'src/blocks/beak_chart_data.dart';
 export 'src/common/hex_color.dart';
+export 'src/localization/beak_label_language.dart';
 export 'src/localization/beak_localizations.dart';
 export 'src/data/beak_relation_loads.dart';
 export 'src/data/beak_resource_repository.dart';

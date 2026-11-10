@@ -89,15 +89,16 @@ class BeakResource implements BeakDestination {
   /// the shortest declaration is:
   ///
   /// ```dart
-  /// BeakResource.standard(const ProductModel(), 'Products')
+  /// BeakResource.standard(const ProductModel())
   /// ```
   ///
+  /// [title] defaults to the model's plural label in the panel's language.
   /// [tabs] replace the single form card with a General tab plus one tab per
   /// [BeakTab]. A [readOnly] resource offers reads only, whatever its model's
   /// permissions would allow: the server still enforces its own policy.
   factory BeakResource.standard(
-    BeakModel model,
-    String title, {
+    BeakModel model, {
+    String? title,
     BeakIconToken icon = const BeakIconToken(OiIcons.database),
     String? navigationTitle,
     String? navigationGroup,
@@ -114,7 +115,7 @@ class BeakResource implements BeakDestination {
     List<BeakGlobalAction> globalActions = const [],
   }) => buildStandardResource(
     model,
-    title,
+    title: title,
     icon: icon,
     navigationTitle: navigationTitle,
     navigationGroup: navigationGroup,
@@ -270,7 +271,7 @@ class BeakResource implements BeakDestination {
   final void Function(BeakException error)? onActionError;
 
   /// The label shown in navigation and page titles.
-  String get effectiveLabel => title ?? _titleCase(model.table);
+  String get effectiveLabel => title ?? model.pluralLabel;
 
   /// The filter bar the list page renders: [filters] when declared, and
   /// otherwise the controls [model]'s `filterable` columns imply.
@@ -336,13 +337,4 @@ class BeakResource implements BeakDestination {
 
   @override
   String get location => route;
-
-  static String _titleCase(String table) => table
-      .split('_')
-      .map(
-        (word) => word.isEmpty
-            ? word
-            : '${word[0].toUpperCase()}${word.substring(1)}',
-      )
-      .join(' ');
 }

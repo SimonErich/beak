@@ -422,6 +422,9 @@ class BeakLocalizations {
   /// Generic records table label.
   String get records => _de ? 'Einträge' : 'Records';
 
+  /// The plural noun for records inside a sentence, as in "Show 3 records".
+  String get recordNoun => _de ? 'Einträge' : 'records';
+
   /// Empty records state.
   String get noRecords => _de ? 'Keine Einträge vorhanden' : 'No records yet';
 

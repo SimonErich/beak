@@ -16,8 +16,8 @@ import 'beak_resource_screen.dart';
 /// Kept beside the factory so the resource class stays a declaration and the
 /// conventions live in one readable place.
 BeakResource buildStandardResource(
-  BeakModel model,
-  String title, {
+  BeakModel model, {
+  String? title,
   BeakIconToken icon = const BeakIconToken(OiIcons.database),
   String? navigationTitle,
   String? navigationGroup,
@@ -65,7 +65,6 @@ BeakResource buildStandardResource(
         query: model.query(),
         definition: BeakListDefinition(
           title: title,
-          recordNoun: title,
           columns: [for (final field in shown) BeakTableColumn.field(field)],
           filters: filters,
           quickFilters: filters.take(defaults.quickFilters).toList(),
@@ -99,11 +98,11 @@ BeakResource buildStandardResource(
             : BeakFormLayout(
                 children: [
                   if (tabs.isEmpty)
-                    BeakCard(title: title, children: form)
+                    BeakCard.general(children: form)
                   else
                     BeakTabs(
                       tabs: [
-                        BeakTab(title: title, children: form),
+                        BeakTab.general(children: form),
                         ...tabs,
                       ],
                     ),

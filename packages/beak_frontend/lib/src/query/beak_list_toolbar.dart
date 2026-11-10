@@ -74,7 +74,8 @@ class BeakListToolbar extends HookWidget {
         description: definition.filterDescription,
         advancedDescription: definition.advancedFilterDescription,
         advancedColumns: definition.advancedFilterColumns,
-        recordNoun: definition.recordNoun,
+        recordNoun:
+            definition.recordNoun ?? BeakLocalizations.of(context).recordNoun,
         onClose: close,
       ),
     );

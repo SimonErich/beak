@@ -31,7 +31,7 @@ final class BeakListDefinition {
     this.filterDescription,
     this.advancedFilterDescription,
     this.advancedFilterColumns = 1,
-    this.recordNoun = 'records',
+    this.recordNoun,
     this.header,
     this.collapsedHeader,
     this.initialPreset,
@@ -115,8 +115,9 @@ final class BeakListDefinition {
   /// Number of columns in the expanded advanced-filter group.
   final int advancedFilterColumns;
 
-  /// Plural noun used for result counts and selected-record actions.
-  final String recordNoun;
+  /// Plural noun used for result counts and selected-record actions; the
+  /// model's plural label in the panel's language when unset.
+  final String? recordNoun;
 
   /// Frequently used filters exposed as compact buttons beside search.
   final List<BeakFilterDef> quickFilters;

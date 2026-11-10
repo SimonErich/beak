@@ -346,7 +346,18 @@ final class BeakGlobalAction extends BeakAction {
     super.color,
     super.requiresConfirmation,
     this.visibleWhen,
-  });
+  }) : _labelModel = null;
+
+  BeakGlobalAction._openList(BeakModel model, {String? label, IconData? icon})
+    : _labelModel = label == null ? model : null,
+      visibleWhen = ((access) => access.canRead(model)),
+      onExecute = ((context) async =>
+          context.router.go(BeakRoutes.list(model.table))),
+      super(
+        key: 'open-${model.table}',
+        label: label ?? '',
+        icon: icon ?? OiIcons.externalLink,
+      );
 
   /// Opens the list page of [model], the button for a resource that links to
   /// its neighbours:
@@ -357,7 +368,6 @@ final class BeakGlobalAction extends BeakAction {
   ///   globalActions: [
   ///     BeakGlobalAction.openList(
   ///       const ProductCategoryModel(),
-  ///       label: 'Categories',
   ///       icon: OiIcons.layers,
   ///     ),
   ///   ],
@@ -365,19 +375,20 @@ final class BeakGlobalAction extends BeakAction {
   /// ```
   ///
   /// The button appears for accounts that may read [model] and is absent for
-  /// the rest. [icon] defaults to an external-link icon.
+  /// the rest. [label] defaults to the model's plural label in the panel's
+  /// language, and [icon] to an external-link icon.
   factory BeakGlobalAction.openList(
     BeakModel model, {
-    required String label,
+    String? label,
     IconData? icon,
-  }) => BeakGlobalAction(
-    key: 'open-${model.table}',
-    label: label,
-    icon: icon ?? OiIcons.externalLink,
-    visibleWhen: (access) => access.canRead(model),
-    onExecute: (context) async =>
-        context.router.go(BeakRoutes.list(model.table)),
-  );
+  }) => BeakGlobalAction._openList(model, label: label, icon: icon);
+
+  final BeakModel? _labelModel;
+
+  /// The button label; an [BeakGlobalAction.openList] without one reads its
+  /// model's plural label when shown.
+  @override
+  String get label => _labelModel?.pluralLabel ?? super.label;
 
   /// Runs the action.
   final Future<void> Function(BeakActionContext context) onExecute;

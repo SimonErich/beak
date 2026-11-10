@@ -26,10 +26,11 @@ final class _ProductModel extends BeakModel {
 }
 
 void main() {
-  tearDown(() => BeakLabels.current = const BeakLabels());
-
   test('standard builds a list and a form with default list settings', () {
-    final resource = BeakResource.standard(const _ProductModel(), 'Products');
+    final resource = BeakResource.standard(
+      const _ProductModel(),
+      title: 'Products',
+    );
     final list = resource.screenFor(BeakScreenRole.list);
     final form = resource.screenFor(BeakScreenRole.read);
 
@@ -45,7 +46,7 @@ void main() {
   test('a read-only standard resource offers reads only', () {
     final resource = BeakResource.standard(
       const _ProductModel(),
-      'Products',
+      title: 'Products',
       readOnly: true,
     );
 
@@ -54,20 +55,10 @@ void main() {
     expect(resource.canDelete, isFalse);
   });
 
-  test('one label mapping renames enums, columns and commands', () {
-    BeakLabels.current = BeakLabels(
-      enumValue: (value) => value == _Status.active ? 'Active' : null,
-      field: (column) => column.key == 'name' ? 'Title' : null,
-      action: (action) => 'Run ${action.name}',
-    );
-    const model = _ProductModel();
-    final status = model.columnByKey('status')! as BeakEnumColumn<_Status>;
+  test('without a title the resource is named after its model', () {
+    final resource = BeakResource.standard(const _ProductModel());
 
-    expect(status.labelFor(_Status.active), 'Active');
-    expect(model.columnByKey('name')!.label, 'Title');
-    expect(
-      const BeakModelAction(name: 'publish', label: 'Publish').label,
-      'Run publish',
-    );
+    expect(resource.title, isNull);
+    expect(resource.effectiveLabel, 'Products');
   });
 }

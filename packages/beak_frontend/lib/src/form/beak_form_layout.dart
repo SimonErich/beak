@@ -4,6 +4,8 @@ import 'dart:async';
 import 'package:beak_core/beak_core.dart';
 import 'package:flutter/widgets.dart';
 
+import '../localization/beak_localizations.dart';
+
 import 'beak_form_session.dart';
 import '../formatting/beak_field_format.dart';
 import '../presentation/beak_record_template.dart';
@@ -213,10 +215,36 @@ class BeakCard extends BeakFormLayout {
     super.spacingInPixels,
     super.visibleIf,
     super.enabledIf,
-  });
+  }) : _standardTitle = null;
+
+  /// A card headed "General" in the panel's language.
+  const BeakCard.general({
+    required super.children,
+    this.description,
+    this.padding,
+    this.headerGapInPixels = 16,
+    this.collapseLeading = false,
+    this.disclosurePadding,
+    this.collapsible = false,
+    this.initiallyExpanded = true,
+    this.presentation = BeakCardPresentation.surface,
+    super.spacingInPixels,
+    super.visibleIf,
+    super.enabledIf,
+  }) : title = null,
+       headerSubtitle = null,
+       headerTrailing = null,
+       _standardTitle = _BeakStandardTitle.general;
 
   /// Heading displayed above this content.
   final String? title;
+
+  final _BeakStandardTitle? _standardTitle;
+
+  /// The heading in the panel's language: Beak's own wording for
+  /// [BeakCard.general], else [title].
+  String? titleIn(BuildContext context) =>
+      _standardTitle?.wordedIn(context) ?? title;
 
   /// Optional guidance below the card heading.
   final String? description;
@@ -377,10 +405,42 @@ class BeakTab extends BeakFormLayout {
     this.showValidationBadge = true,
     super.visibleIf,
     super.enabledIf,
-  });
+  }) : _standardTitle = null;
+
+  /// A tab titled "General" in the panel's language, for a record's main fields.
+  const BeakTab.general({
+    required super.children,
+    super.spacingInPixels,
+    this.icon,
+    this.badge,
+    this.showValidationBadge = true,
+    super.visibleIf,
+    super.enabledIf,
+  }) : title = '',
+       _standardTitle = _BeakStandardTitle.general;
+
+  /// A tab titled "Details" in the panel's language, for related records and
+  /// secondary fields.
+  const BeakTab.details({
+    required super.children,
+    super.spacingInPixels,
+    this.icon,
+    this.badge,
+    this.showValidationBadge = true,
+    super.visibleIf,
+    super.enabledIf,
+  }) : title = '',
+       _standardTitle = _BeakStandardTitle.details;
 
   /// Text displayed on the tab selector.
   final String title;
+
+  final _BeakStandardTitle? _standardTitle;
+
+  /// The title in the panel's language: Beak's own wording for
+  /// [BeakTab.general] and [BeakTab.details], else [title].
+  String titleIn(BuildContext context) =>
+      _standardTitle?.wordedIn(context) ?? title;
 
   /// Optional icon displayed beside the tab title.
   final IconData? icon;
@@ -2437,3 +2497,17 @@ class BeakDraftScope extends InheritedWidget {
       enabled != oldWidget.enabled;
 }
 // --8<-- [end:BeakDraftScope]
+
+/// Titles Beak words itself, so they follow the panel's language.
+enum _BeakStandardTitle {
+  general,
+  details;
+
+  String wordedIn(BuildContext context) {
+    final strings = BeakLocalizations.of(context);
+    return switch (this) {
+      _BeakStandardTitle.general => strings.general,
+      _BeakStandardTitle.details => strings.details,
+    };
+  }
+}
