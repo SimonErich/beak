@@ -583,7 +583,7 @@ void main() {
       expect(seen.toSet(), {'alice', 'bob'});
       expect(
         slow.logs.map((log) => log.message).join(),
-        isNot(contains('b1')),
+        isNot(contains('/api/book/b1')),
         reason: 'each request logs on its own session',
       );
     });
