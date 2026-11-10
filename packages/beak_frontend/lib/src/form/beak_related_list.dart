@@ -139,9 +139,15 @@ extension BeakRelationRowDefaults on BeakToManyField {
   ///
   /// Reads the target's [BeakAdmission.translation] to find the owner foreign
   /// key and the locale column, so a translation table needs no hand-written
-  /// form. Throws a [BeakConfigurationException] when the target is not a
+  /// form. [BeakRelationTablePresentation.rows] lists one compact row per
+  /// language, the language first; removing a row deletes that translation.
+  /// Throws a [BeakConfigurationException] when the target is not a
   /// translation table.
-  BeakRelationTable translationsForm({String? label}) {
+  BeakRelationTable translationsForm({
+    String? label,
+    BeakRelationTablePresentation presentation =
+        BeakRelationTablePresentation.cards,
+  }) {
     final spec = target.admission?.translation;
     if (spec == null) {
       throw BeakConfigurationException(
@@ -157,20 +163,32 @@ extension BeakRelationRowDefaults on BeakToManyField {
       target.deletedAtColumnKey,
       ?target.isDeletedColumnKey,
     };
+    final locale = BeakInput<Object>(
+      field: BeakScalarField<Object>(model: target, column: spec.locale),
+    );
+    final texts = [
+      for (final column in target.columnsFor(BeakContext.form))
+        if (!hidden.contains(column.key) && column is! BeakCustomColumn)
+          BeakInput<Object>(
+            field: BeakScalarField<Object>(model: target, column: column),
+          ),
+    ];
+    if (presentation == BeakRelationTablePresentation.rows) {
+      return tableForm(
+        label: label,
+        presentation: presentation,
+        showColumnHeadings: true,
+        removeBehavior: BeakRemoveBehavior.deleteOwned,
+        identityFlex: 2,
+        identityChildren: [locale],
+        children: texts,
+      );
+    }
     return tableForm(
       label: label,
       showColumnHeadings: false,
-      presentation: BeakRelationTablePresentation.cards,
-      children: [
-        BeakInput<Object>(
-          field: BeakScalarField<Object>(model: target, column: spec.locale),
-        ),
-        for (final column in target.columnsFor(BeakContext.form))
-          if (!hidden.contains(column.key) && column is! BeakCustomColumn)
-            BeakInput<Object>(
-              field: BeakScalarField<Object>(model: target, column: column),
-            ),
-      ],
+      presentation: presentation,
+      children: [locale, ...texts],
     );
   }
 }
