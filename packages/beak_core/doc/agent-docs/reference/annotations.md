@@ -83,6 +83,7 @@ const Resource({
 | `updatedAtColumnKey` | `String` | `updated_at` | Revision timestamp storage key used by writes and form guards. |
 | `deletedAtColumnKey` | `String` | `deleted_at` | Nullable deletion timestamp storage key. |
 | `isDeletedColumnKey` | `String?` | `null` | Optional boolean visibility flag; false is live and true is deleted. Delete and restore also update the deletion timestamp. |
+| `labelKey` | `String?` | `null` | The key the resource's labels are found under in the label files; `null` uses the lowerCamelCase class name. See [Labels in every language](../panel/labels.md). |
 
 ```dart
 @Resource(table: 'book', managesSchema: false)
