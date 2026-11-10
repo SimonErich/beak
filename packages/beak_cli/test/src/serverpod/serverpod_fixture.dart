@@ -87,10 +87,20 @@ ${handlers == null ? '' : '  handlers: $handlers\n'}  prefix: Shop
     List<String> imports = const [],
   }) {
     final part = '${p.basename(library)}.beak.dart';
+    const support =
+        'package:shop_definitions/src/generated/definitions_support.dart';
+    final uris = <String>{
+      if (writes) support,
+      for (final uri in imports)
+        uri.endsWith('generated/enums.dart') ||
+                uri.endsWith('generated/writes.dart')
+            ? support
+            : uri,
+    };
     write('definitions/lib/src/$library.dart', '''
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_serverpod/schema.dart';
-${[if (writes) 'package:shop_definitions/src/generated/writes.dart', ...imports].map((uri) => "import '$uri';").join('\n')}
+${uris.map((uri) => "import '$uri';").join('\n')}
 
 part '$part';
 

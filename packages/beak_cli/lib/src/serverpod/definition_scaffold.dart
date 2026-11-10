@@ -40,7 +40,7 @@ String scaffoldDefinition(
         imports.add('package:$package/$library');
       }
     } else if (project.enums.containsKey(field.baseType)) {
-      enums.add('package:$package/src/generated/enums.dart');
+      enums.add('package:$package/src/generated/definitions_support.dart');
     }
   }
   buffer

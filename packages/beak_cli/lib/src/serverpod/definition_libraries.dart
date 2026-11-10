@@ -16,8 +16,9 @@ const Set<String> _handlerMembers = {
 void checkDefinitionLibraries(
   List<DefinitionClass> classes,
   String package,
-  BeakIssueSink issues,
-) {
+  BeakIssueSink issues, {
+  Set<String> enumNames = const {},
+}) {
   final byLibrary = <String, String>{};
   for (final definition in classes) {
     final path = definition.path;
@@ -37,11 +38,16 @@ void checkDefinitionLibraries(
         'generated model belongs to the library.',
       );
     }
-    if (definition.writes && !_importsWrites(definition, package)) {
+    final usesEnums = definition.fields.any(
+      (field) => enumNames.contains(field.typeName),
+    );
+    if ((definition.writes || usesEnums) &&
+        !_importsSupport(definition, package)) {
       issues.add(
         path,
-        "add `import 'package:$package/src/generated/writes.dart';`: the "
-        'generated part of ${definition.name} names its write binding.',
+        "add `import 'package:$package/src/generated/"
+        "definitions_support.dart';`: the generated part of "
+        '${definition.name} names its enum or write binding.',
       );
     }
     for (final field in definition.fields) {
@@ -67,10 +73,9 @@ void checkDefinitionLibraries(
   }
 }
 
-bool _importsWrites(DefinitionClass definition, String package) =>
+bool _importsSupport(DefinitionClass definition, String package) =>
     definition.imports.any(
       (uri) =>
-          uri.endsWith('generated/writes.dart') ||
-          uri.endsWith('generated/models.dart') ||
+          uri.endsWith('generated/definitions_support.dart') ||
           uri == 'package:$package/$package.dart',
     );

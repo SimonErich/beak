@@ -40,8 +40,7 @@ model in the definitions package, named after the class:
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_serverpod/schema.dart';
 import 'package:shop_definitions/src/catalog/product_category.dart';
-import 'package:shop_definitions/src/generated/enums.dart';
-import 'package:shop_definitions/src/generated/writes.dart';
+import 'package:shop_definitions/src/generated/definitions_support.dart';
 
 part 'product.beak.dart';
 

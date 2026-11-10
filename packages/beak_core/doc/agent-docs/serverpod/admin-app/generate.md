@@ -107,6 +107,7 @@ definitions/
         │   └── book.beak.dart    # generated part: BookModel, columns, fields
         └── generated/
             ├── models.dart       # every class, shopModels, createShopRegistry()
+            ├── definitions_support.dart  # exports enums.dart and writes.dart
             ├── enums.dart        # Serverpod's enums, by wire name
             └── writes.dart       # enum ShopWrite, one value per writable model
 server/lib/src/admin/generated/   # generate.handlers
@@ -114,9 +115,9 @@ server/lib/src/admin/generated/   # generate.handlers
 └── shop_handlers.dart            # ShopHandlers, the engine's handlers
 ```
 
-A definition library imports `generated/enums.dart` when it declares an enum
-field and `generated/writes.dart` when the model writes, and it has its
-`part '<file>.beak.dart';`. The package barrel exports
+A definition library imports
+`generated/definitions_support.dart` when it declares an enum field or writes,
+and it has its `part '<file>.beak.dart';`. The package barrel exports
 `src/generated/models.dart`. The server handlers are described in
 [Writes, commands and trees](write-bindings.md).
 
@@ -132,7 +133,7 @@ anything:
 - a relation of the wrong kind, or one pointing at a model no class exposes;
 - a field that looks like a secret (a password hash, a token);
 - a stock create that would leave a required Serverpod field without a value;
-- a missing `part` directive or `generated/writes.dart` import, with the line
+- a missing `part` directive or `generated/definitions_support.dart` import, with the line
   to add;
 - two definition classes in one library;
 - an area not in `generate.areas`, a writable model with no area or roles, a

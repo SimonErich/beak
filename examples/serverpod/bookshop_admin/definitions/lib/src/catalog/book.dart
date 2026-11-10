@@ -1,8 +1,6 @@
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_serverpod/schema.dart';
-
-import '../generated/enums.dart';
-import '../generated/writes.dart';
+import '../generated/definitions_support.dart';
 import 'author.dart';
 
 part 'book.beak.dart';

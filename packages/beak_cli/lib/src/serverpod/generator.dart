@@ -125,7 +125,12 @@ BeakGenerateResult runServerpodGenerate(
     settings,
     issues,
   );
-  checkDefinitionLibraries(classes, definitionsPackage, issues);
+  checkDefinitionLibraries(
+    classes,
+    definitionsPackage,
+    issues,
+    enumNames: projectModel.enums.keys.toSet(),
+  );
   issues.throwIfAny();
   final ir = buildServerpodIr(
     project: projectModel,
@@ -195,6 +200,15 @@ BeakGenerateResult runServerpodGenerate(
     files[p.join(generated, 'writes.dart')] = BeakSchemaEmitter.emitWrites(
       prefix,
       ir.writes,
+    );
+  }
+  if (ir.enums.isNotEmpty || ir.writes.isNotEmpty) {
+    files[p.join(
+      generated,
+      'definitions_support.dart',
+    )] = BeakSchemaEmitter.emitDefinitionSupport(
+      enums: ir.enums.isNotEmpty,
+      writes: ir.writes.isNotEmpty,
     );
   }
   final areas = [

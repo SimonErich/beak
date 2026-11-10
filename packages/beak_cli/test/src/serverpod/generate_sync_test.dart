@@ -98,7 +98,7 @@ final class Product extends BeakSchema {
           .read('definitions/lib/src/catalog/product.dart')
           .replaceFirst("part 'product.beak.dart';", '')
           .replaceFirst(
-            "import 'package:shop_definitions/src/generated/writes.dart';",
+            "import 'package:shop_definitions/src/generated/definitions_support.dart';",
             '',
           ),
     );
@@ -112,12 +112,51 @@ final class Product extends BeakSchema {
           containsAll([
             contains("add `part 'product.beak.dart';`"),
             contains(
-              "add `import 'package:shop_definitions/src/generated/writes.dart';`",
+              "add `import 'package:shop_definitions/src/generated/definitions_support.dart';`",
             ),
           ]),
         ),
       ),
     );
+  });
+
+  test('emits one support library that exports enums and writes', () {
+    fixture
+      ..project()
+      ..model('status', '''
+enum: Status
+values:
+  - draft
+  - active
+''')
+      ..model('product', '''
+class: Product
+table: product
+fields:
+  id: UuidValue
+  status: Status
+''')
+      ..database([
+        ServerpodFixture.table(
+          'product',
+          ['id', 'status'],
+          types: {'status': 'protocol:Status?'},
+        ),
+      ])
+      ..define('catalog/product', '''
+@Resource()
+@ServerpodModel.editable(area: 'catalog')
+final class Product extends BeakSchema {
+  late final Status status;
+}''', writes: true);
+
+    runServerpodGenerate(fixture.env());
+
+    final support = fixture.read(
+      'definitions/lib/src/generated/definitions_support.dart',
+    );
+    expect(support, contains("export 'enums.dart';"));
+    expect(support, contains("export 'writes.dart';"));
   });
 
   test('custom code needs generate.handlers', () {
