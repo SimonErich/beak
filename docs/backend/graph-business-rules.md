@@ -220,7 +220,7 @@ For trusted bookkeeping that belongs in ordinary persistence, return `BeakSaveOp
 
 Handled updates preserve the locked identity and re-read the persisted row. When a legacy use case leaves its timestamp unchanged, Beak advances only the configured update timestamp to protect the next editor's revision guard. Implicit foreign-key existence checks run for new or changed links; unchanged stored links do not require read access to their targets. Explicit record rules keep their declared query requirements.
 
-Put models controlled by the executor in `graphOnly`; direct CRUD routes do not invoke this transaction hook. The [Serverpod integration](../serverpod/admin-app/how-it-works.md#existing-authorization-and-domain-writes) explains handing the same transaction into typed ORM use cases.
+Put models controlled by the executor in `graphOnly`; direct CRUD routes do not invoke this transaction hook. The [Serverpod integration](../serverpod/admin-app/write-bindings.md#implementing-it) explains handing the same transaction into typed ORM use cases.
 
 ## Verify it
 

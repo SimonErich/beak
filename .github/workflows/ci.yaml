@@ -307,8 +307,11 @@ jobs:
       # melos.yaml), so its pure-Dart members and the template app are analyzed
       # here. bookshop_admin is analyzed in `serverpod-admin`: it compiles the
       # panel.
-      - name: Analyze the server, the Beak schema package and the client
-        run: dart analyze --fatal-infos --fatal-warnings bookshop_server bookshop_beak bookshop_client
+      - name: Generate the admin and check it is current
+        run: dart run ../../../packages/beak_cli/bin/beak.dart generate --check
+        working-directory: examples/serverpod/bookshop_admin
+      - name: Analyze the server, the definitions package and the client
+        run: dart analyze --fatal-infos --fatal-warnings bookshop_server bookshop_admin/definitions bookshop_client
         working-directory: examples/serverpod
       - name: Analyze the template app
         run: flutter analyze --fatal-infos --fatal-warnings

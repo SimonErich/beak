@@ -459,6 +459,8 @@ void main() {
         isNot(contains('Unhandled exception')),
         reason: 'the crafted usage message replaces the raw stack trace',
       );
-    });
+      // `dart run` compiles the whole CLI first, which a cold CI runner under
+      // coverage does not finish in the default 30 seconds.
+    }, timeout: const Timeout(Duration(minutes: 3)));
   });
 }
