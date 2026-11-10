@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
 import 'package:signals/signals.dart';
+import 'package:signals_flutter/signals_flutter.dart' show Watch;
 
 import '../../support/panel_fixtures.dart';
 
@@ -254,6 +255,8 @@ void main() {
 
       account.grant({'reader'});
       await tester.pumpAndSettle();
+      router.go('/');
+      await tester.pumpAndSettle();
       expect(find.text('Guarded notes'), findsWidgets);
       router.go('/notes');
       await tester.pumpAndSettle();
@@ -383,9 +386,10 @@ class _AccessProbe extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    onBuild();
-    // The probe reads the access it was handed, tracked like of(context).
-    access.principal;
-    return Text('writer: ${access.has('writer') ? 'yes' : 'no'}');
+    // A Watch tracks every signal read below, like BeakPanelAccess.of does.
+    return Watch((context) {
+      onBuild();
+      return Text('writer: ${access.has('writer') ? 'yes' : 'no'}');
+    });
   }
 }
