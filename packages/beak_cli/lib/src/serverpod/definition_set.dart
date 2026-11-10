@@ -1,7 +1,7 @@
 /// What a definition class says about one exposed field, beyond Serverpod.
-final class InventoryField {
+final class DefinitionResourceField {
   /// Creates a field override.
-  const InventoryField({
+  const DefinitionResourceField({
     this.label,
     this.arguments = const {},
     this.doc,
@@ -23,18 +23,18 @@ final class InventoryField {
 }
 
 /// The roles that override an area's, per operation.
-final class InventoryAccess {
+final class DefinitionAccess {
   /// Creates the overrides.
-  const InventoryAccess({this.operations = const {}});
+  const DefinitionAccess({this.operations = const {}});
 
   /// Roles per operation (`read`, `write`, `create`, `update`, `delete`).
   final Map<String, List<String>> operations;
 }
 
 /// One exposed Serverpod model, as its definition class declares it.
-final class InventoryResource {
+final class DefinitionResource {
   /// Creates a resource.
-  const InventoryResource({
+  const DefinitionResource({
     required this.name,
     required this.path,
     required this.library,
@@ -48,7 +48,7 @@ final class InventoryResource {
     this.exclude = const [],
     this.hidden = const [],
     this.defaults = const {},
-    this.access = const InventoryAccess(),
+    this.access = const DefinitionAccess(),
     this.reason,
     this.restoreKey,
     this.fields = const {},
@@ -99,7 +99,7 @@ final class InventoryResource {
   final Map<String, Object?> defaults;
 
   /// Per-operation role overrides.
-  final InventoryAccess access;
+  final DefinitionAccess access;
 
   /// Why writes are closed.
   final String? reason;
@@ -108,7 +108,7 @@ final class InventoryResource {
   final List<String>? restoreKey;
 
   /// Per-field labels, arguments and docs.
-  final Map<String, InventoryField> fields;
+  final Map<String, DefinitionResourceField> fields;
 
   /// The label-file key of the model.
   final String? labelKey;
@@ -130,9 +130,9 @@ final class InventoryResource {
 }
 
 /// One field of a command input.
-final class InventoryInputField {
+final class DefinitionInputField {
   /// Creates an input field.
-  const InventoryInputField({
+  const DefinitionInputField({
     this.belongsTo,
     this.foreignKey,
     this.type,
@@ -157,9 +157,9 @@ final class InventoryInputField {
 }
 
 /// A non-persisted command input.
-final class InventoryInput {
+final class DefinitionInput {
   /// Creates an input.
-  const InventoryInput({
+  const DefinitionInput({
     required this.name,
     required this.path,
     required this.library,
@@ -177,20 +177,20 @@ final class InventoryInput {
   final String library;
 
   /// The fields, by name.
-  final Map<String, InventoryInputField> fields;
+  final Map<String, DefinitionInputField> fields;
 
   /// The table name its model reports.
   final String? table;
 }
 
 /// Every exposed model and command input.
-final class Inventory {
-  /// Creates an inventory.
-  const Inventory({required this.resources, required this.inputs});
+final class DefinitionSet {
+  /// Creates a definition set.
+  const DefinitionSet({required this.resources, required this.inputs});
 
   /// The exposed models, by Serverpod class name.
-  final Map<String, InventoryResource> resources;
+  final Map<String, DefinitionResource> resources;
 
   /// The command inputs, by class name.
-  final Map<String, InventoryInput> inputs;
+  final Map<String, DefinitionInput> inputs;
 }

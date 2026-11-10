@@ -5,7 +5,7 @@ import 'definition_inputs.dart';
 import 'definition_model.dart';
 import 'generate_issue.dart';
 import 'generate_settings.dart';
-import 'inventory_model.dart';
+import 'definition_set.dart';
 import 'spy_model.dart';
 
 /// Fields Serverpod or Beak own on every model.
@@ -17,17 +17,17 @@ const Set<String> serverOwnedFields = {
   'isDeleted',
 };
 
-/// Turns the definition classes into the inventory the IR is built from,
+/// Turns the definition classes into the checked definitions the IR uses,
 /// checking each declared field against the Serverpod model.
-Inventory inventoryOf(
+DefinitionSet definitionSetOf(
   List<DefinitionClass> classes,
   SpyProject project,
   DatabaseDefinition database,
   BeakGenerateSettings settings,
   BeakIssueSink issues,
 ) {
-  final resources = <String, InventoryResource>{};
-  final inputs = <String, InventoryInput>{};
+  final resources = <String, DefinitionResource>{};
+  final inputs = <String, DefinitionInput>{};
   final names = {for (final definition in classes) definition.name};
   for (final definition in classes) {
     if (resources.containsKey(definition.name) ||
@@ -59,10 +59,10 @@ Inventory inventoryOf(
     );
     if (resource != null) resources[definition.name] = resource;
   }
-  return Inventory(resources: resources, inputs: inputs);
+  return DefinitionSet(resources: resources, inputs: inputs);
 }
 
-InventoryResource? _resource(
+DefinitionResource? _resource(
   DefinitionClass definition,
   SpyClass spy,
   SpyProject project,
@@ -135,7 +135,7 @@ InventoryResource? _resource(
   if (display.length > 1) {
     issues.add(path, '$name marks ${display.join(', ')} @Display; keep one.');
   }
-  return InventoryResource(
+  return DefinitionResource(
     name: name,
     path: path,
     library: definition.library,
@@ -161,12 +161,12 @@ InventoryResource? _resource(
         if (field.hidden && field.hiddenDefault != null)
           field.name: field.hiddenDefault,
     },
-    access: InventoryAccess(operations: definition.access),
+    access: DefinitionAccess(operations: definition.access),
     reason: definition.reason,
     restoreKey: definition.restoreKey,
     fields: {
       for (final field in definition.fields)
-        field.name: InventoryField(
+        field.name: DefinitionResourceField(
           label: field.label ?? field.relation?.label,
           arguments: field.columnArguments,
           doc: field.docComment,

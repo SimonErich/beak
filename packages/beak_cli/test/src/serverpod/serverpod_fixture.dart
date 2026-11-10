@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:beak_cli/src/cli_runner.dart';
 import 'package:beak_cli/src/serverpod/database_definition.dart';
-import 'package:beak_cli/src/serverpod/definition_inventory.dart';
+import 'package:beak_cli/src/serverpod/definition_set_builder.dart';
 import 'package:beak_cli/src/serverpod/definition_reader.dart';
 import 'package:beak_cli/src/serverpod/generate_issue.dart';
 import 'package:beak_cli/src/serverpod/generate_settings.dart';
@@ -153,12 +153,18 @@ $source
       'definitions',
       issues,
     );
-    final inventory = inventoryOf(classes, project, database, settings, issues);
+    final checked = definitionSetOf(
+      classes,
+      project,
+      database,
+      settings,
+      issues,
+    );
     issues.throwIfAny();
     return buildServerpodIr(
       project: project,
       database: database,
-      inventory: inventory,
+      definitions: checked,
       settings: settings,
       prefix: 'Shop',
     );

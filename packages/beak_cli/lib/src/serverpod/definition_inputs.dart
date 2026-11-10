@@ -1,10 +1,10 @@
 import 'definition_model.dart';
 import 'generate_issue.dart';
-import 'inventory_model.dart';
+import 'definition_set.dart';
 
 /// The command input a `@CommandInput` class declares.
-InventoryInput inputOf(DefinitionClass definition, BeakIssueSink issues) {
-  final fields = <String, InventoryInputField>{};
+DefinitionInput inputOf(DefinitionClass definition, BeakIssueSink issues) {
+  final fields = <String, DefinitionInputField>{};
   for (final field in definition.fields) {
     final relation = field.relation;
     if (relation != null) {
@@ -16,7 +16,7 @@ InventoryInput inputOf(DefinitionClass definition, BeakIssueSink issues) {
         );
         continue;
       }
-      fields[field.name] = InventoryInputField(
+      fields[field.name] = DefinitionInputField(
         belongsTo: relation.target,
         foreignKey: '${field.name}Id',
         required: !field.nullable,
@@ -38,13 +38,13 @@ InventoryInput inputOf(DefinitionClass definition, BeakIssueSink issues) {
       );
       continue;
     }
-    fields[field.name] = InventoryInputField(
+    fields[field.name] = DefinitionInputField(
       type: field.typeName,
       required: !field.nullable,
       label: field.label,
     );
   }
-  return InventoryInput(
+  return DefinitionInput(
     name: definition.name,
     path: definition.path,
     library: definition.library,
