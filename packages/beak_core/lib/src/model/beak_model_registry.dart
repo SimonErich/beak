@@ -2,7 +2,6 @@ import '../common/beak_exception.dart';
 import '../columns/beak_semantic.dart';
 import '../query/beak_record.dart';
 import '../validation/beak_validation.dart';
-import 'beak_definitions.dart';
 import 'beak_model.dart';
 
 /// The app-level index of every registered [BeakModel], keyed by table name.
@@ -23,45 +22,17 @@ final class BeakModelRegistry {
   /// Creates an empty registry.
   BeakModelRegistry();
 
-  /// Builds a registry holding [models], after binding [definitions].
+  /// Builds a registry holding [models].
   ///
-  /// The generated barrel of a project calls this for its models, so a host
-  /// writes one line to get a registry whose generated models resolve their
-  /// authored behavior and rules:
+  /// The generated `models.dart` of a project calls this for its models:
   ///
   /// ```dart
-  /// final registry = BeakModelRegistry.of(
-  ///   shopModels,
-  ///   definitions: shopDefinitions,
-  /// );
+  /// final registry = BeakModelRegistry.of(shopModels);
   /// ```
   ///
-  /// [definitions] are bound first (see [BeakDefinitions.bind]: binding the
-  /// same set again is a no-op, a different set throws) and every model is
-  /// registered afterwards, so registration already sees the bound behavior.
-  /// Leave [definitions] out when they were bound earlier, or when no model
-  /// resolves its behavior through them.
-  ///
-  /// Throws a [BeakConfigurationException] when [definitions] hold an entry for
-  /// a table none of [models] owns (nothing is bound then), when two models
-  /// share a table, or when a model fails registration.
-  factory BeakModelRegistry.of(
-    Iterable<BeakModel> models, {
-    BeakDefinitions? definitions,
-  }) {
-    if (definitions != null) {
-      final tables = {for (final model in models) model.table};
-      for (final definition in definitions.all) {
-        if (!tables.contains(definition.model.table)) {
-          throw BeakConfigurationException(
-            'A definition names the table "${definition.model.table}", which '
-            'is not one of the registered models. Remove it, or add the '
-            'model to the registry.',
-          );
-        }
-      }
-      BeakDefinitions.bind(definitions);
-    }
+  /// Throws a [BeakConfigurationException] when two models share a table, or
+  /// when a model fails registration.
+  factory BeakModelRegistry.of(Iterable<BeakModel> models) {
     final registry = BeakModelRegistry();
     for (final model in models) {
       registry.register(model);

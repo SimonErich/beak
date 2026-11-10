@@ -90,7 +90,6 @@ final class BeakPanelConfig {
     this.shellActions,
     this.mapException,
     this.defaults = const BeakListDefaults(),
-    this.definitions,
   });
   // --8<-- [end:BeakPanelConfig]
 
@@ -177,13 +176,6 @@ final class BeakPanelConfig {
   /// List presentation every resource without its own table screen inherits.
   final BeakListDefaults defaults;
 
-  /// Authored definitions the generated models resolve their behavior and
-  /// rules through.
-  ///
-  /// [buildRegistry] binds them before the first model is registered, so a
-  /// generated model never throws "no definitions bound".
-  final BeakDefinitions? definitions;
-
   /// Returns a copy with the given parts replaced.
   ///
   /// Keeps a shared configuration and changes one thing about it, such as a
@@ -218,7 +210,6 @@ final class BeakPanelConfig {
     BeakException? Function(Exception exception, StackTrace stackTrace)?
     mapException,
     BeakListDefaults? defaults,
-    BeakDefinitions? definitions,
   }) => BeakPanelConfig(
     title: title ?? this.title,
     resources: resources ?? this.resources,
@@ -243,7 +234,6 @@ final class BeakPanelConfig {
     shellActions: shellActions ?? this.shellActions,
     mapException: mapException ?? this.mapException,
     defaults: defaults ?? this.defaults,
-    definitions: definitions ?? this.definitions,
   );
 
   void _checkDestinations() {
@@ -410,9 +400,6 @@ final class BeakPanelConfig {
   /// to its model (primary-key metadata, relations). Registering the same
   /// table twice is a configuration error surfaced by the registry.
   BeakModelRegistry buildRegistry() {
-    if (definitions case final BeakDefinitions bindings) {
-      BeakDefinitions.bind(bindings);
-    }
     final registry = BeakModelRegistry();
     _checkDestinations();
     for (final resource in resources) {

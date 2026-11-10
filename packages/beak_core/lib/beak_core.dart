@@ -32,7 +32,6 @@ export 'src/data/beak_edit_data_source.dart';
 export 'src/data/beak_upload_client.dart';
 export 'src/model/beak_admission.dart';
 export 'src/localization/beak_labels.dart';
-export 'src/model/beak_definitions.dart';
 export 'src/model/beak_model.dart';
 export 'src/model/beak_attribute_definition.dart';
 export 'src/model/beak_variant_matrix.dart';
