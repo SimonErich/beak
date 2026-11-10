@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import '../cli_runner.dart';
 import '../project/beak_project_config.dart';
 import '../serverpod/database_definition.dart';
+import '../serverpod/definition_paths.dart';
 import '../serverpod/definition_reader.dart';
 import '../serverpod/definition_scaffold.dart';
 import '../serverpod/generate_issue.dart';
@@ -81,7 +82,7 @@ final class MakeDefinitionCommand extends Command<int> {
     final config = BeakProjectConfig.load(
       root,
       packageName: pubspec.existsSync()
-          ? _packageName(pubspec)
+          ? definitionPackageName(pubspec)
           : p.basename(root.path),
     );
     final serverpod = config.serverpod;
@@ -141,7 +142,7 @@ final class MakeDefinitionCommand extends Command<int> {
         project,
         database,
         area: area,
-        package: _packageName(definitionsPubspec),
+        package: definitionPackageName(definitionsPubspec),
         libraryOf: {
           for (final definition in existing)
             definition.name: definition.library,
@@ -158,7 +159,7 @@ final class MakeDefinitionCommand extends Command<int> {
       'lib',
       'src',
       area,
-      '${_snake(name)}.dart',
+      '${definitionFileStem(name)}.dart',
     );
     if (File(path).existsSync()) {
       environment.out.writeln('error: $path already exists.');
@@ -184,17 +185,3 @@ final class MakeDefinitionCommand extends Command<int> {
     return settings.areas.containsKey(parent) ? parent : null;
   }
 }
-
-String _packageName(File pubspec) =>
-    RegExp(
-      r'^name:\s*(\S+)',
-      multiLine: true,
-    ).firstMatch(pubspec.readAsStringSync())?.group(1) ??
-    p.basename(p.dirname(pubspec.path));
-
-String _snake(String name) => name
-    .replaceAllMapped(
-      RegExp(r'([a-z0-9])([A-Z])'),
-      (match) => '${match[1]}_${match[2]}',
-    )
-    .toLowerCase();

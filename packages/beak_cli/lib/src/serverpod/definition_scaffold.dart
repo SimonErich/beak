@@ -1,5 +1,6 @@
 import '../introspect/beak_schema_introspection.dart' show isSecretColumnName;
 import 'database_definition.dart';
+import 'definition_paths.dart';
 import 'definition_checks.dart';
 import 'spy_model.dart';
 
@@ -50,7 +51,7 @@ String scaffoldDefinition(
   }
   buffer
     ..writeln()
-    ..writeln("part '${_snake(spy.name)}.beak.dart';")
+    ..writeln("part '${definitionFileStem(spy.name)}.beak.dart';")
     ..writeln();
   for (final line in _docLines(classDoc, 'The ${spy.name} admin model.')) {
     buffer.writeln(line);
@@ -146,20 +147,13 @@ String _relationKind(
   return 'HasOne';
 }
 
-String _snake(String name) => name
-    .replaceAllMapped(
-      RegExp(r'([a-z0-9])([A-Z])'),
-      (match) => '${match[1]}_${match[2]}',
-    )
-    .toLowerCase();
+String _escape(String value) =>
+    value.replaceAll(r'\', r'\\').replaceAll("'", r"\'");
 
 List<String> _docLines(String? doc, String fallback) {
   final text = (doc == null || doc.trim().isEmpty) ? fallback : doc.trim();
   return [for (final line in text.split('\n')) '/// ${line.trim()}'];
 }
-
-String _escape(String value) =>
-    value.replaceAll(r'\', r'\\').replaceAll("'", r"\'");
 
 /// The Serverpod `###` comments above the class and each field.
 ({String? classDoc, Map<String, String> fields}) readSpyDocs(String source) {
