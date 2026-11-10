@@ -490,11 +490,7 @@ void main() {
       fixture
         ..writeProject(
           name: 'acme_admin',
-          dependencies: const [
-            'beak',
-            'beak_serverpod_flutter',
-            'acme_client',
-          ],
+          dependencies: const ['beak', 'beak_serverpod_flutter', 'acme_client'],
         )
         ..write(
           'app/lib/admin.dart',
