@@ -54,6 +54,19 @@ void main() {
     );
   });
 
+  test('runServerpodBeakAdmin also marks a Serverpod admin', () {
+    expect(
+      detect(
+        pubspec(['beak_serverpod_flutter']),
+        files: {
+          'lib/main.dart':
+              'Future<void> main() => runServerpodBeakAdmin<Client>(...);\n',
+        },
+      ),
+      BeakProjectKind.serverpodAdmin,
+    );
+  });
+
   test('a Serverpod admin wins over an embedded entrypoint', () {
     expect(
       detect(
