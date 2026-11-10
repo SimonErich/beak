@@ -183,7 +183,7 @@ abstract final class BeakSchemaEmitter {
       for (final model in models) model.schema,
     ], names);
     _writeFields(buffer, schema, byClass);
-    _writeInputModel(buffer, schema, byClass);
+    _writeInputModel(buffer, schema, names, byClass);
     _writeDraft(buffer, schema, byClass);
     _writeRecord(buffer, schema, byClass);
     return BeakEmitters.format(buffer.toString());
@@ -192,6 +192,7 @@ abstract final class BeakSchemaEmitter {
   static void _writeInputModel(
     StringBuffer buffer,
     BeakSchemaIr schema,
+    _Names names,
     Map<String, BeakSchemaIr> byClass,
   ) {
     buffer
@@ -244,6 +245,7 @@ abstract final class BeakSchemaEmitter {
       }
       buffer.writeln('  ];');
     }
+    _writeModelLabels(buffer, names.$1);
     buffer
       ..writeln()
       ..writeln('  @override')

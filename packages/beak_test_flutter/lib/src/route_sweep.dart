@@ -130,7 +130,7 @@ Future<List<String>> _sweep(
   final access = BeakPanelAccess.fixed(identity?.principal);
   final auth = identity == null
       ? null
-      : BeakAuthConfig(adapter: _SweepAuthAdapter(identity));
+      : BeakAuthConfig(adapter: BeakSignedInAuthAdapter(identity));
   final source =
       dataSource ?? InMemoryBeakDataSource(registry: config.buildRegistry());
   final visited = <String>[];
@@ -202,10 +202,24 @@ Future<Object> _firstId(BeakModel model, BeakDataSource source) async {
   };
 }
 
-final class _SweepAuthAdapter extends BeakAuthAdapter {
-  _SweepAuthAdapter(this.identity)
+/// An auth adapter that is signed in as [identity] from the start, for
+/// tests that open a panel as a given account:
+///
+/// ```dart
+/// BeakAuthConfig(
+///   adapter: BeakSignedInAuthAdapter(
+///     const BeakAuthIdentity(id: 'admin', roles: {'adminRead'}),
+///   ),
+/// )
+/// ```
+///
+/// Sign-in, sign-out and refresh succeed without changing the identity.
+final class BeakSignedInAuthAdapter extends BeakAuthAdapter {
+  /// Signs in as [identity].
+  BeakSignedInAuthAdapter(this.identity)
     : _state = signal<BeakAuthState>(BeakAuthAuthenticated(identity));
 
+  /// The account the panel is opened as.
   final BeakAuthIdentity identity;
   final Signal<BeakAuthState> _state;
 
