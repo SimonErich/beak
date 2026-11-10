@@ -29,6 +29,8 @@ final class BeakStringColumn extends BeakColumn with BeakTypedColumn<String> {
     super.unique,
     super.rules,
     super.semantic,
+    super.translations,
+    super.hints,
     super.defaultValue,
     this.placeholder = '',
     this.maxLength,

@@ -30,6 +30,8 @@ final class BeakJsonColumn extends BeakColumn with BeakTypedColumn<String> {
     super.unique,
     super.rules,
     super.semantic,
+    super.translations,
+    super.hints,
     super.defaultValue,
   });
   // --8<-- [end:BeakJsonColumn]

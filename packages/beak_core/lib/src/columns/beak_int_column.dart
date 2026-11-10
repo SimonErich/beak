@@ -31,6 +31,8 @@ final class BeakIntColumn extends BeakColumn with BeakTypedColumn<int> {
     super.unique,
     super.rules,
     super.semantic,
+    super.translations,
+    super.hints,
     super.defaultValue,
     this.min,
     this.max,

@@ -25,6 +25,7 @@ final class BeakBelongsToMany extends BeakRelationship {
   const BeakBelongsToMany({
     required super.key,
     required super.label,
+    super.translations,
     required super.relatedTable,
     required super.displayColumnKey,
     required this.pivotTable,

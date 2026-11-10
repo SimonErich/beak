@@ -7,6 +7,7 @@ import '../columns/beak_semantic_values.dart';
 import '../common/beak_exception.dart';
 import '../context/beak_context.dart';
 import '../data/beak_data_source.dart';
+import '../localization/beak_labels.dart';
 import '../query/beak_aggregate_spec.dart';
 import '../query/beak_filter.dart';
 import '../query/beak_record.dart';
@@ -106,6 +107,39 @@ abstract base class BeakModel {
 
   /// Update command metadata; an edit-capable source supplies its prefill data.
   BeakModel? get editModel => null;
+
+  /// What this model and its commands are called, in each language.
+  ///
+  /// Generated models carry the project's translations; a hand-written model
+  /// may override it or keep the table-name fallback of [singularLabel].
+  BeakModelLabels get labels => const BeakModelLabels();
+
+  /// What one record is called in the panel's [BeakLabels.language].
+  ///
+  /// Without a translation, the title-cased table name (`tax_rates` reads
+  /// `Tax Rates`).
+  String get singularLabel => BeakLabels.pick(labels.one, _tableTitle);
+
+  /// What several records are called in the panel's [BeakLabels.language],
+  /// falling back to [singularLabel].
+  String get pluralLabel => BeakLabels.pick(labels.other, singularLabel);
+
+  /// The label of [action] in the panel's language, or its declared label.
+  String actionLabelOf(BeakModelAction action) =>
+      BeakLabels.pick(labels.actions[action.name] ?? const {}, action.label);
+
+  /// The description of [action] in the panel's language, or its declared one.
+  String? actionDescriptionOf(BeakModelAction action) =>
+      BeakLabels.pickOrNull(
+        labels.actionDescriptions[action.name] ?? const {},
+      ) ??
+      action.description;
+
+  String get _tableTitle => table
+      .split('_')
+      .where((part) => part.isNotEmpty)
+      .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+      .join(' ');
 
   /// The relationships of this model. Defaults to none.
   List<BeakRelationship> get relationships => const [];

@@ -83,6 +83,8 @@ sealed class BeakColumn {
     this.unique = false,
     this.rules = const [],
     this.semantic = const BeakSemantic(),
+    this.translations = const {},
+    this.hints = const {},
     Object? defaultValue,
   }) : _label = label,
        _defaultValue = defaultValue,
@@ -95,11 +97,18 @@ sealed class BeakColumn {
 
   final String _label;
 
-  /// Human-readable label shown in tables, forms, and detail views.
-  ///
-  /// A [BeakLabels.field] mapping from the panel renames it without touching
-  /// the generated model.
-  String get label => BeakLabels.current.field?.call(this) ?? _label;
+  /// Human-readable label shown in tables, forms, and detail views, in the
+  /// panel's [BeakLabels.language] when [translations] has it.
+  String get label => BeakLabels.pick(translations, _label);
+
+  /// The label by language code, written from the project's label files.
+  final Map<String, String> translations;
+
+  /// Help text shown under the column's input, by language code.
+  final Map<String, String> hints;
+
+  /// The help text in the panel's language, or `null` when there is none.
+  String? get hint => BeakLabels.pickOrNull(hints);
 
   /// The surfaces this column appears on. Defaults to table, form, and
   /// detail (but not filter); narrow it to hide a field from a surface — e.g.
@@ -263,6 +272,8 @@ sealed class BeakUploadColumn extends BeakColumn {
     super.unique,
     super.rules,
     super.semantic,
+    super.translations,
+    super.hints,
     super.defaultValue,
     this.maxSizeInBytes,
     this.allowedTypes = const [],

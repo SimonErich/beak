@@ -48,6 +48,8 @@ final class BeakDateTimeColumn extends BeakColumn
     super.unique,
     super.rules,
     super.semantic,
+    super.translations,
+    super.hints,
     super.defaultValue,
     this.format = BeakDateFormat.standard,
   });

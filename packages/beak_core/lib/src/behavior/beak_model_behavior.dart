@@ -1,5 +1,4 @@
 import '../columns/beak_column.dart';
-import '../localization/beak_labels.dart';
 import '../common/beak_exception.dart';
 import '../model/beak_field_ref.dart';
 import '../model/beak_model.dart';
@@ -137,21 +136,20 @@ final class BeakModelAction {
   /// Defines a command. Names must be unique within a model.
   const BeakModelAction({
     required this.name,
-    required String label,
+    required this.label,
     this.description,
     this.availableWhen,
     this.inputModel,
     this.allowOnCreate = false,
     this.values = const [],
-  }) : _label = label;
+  });
 
   /// Stable wire identity, independent of translated labels.
   final String name;
 
-  final String _label;
-
-  /// Human-readable command label; a [BeakLabels.action] mapping may rename it.
-  String get label => BeakLabels.current.action?.call(this) ?? _label;
+  /// Human-readable command label. A panel shows its model's translation
+  /// instead when there is one (`BeakModel.actionLabelOf`).
+  final String label;
 
   /// Optional explanation used by confirmation and input surfaces.
   final String? description;

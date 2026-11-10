@@ -1,6 +1,7 @@
 import 'package:meta/meta.dart';
 
 import '../columns/beak_render_config.dart';
+import '../localization/beak_labels.dart';
 import '../context/beak_context.dart';
 import '../context/beak_render_intent.dart';
 import '../query/beak_record.dart';
@@ -32,17 +33,24 @@ sealed class BeakRelationship {
   /// Creates a relationship named [key] pointing at [relatedTable].
   const BeakRelationship({
     required this.key,
-    required this.label,
+    required String label,
+    this.translations = const {},
     required this.relatedTable,
     required this.displayColumnKey,
     this.searchColumnKeys = const [],
-  });
+  }) : _label = label;
 
   /// Relation name; matches the relation name on the backing ORM model.
   final String key;
 
-  /// Human-readable label shown in tables, forms, and detail views.
-  final String label;
+  final String _label;
+
+  /// Human-readable label shown in tables, forms, and detail views, in the
+  /// panel's [BeakLabels.language] when [translations] has it.
+  String get label => BeakLabels.pick(translations, _label);
+
+  /// The label by language code, written from the project's label files.
+  final Map<String, String> translations;
 
   /// Physical table/collection name of the related model.
   final String relatedTable;
