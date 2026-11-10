@@ -103,8 +103,13 @@ class BeakScalarField<T extends Object> extends BeakFieldRef<T> {
   @override
   String get key => column.key;
 
+  /// The column's label, or the relationship's when the field shows the
+  /// related record's display column: `role.displayName` reads "Role".
   @override
-  String get label => column.label;
+  String get label => switch (path) {
+    [..., final last] when last.displayColumnKey == column.key => last.label,
+    _ => column.label,
+  };
 
   @override
   T? readFrom(BeakRecord record) {

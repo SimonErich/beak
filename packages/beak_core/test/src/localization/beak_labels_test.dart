@@ -116,6 +116,37 @@ void main() {
     expect(_items.label, 'Positionen');
   });
 
+  test('a related display column reads as its relationship', () {
+    const profile = BeakBelongsTo(
+      key: 'profile',
+      label: 'Profile',
+      translations: {'de': 'Kundenprofil'},
+      relatedTable: 'profiles',
+      displayColumnKey: 'name',
+      foreignKey: 'profileId',
+    );
+    const name = BeakStringColumn(key: 'name', label: 'Name');
+    const city = BeakStringColumn(key: 'city', label: 'City');
+    BeakLabels.language = 'de';
+
+    expect(
+      const BeakScalarField<String>(
+        model: _OrderModel(),
+        column: name,
+        path: [profile],
+      ).label,
+      'Kundenprofil',
+    );
+    expect(
+      const BeakScalarField<String>(
+        model: _OrderModel(),
+        column: city,
+        path: [profile],
+      ).label,
+      'City',
+    );
+  });
+
   group('model labels', () {
     test('singular, plural and command labels follow the language', () {
       const model = _OrderModel();
