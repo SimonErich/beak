@@ -9,7 +9,8 @@ abstract final class AuthorColumns {
   /// The stored foreign key `id`.
   static const BeakIntColumn id = BeakIntColumn(
     key: 'id',
-    label: 'Id',
+    label: 'ID',
+    translations: {'en': 'ID', 'de': 'ID'},
     visibleOn: {BeakContext.detail},
     filterable: true,
   );
@@ -18,6 +19,7 @@ abstract final class AuthorColumns {
   static const BeakStringColumn name = BeakStringColumn(
     key: 'name',
     label: 'Name',
+    translations: {'en': 'Name', 'de': 'Name'},
     rules: [BeakRequired()],
     sortable: true,
     searchable: true,
@@ -26,7 +28,8 @@ abstract final class AuthorColumns {
   /// Serverpod `bio` (`String`).
   static const BeakStringColumn bio = BeakStringColumn(
     key: 'bio',
-    label: 'Bio',
+    label: 'Biography',
+    translations: {'en': 'Biography', 'de': 'Biografie'},
     sortable: true,
     searchable: true,
   );
@@ -35,6 +38,7 @@ abstract final class AuthorColumns {
   static const BeakStringColumn website = BeakStringColumn(
     key: 'website',
     label: 'Website',
+    translations: {'en': 'Website', 'de': 'Website'},
     sortable: true,
     searchable: true,
   );
@@ -48,7 +52,8 @@ abstract final class AuthorRelations {
   /// The book on the other side of [BookRelations.author].
   static const BeakHasMany book = BeakHasMany(
     key: 'book',
-    label: 'Book',
+    label: 'Books',
+    translations: {'en': 'Books', 'de': 'Bücher'},
     relatedTable: 'book',
     displayColumnKey: 'title',
     foreignKey: 'authorId',
@@ -191,6 +196,12 @@ final class AuthorModel extends BeakModel {
 
   @override
   String get deletedAtColumnKey => 'deletedAt';
+
+  @override
+  BeakModelLabels get labels => const BeakModelLabels(
+    one: {'en': 'Author', 'de': 'Autor'},
+    other: {'en': 'Authors', 'de': 'Autoren'},
+  );
 
   @override
   List<Enum> get formSlots => _AuthorModelFormSlot.values;

@@ -125,7 +125,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Format').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('hardcover').last);
+      await tester.tap(find.text('Hardcover').last);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Save').last);
       await tester.pumpAndSettle();

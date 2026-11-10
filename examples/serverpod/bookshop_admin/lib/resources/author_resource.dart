@@ -7,7 +7,6 @@ final class AuthorResource extends BeakResource {
   AuthorResource()
     : super(
         model: const AuthorModel(),
-        title: 'Authors',
         filters: [AuthorModel.name.textFilter()],
         screens: [
           BeakTableScreen(fields: [AuthorModel.name, AuthorModel.website]),

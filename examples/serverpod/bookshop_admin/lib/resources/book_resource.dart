@@ -11,12 +11,11 @@ final class BookResource extends BeakResource {
   BookResource()
     : super(
         model: const BookModel(),
-        title: 'Books',
         filters: [
           BookModel.title.textFilter(),
           BookModel.author.relationFilter(),
           BookModel.format.selectFilter(),
-          BookModel.priceInCents.numberRangeFilter(label: 'Price'),
+          BookModel.priceInCents.numberRangeFilter(),
         ],
         screens: [
           BeakTableScreen(

@@ -11,7 +11,8 @@ abstract final class BookColumns {
   /// The stored foreign key `id`.
   static const BeakIntColumn id = BeakIntColumn(
     key: 'id',
-    label: 'Id',
+    label: 'ID',
+    translations: {'en': 'ID', 'de': 'ID'},
     visibleOn: {BeakContext.detail},
     filterable: true,
   );
@@ -20,6 +21,7 @@ abstract final class BookColumns {
   static const BeakStringColumn title = BeakStringColumn(
     key: 'title',
     label: 'Title',
+    translations: {'en': 'Title', 'de': 'Titel'},
     rules: [BeakRequired()],
     sortable: true,
     searchable: true,
@@ -28,7 +30,8 @@ abstract final class BookColumns {
   /// Serverpod `isbn` (`String`).
   static const BeakStringColumn isbn = BeakStringColumn(
     key: 'isbn',
-    label: 'Isbn',
+    label: 'ISBN',
+    translations: {'en': 'ISBN', 'de': 'ISBN'},
     rules: [BeakRequired()],
     sortable: true,
     searchable: true,
@@ -38,6 +41,19 @@ abstract final class BookColumns {
   static const BeakEnumColumn<BookFormat> format = BeakEnumColumn<BookFormat>(
     key: 'format',
     label: 'Format',
+    translations: {'en': 'Format', 'de': 'Format'},
+    valueTranslations: {
+      'en': {
+        BookFormat.paperback: 'Paperback',
+        BookFormat.hardcover: 'Hardcover',
+        BookFormat.ebook: 'E-book',
+      },
+      'de': {
+        BookFormat.paperback: 'Taschenbuch',
+        BookFormat.hardcover: 'Gebundene Ausgabe',
+        BookFormat.ebook: 'E-Book',
+      },
+    },
     rules: [BeakRequired()],
     sortable: true,
     filterable: true,
@@ -47,7 +63,8 @@ abstract final class BookColumns {
   /// Serverpod `priceInCents` (`int`).
   static const BeakIntColumn priceInCents = BeakIntColumn(
     key: 'priceInCents',
-    label: 'Price In Cents',
+    label: 'Price',
+    translations: {'en': 'Price', 'de': 'Preis'},
     rules: [BeakRequired()],
     sortable: true,
   );
@@ -55,7 +72,8 @@ abstract final class BookColumns {
   /// Serverpod `stock` (`int`).
   static const BeakIntColumn stock = BeakIntColumn(
     key: 'stock',
-    label: 'Stock',
+    label: 'In stock',
+    translations: {'en': 'In stock', 'de': 'Lagerbestand'},
     rules: [BeakRequired()],
     sortable: true,
     defaultValue: 0,
@@ -64,7 +82,8 @@ abstract final class BookColumns {
   /// Serverpod `publishedOn` (`DateTime`).
   static const BeakDateTimeColumn publishedOn = BeakDateTimeColumn(
     key: 'publishedOn',
-    label: 'Published On',
+    label: 'Published on',
+    translations: {'en': 'Published on', 'de': 'Erschienen am'},
     format: BeakDateFormat.dateOnly,
     sortable: true,
   );
@@ -72,7 +91,8 @@ abstract final class BookColumns {
   /// The stored foreign key `authorId`.
   static const BeakIntColumn authorId = BeakIntColumn(
     key: 'authorId',
-    label: 'Author Id',
+    label: 'Author',
+    translations: {'en': 'Author', 'de': 'Autor'},
     visibleOn: {BeakContext.form, BeakContext.detail},
     filterable: true,
   );
@@ -96,6 +116,7 @@ abstract final class BookRelations {
   static const BeakBelongsTo author = BeakBelongsTo(
     key: 'author',
     label: 'Author',
+    translations: {'en': 'Author', 'de': 'Autor'},
     relatedTable: 'author',
     displayColumnKey: 'name',
     foreignKey: 'authorId',
@@ -319,6 +340,12 @@ final class BookModel extends BeakModel {
 
   @override
   String get deletedAtColumnKey => 'deletedAt';
+
+  @override
+  BeakModelLabels get labels => const BeakModelLabels(
+    one: {'en': 'Book', 'de': 'Buch'},
+    other: {'en': 'Books', 'de': 'Bücher'},
+  );
 
   @override
   List<Enum> get formSlots => _BookModelFormSlot.values;

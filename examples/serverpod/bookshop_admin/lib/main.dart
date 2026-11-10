@@ -23,7 +23,7 @@ Future<void> main() => runServerpodBeakAdmin<Client>(
   roles: (client) async =>
       client.authSessionManager.authInfo?.scopeNames ?? const <String>{},
   panelRole: beakAdminScopeName,
-  config: (auth) => BeakPanelConfig(
+  config: (context, auth) => BeakPanelConfig(
     title: 'Dog-Eared Books',
     resources: bookshopResources(),
     auth: BeakAuthConfig(adapter: auth, register: true, recover: true),

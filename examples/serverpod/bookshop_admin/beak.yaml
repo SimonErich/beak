@@ -2,6 +2,10 @@
 # Serverpod models, the newest migration and the reviewed inventory below.
 name: Bookshop Admin
 
+# Model, field and enum names in every language, keyed by Dart names
+# (`book.title`). beak generate writes them onto the generated models.
+labels: {path: labels, template: en, require: shown}
+
 serverpod:
   server: ../bookshop_server
   models: [lib/src]

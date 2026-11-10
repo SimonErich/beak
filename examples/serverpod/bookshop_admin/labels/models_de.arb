@@ -1,0 +1,24 @@
+{
+  "@@locale": "de",
+
+  "*.id": "ID",
+  "*.name": "Name",
+
+  "book": "{count, plural, one{Buch} other{Bücher}}",
+  "book.title": "Titel",
+  "book.isbn": "ISBN",
+  "book.format": "Format",
+  "book.priceInCents": "Preis",
+  "book.stock": "Lagerbestand",
+  "book.publishedOn": "Erschienen am",
+  "book.author": "Autor",
+
+  "bookFormat.paperback": "Taschenbuch",
+  "bookFormat.hardcover": "Gebundene Ausgabe",
+  "bookFormat.ebook": "E-Book",
+
+  "author": "{count, plural, one{Autor} other{Autoren}}",
+  "author.bio": "Biografie",
+  "author.website": "Website",
+  "author.book": "Bücher"
+}
