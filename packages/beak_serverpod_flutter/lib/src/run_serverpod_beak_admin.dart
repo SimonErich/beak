@@ -67,9 +67,7 @@ Future<void> runServerpodBeakAdmin<C extends ServerpodClientShared>({
         ? null
         : (error, stackTrace) =>
               mapException(error, stackTrace) ??
-              const BeakInternalException(
-                'Authentication transport failed.',
-              ),
+              const BeakInternalException('Authentication transport failed.'),
     resolveIdentity: roles == null && panelRole == null
         ? null
         : (signedIn) async {

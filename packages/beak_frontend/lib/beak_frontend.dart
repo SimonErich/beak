@@ -60,6 +60,7 @@ export 'src/table/column_cell_renderer.dart';
 export 'src/table/beak_table_view_model.dart';
 export 'src/query/beak_query_controller.dart';
 export 'src/query/beak_query_scope.dart';
+export 'src/query/beak_list_defaults.dart';
 export 'src/query/beak_list_definition.dart';
 export 'src/query/beak_list_export.dart';
 export 'src/query/beak_saved_views.dart';

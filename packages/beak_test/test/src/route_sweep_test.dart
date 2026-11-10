@@ -22,9 +22,7 @@ void main() {
     ]);
     final config = BeakPanelConfig(
       title: 'Sweep',
-      resources: const [
-        BeakResource(model: ProductModel(), title: 'Products'),
-      ],
+      resources: const [BeakResource(model: ProductModel(), title: 'Products')],
     );
 
     final visited = await beakRouteSweep(
@@ -42,9 +40,7 @@ void main() {
   testWidgets('stops when the identity sees no route', (tester) async {
     const config = BeakPanelConfig(
       title: 'Sweep',
-      resources: [
-        BeakResource(model: _GuardedModel(), title: 'Guarded'),
-      ],
+      resources: [BeakResource(model: _GuardedModel(), title: 'Guarded')],
     );
 
     final visited = await beakRouteSweep(

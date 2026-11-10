@@ -164,6 +164,9 @@ const BeakPanelConfig({
   this.refreshPolicy,
   this.shellActions,
   this.mapException,
+  this.defaults = const BeakListDefaults(),
+  this.labels = const BeakLabels(),
+  this.definitions,
 });
 ```
 

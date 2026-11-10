@@ -71,6 +71,8 @@ Permissions are not on this list on purpose. The panel hides what an account may
 
 ## Which page to read
 
+- [Defaults, labels and standard resources](defaults-and-labels.md): one conventional resource, one list shape, one label mapping.
+
 | You want to... | Read | For that |
 | --- | --- | --- |
 | Give a model a title, an icon, screens, filters and actions | [Resources](resources.md) | Everything a `BeakResource` holds and how it is registered |

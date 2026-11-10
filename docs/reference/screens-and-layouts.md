@@ -128,7 +128,7 @@ const BeakResourceScreen({required this.roles});
 
 ### BeakFormScreen
 
-```dart title="packages/beak_frontend/lib/src/panel/beak_resource_screen.dart"
+```dart
 const BeakFormScreen({
   this.layout,
   this.steps = const [],
@@ -212,7 +212,7 @@ Regions and the body are one draft. A region is added to the form's root layout,
 
 ### BeakWizardScreen
 
-```dart title="packages/beak_frontend/lib/src/panel/beak_resource_screen.dart"
+```dart
 const BeakWizardScreen({
   required super.steps,
   super.drafts,

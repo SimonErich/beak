@@ -80,31 +80,30 @@ BeakResource buildStandardResource(
               : null,
         ),
       ),
-      if (form != null || tabs.isNotEmpty)
-        BeakFormScreen(
-          roles: {
-            BeakScreenRole.read,
-            if (canCreate) BeakScreenRole.create,
-            if (canEdit) BeakScreenRole.edit,
-          },
-          recordHeader: header,
-          asideFraction: 1 / 3,
-          layout: form == null
-              ? null
-              : BeakFormLayout(
-                  children: [
-                    if (tabs.isEmpty)
-                      BeakCard(title: title, children: form)
-                    else
-                      BeakTabs(
-                        tabs: [
-                          BeakTab(title: title, children: form),
-                          ...tabs,
-                        ],
-                      ),
-                  ],
-                ),
-        ),
+      BeakFormScreen(
+        roles: {
+          BeakScreenRole.read,
+          if (canCreate) BeakScreenRole.create,
+          if (canEdit) BeakScreenRole.edit,
+        },
+        recordHeader: header,
+        asideFraction: 1 / 3,
+        layout: form == null
+            ? null
+            : BeakFormLayout(
+                children: [
+                  if (tabs.isEmpty)
+                    BeakCard(title: title, children: form)
+                  else
+                    BeakTabs(
+                      tabs: [
+                        BeakTab(title: title, children: form),
+                        ...tabs,
+                      ],
+                    ),
+                ],
+              ),
+      ),
     ],
   );
 }

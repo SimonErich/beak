@@ -132,6 +132,29 @@ migration table at the end collects the common ones.
 - `sqlite3 ^3` in `worm_sqlite` and `beak_cli`, which Serverpod needs. The pinned
   Serverpod 4.0.4 CLI wrapper lives in `tool/serverpod_cli_4`.
 
+#### Panel APIs
+
+- `BeakPanelAccess` replaces the principal bridge: `can`, `canRead`, `has` and
+  `canAction` answer from the signed-in principal, and a `BeakPanelAccessScope`
+  refreshes every dependent widget when the roles change.
+- `BeakResource.standard(model, title, columns:, form:, tabs:, filters:,
+  header:, readOnly:)` declares the conventional list, detail page and forms.
+- `BeakPanelConfig.defaults` (`BeakListDefaults`), `labels` (`BeakLabels`) and
+  `definitions` give the whole panel one list shape, one label mapping and the
+  generated models' authored definitions.
+- `BeakLabels` localizes enum values, column labels and model commands in every
+  table cell, filter, form input, export and confirmation.
+- A detail page shows the model's metadata aside by default
+  (`showMetadataAside: false` opts out).
+- `BeakRelatedList`, `toMany.readOnlyRows`, `toMany.translationsForm` and
+  `toOne.link` cover the repeated relationship screens.
+- `BeakTableBlock.onRowTap` receives the row's context and opens the record by
+  default.
+- `runServerpodBeakAdmin` boots the whole Serverpod admin (path URLs, session,
+  roles, tunnel data source) in one call.
+- `beakRouteSweep` in `beak_test` mounts a panel at several widths and visits
+  every visible route.
+
 #### Command line
 
 - `beak.yaml` takes `theme.preset` (`standard` or `gabel`). With `gabel`,

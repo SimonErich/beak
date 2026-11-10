@@ -89,6 +89,7 @@ panel/auth-and-idle-lock.md
 panel/composed-lists.md
 panel/custom-screens.md
 panel/dashboards.md
+panel/defaults-and-labels.md
 panel/detail-and-dual-mode.md
 panel/drafts-and-review.md
 panel/forms.md
