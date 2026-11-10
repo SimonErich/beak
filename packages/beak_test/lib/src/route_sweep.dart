@@ -3,6 +3,8 @@ import 'package:beak_frontend/beak_frontend.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:obers_ui/obers_ui.dart';
+import 'package:signals/signals.dart';
 
 import 'in_memory_beak_data_source.dart';
 
@@ -65,7 +67,7 @@ Future<List<String>> beakRouteSweep(
       if (find.byType(ErrorWidget).evaluate().isNotEmpty) {
         throw TestFailure('$path rendered an ErrorWidget at ${size.width}px.');
       }
-      visited.add('${size.width}:$path');
+      visited.add('${size.width.toInt()}:$path');
     }
   }
   return visited;
@@ -118,12 +120,10 @@ Future<Object> _firstId(BeakModel model, BeakDataSource source) async {
 
 final class _SweepAuthAdapter extends BeakAuthAdapter {
   _SweepAuthAdapter(this.identity)
-    : _state = ValueNotifier<BeakAuthState>(
-        BeakAuthAuthenticated(identity),
-      );
+    : _state = signal<BeakAuthState>(BeakAuthAuthenticated(identity));
 
   final BeakAuthIdentity identity;
-  final ValueNotifier<BeakAuthState> _state;
+  final Signal<BeakAuthState> _state;
 
   @override
   ReadonlySignal<BeakAuthState> get state => _state;

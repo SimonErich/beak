@@ -186,6 +186,7 @@ class BeakWizardScreen extends BeakFormScreen {
     super.showBack,
     super.pagePadding,
     super.pageGapInPixels,
+    super.showMetadataAside,
     super.roles = const {BeakScreenRole.create, BeakScreenRole.edit},
   });
 }

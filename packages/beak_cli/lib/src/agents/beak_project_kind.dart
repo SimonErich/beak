@@ -72,14 +72,18 @@ enum BeakProjectKind {
 
   /// The word that marks the admin app's data source, which reaches Beak's
   /// API through the Serverpod endpoint.
-  static const String _tunnelSymbol = 'serverpodBeakDataSource';
+  static const Set<String> _tunnelSymbols = {
+    'serverpodBeakDataSource',
+    'runServerpodBeakAdmin',
+  };
 
   /// The package that mounts Beak's API in a Serverpod server.
   static const String _tunnelServerPackage = 'beak_serverpod_server';
 
   /// Whether the app at [root] reaches a Serverpod server through the tunnel.
   ///
-  /// True when a file under its `lib/` uses `serverpodBeakDataSource`, or a
+  /// True when a file under its `lib/` uses `serverpodBeakDataSource` or
+  /// `runServerpodBeakAdmin`, or a
   /// sibling package of its pub workspace depends on `beak_serverpod_server`,
   /// which is where the tunnel's other end lives.
   static bool _opensServerpodTunnel(Directory root) =>
@@ -94,7 +98,10 @@ enum BeakProjectKind {
         .listSync(recursive: true)
         .whereType<File>()
         .where((file) => file.path.endsWith('.dart'))
-        .any((file) => file.readAsStringSync().contains(_tunnelSymbol));
+        .any((file) {
+          final source = file.readAsStringSync();
+          return _tunnelSymbols.any(source.contains);
+        });
   }
 
   static bool _hasTunnelServerInWorkspace(Directory root) {
