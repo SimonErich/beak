@@ -61,11 +61,26 @@ final class _AdminBookModel extends BeakModel {
   );
 }
 
-BeakWriteBindings<_Write> _writes() => BeakWriteBindings(
-  (binding) => switch (binding) {
-    _Write.books => const BeakWriteHandler.stock(),
-  },
-);
+final class _Handlers implements BeakServerpodHandlers {
+  const _Handlers({this.scopes = const []});
+
+  @override
+  BeakWriteBindings<_Write> get writes => BeakWriteBindings(
+    (binding) => switch (binding) {
+      _Write.books => const BeakWriteHandler.stock(),
+    },
+  );
+
+  @override
+  final List<BeakRowScope> scopes;
+}
+
+String _get(String path) => BeakWireRequest(
+  method: 'GET',
+  path: path,
+  headers: const {'content-type': 'application/json'},
+  body: '',
+).encode();
 
 String _createRequest(String saveId, {String title = 'Moominland'}) =>
     BeakWireRequest(
@@ -135,11 +150,11 @@ void main() {
   BeakServerpodEngine admitted({
     BeakSavePlanPreparer? preparePlan,
     BeakException? Function(Object error, StackTrace stackTrace)? mapException,
+    List<BeakRowScope> scopes = const [],
   }) => BeakServerpodEngine.admitted(
     models: const [_AdminBookModel(), AuthorModel()],
-    definitions: BeakDefinitions.none,
     principal: BeakServerpodPrincipal.fromScopes,
-    writes: _writes(),
+    handlers: _Handlers(scopes: scopes),
     preparePlan: preparePlan,
     mapException: mapException,
     adapter: adapter,
@@ -170,6 +185,49 @@ void main() {
 
     expect(result.complete, isFalse);
     expect(result.outcomes.single.status, BeakWriteOutcome.unapplied);
+  });
+
+  test('a handler row scope narrows the list and opening a record', () async {
+    final engine = admitted(
+      scopes: [
+        BeakRowScope(
+          const _AdminBookModel(),
+          (principal) => const BeakFieldFilter(
+            column: BookColumns.title,
+            operator: BeakOperator.eq,
+            value: BeakStringValue('Kept'),
+          ),
+        ),
+      ],
+    );
+    await engine.dispatch(staff, _createRequest('seed'));
+    for (final (id, title) in [('b1', 'Kept'), ('b2', 'Hidden')]) {
+      await adapter.insert(
+        InsertDescriptor(
+          table: 'book',
+          values: {'id': id, 'title': title, 'priceInCents': 1},
+        ),
+      );
+    }
+
+    final list = BeakWireResponse.decode(
+      await engine.dispatch(
+        staff,
+        BeakWireRequest(
+          method: 'POST',
+          path: '/api/book/query',
+          headers: const {'content-type': 'application/json'},
+          body: jsonEncode(const BeakQuerySpec(table: 'book').toJson()),
+        ).encode(),
+      ),
+    );
+    final hidden = BeakWireResponse.decode(
+      await engine.dispatch(staff, _get('/api/book/b2')),
+    );
+
+    expect(list.body, contains('Kept'));
+    expect(list.body, isNot(contains('Hidden')));
+    expect(hidden.status, 404);
   });
 
   test('pruneExpiredReceipts deletes receipts older than the window', () async {

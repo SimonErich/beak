@@ -11,12 +11,15 @@
 ///   transaction.
 /// - [beakServerpodFrameworkTables]: Beak's graph-commit receipts and effect
 ///   outbox on tool-owned Serverpod models.
+/// - [BeakServerpodWrite] and [BeakServerpodHandlers]: what the server
+///   handlers `beak generate` writes receive and implement.
 library;
 
 export 'src/beak_admin_gate.dart';
 export 'src/beak_serverpod.dart';
 export 'src/beak_serverpod_engine.dart';
 export 'src/beak_serverpod_framework_tables.dart';
+export 'src/beak_serverpod_write.dart';
 export 'src/beak_tunnel_path.dart';
 export 'src/serverpod_database_bridge.dart';
 export 'src/serverpod_session_adapter.dart';

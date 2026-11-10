@@ -12,6 +12,7 @@ import 'package:worm/worm.dart' show DatabaseAdapter;
 import 'beak_admin_gate.dart';
 import 'beak_serverpod.dart';
 import 'beak_serverpod_framework_tables.dart';
+import 'beak_serverpod_write.dart';
 import 'beak_tunnel_path.dart';
 import 'serverpod_session_adapter.dart';
 
@@ -143,31 +144,28 @@ final class BeakServerpodEngine {
     );
   }
 
-  /// Builds the pipeline from generated models and their authored
-  /// definitions.
+  /// Builds the pipeline from generated models and their server handlers.
   ///
   /// This is the one-line composition a generated admin uses: it registers
-  /// [models] (binding [definitions] first), derives the policy from each
-  /// model's permissions, admission and capabilities, and validates [writes].
+  /// [models], derives the policy from each model's permissions, admission,
+  /// capabilities and [handlers]' row scopes, and validates the handlers'
+  /// write bindings against the models.
   ///
   /// ```dart
   /// final engine = BeakServerpodEngine.admitted(
   ///   models: qateryAdminModels,
-  ///   definitions: qateryAdminDefinitions,
+  ///   handlers: QateryAdminHandlers(voucher: VoucherAdminHandler()),
   ///   principal: resolveQateryPrincipal,
-  ///   writes: qateryAdminWrites,
   ///   trees: qateryAdminTrees,
   /// );
   /// ```
   ///
-  /// [writes] drive [executeOperation]; pass a handler per binding and the
-  /// engine runs it in the save transaction. A binding that returns `null`
-  /// persists the operation the stock way.
+  /// The handlers run in the save transaction; a stock model is persisted
+  /// the stock way.
   factory BeakServerpodEngine.admitted({
     required List<BeakModel> models,
-    required BeakDefinitions definitions,
     required BeakServerpodPrincipalResolver principal,
-    BeakWriteBindings<Enum>? writes,
+    BeakServerpodHandlers? handlers,
     List<BeakTreeRule> trees = const [],
     BeakServerpodAdmission admit = BeakServerpodAdmissionRules.adminScope,
     BeakUnexpectedErrorListener onUnexpectedError = _logError,
@@ -182,11 +180,15 @@ final class BeakServerpodEngine {
     DateTime Function()? now,
     DatabaseAdapter? adapter,
   }) {
-    final registry = BeakModelRegistry.of(models, definitions: definitions);
+    final registry = BeakModelRegistry.of(models);
+    final writes = handlers?.writes;
     writes?.validate(registry);
     return BeakServerpodEngine(
       registry: registry,
-      policy: BeakPolicies.admitted(registry),
+      policy: BeakPolicies.admitted(
+        registry,
+        scopes: handlers?.scopes ?? const [],
+      ),
       principal: principal,
       admit: admit,
       onUnexpectedError: onUnexpectedError,

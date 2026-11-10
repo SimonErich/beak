@@ -44,38 +44,31 @@ class BeakAdminEndpoint extends Endpoint with BeakAdminGate {
 }
 ```
 
-The engine is a top-level value, built once and shared by every request. `policy`
-is required: there is no allow-all default.
+The engine is a top-level value, built once and shared by every request.
+`BeakServerpodEngine.admitted` takes the models `beak generate` wrote from the
+admin's definition classes and the generated handlers, and derives the policy
+from each model's permissions, admission and capabilities:
 
 ```dart title="examples/serverpod/bookshop_server/lib/src/beak/bookshop_beak_engine.dart"
 /// The bookshop's Beak engine: one per process, shared by every request.
 ///
-/// It serves Beak's stock API for the models in `bookshop_beak` on the
+/// It serves Beak's stock API for the bookshop's definition classes on the
 /// request's own Serverpod session, so every statement runs on Serverpod's
-/// database with its transactions and logging.
-final BeakServerpodEngine bookshopBeak = BeakServerpodEngine(
-  registry: buildBeakRegistry(),
-  policy: bookshopPolicy,
+/// database with its transactions and logging. No bookshop model runs custom
+/// code, so the generated handlers take no arguments.
+final BeakServerpodEngine bookshopBeak = BeakServerpodEngine.admitted(
+  models: bookshopModels,
+  handlers: const BookshopHandlers(),
+  principal: BeakServerpodPrincipal.fromScopes,
 );
 ```
 
-Holding `beak.admin` opens the tunnel and grants nothing. The policy names every
-model and operation it allows, and everything else is closed:
-
-```dart title="examples/serverpod/bookshop_server/lib/src/beak/bookshop_policy.dart"
-/// Who may do what in the bookshop admin.
-///
-/// Deny by default: holding `beak.admin` opens the tunnel and grants nothing.
-/// Staff (the `bookshop.staff` scope) read and write authors and books.
-/// Nobody may delete: a rule that is not written is a rule that is closed, so
-/// removing an author (and, by cascade, their books) needs a deliberate rule.
-final BeakPolicies bookshopPolicy = BeakPolicies(
-  rules: [
-    BeakModelRules(const AuthorModel(), read: _staff, write: _staff),
-    BeakModelRules(const BookModel(), read: _staff, write: _staff),
-  ],
-);
-```
+Holding `beak.admin` opens the tunnel and grants nothing: a model is read only
+until its definition class opens a write, and every operation needs the roles
+of the model's area. A model that runs custom code (a use case behind a
+create, a command such as cancel, a derived stamp, a narrowed list) gets a
+generated handler base class; its implementation receives a
+`BeakServerpodWrite` with the request's `session` and `transaction`.
 
 The whole path, file by file, is
 [Setting up the admin app](https://simonerich.github.io/beak/serverpod/admin-app/setup/).
@@ -112,6 +105,10 @@ The whole path, file by file, is
 | Type | What it is |
 | --- | --- |
 | `BeakServerpodEngine` | Beak's Shelf pipeline in memory. Takes `registry`, a required `policy`, and optional `principal`, `preparePlan`, `finalizePlan`, `graphOnly`, `statementTimeoutInSeconds` (30), `frameworkTables`, `now` and `adapter`. |
+| `BeakServerpodEngine.admitted` | The generated-admin composition: `models`, `handlers` (the generated `<Prefix>Handlers`), `principal`, and optional `trees`, `mapException`, `graphOnly` and the rest. |
+| `BeakServerpodHandlers` | What the generated aggregate implements: the write bindings and the row scopes of the custom lists. |
+| `BeakServerpodWrite`, `BeakServerpodValues` | What a generated handler receives (`session`, `transaction`, `kind`, `principal`, `id`, `uuid`, `values`, `changes`, `existing`, `arguments`, `runs`), and the UUID conversion its typed values use. |
+| `beakServerpodCommands`, `beakServerpodRefused` | Bind a handler's commands to the model's declared actions, and refuse a plain update of a commands-only model. |
 | `BeakAdminGate` | The mixin that requires a login and `BeakScopes.admin`. |
 | `BeakScopes` | `BeakScopes.admin` is `Scope('beak.admin')`. It is deliberately not `Scope.admin`, so your own admins do not get the panel by accident. |
 | `BeakServerpodPrincipal`, `BeakServerpodPrincipalResolver` | Turn the signed-in user into the `BeakPrincipal` your policy decides on. Return `null` to refuse with 403. The engine calls it only for a user who holds `beak.admin`, and answers 403 itself for one who does not. |
