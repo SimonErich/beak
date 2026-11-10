@@ -43,6 +43,7 @@ Available commands:
   eject            Write a Beak default out as a file this project owns.
   init             Add the Beak admin panel to an existing Flutter app.
   introspect       Write Beak models for the tables an existing database already has.
+  make:definition  Write a read-only definition class from a Serverpod model.
   make:migration   Scaffold an empty, correctly-named migration.
   make:resource    Scaffold a resource: its schema class and its resource class.
   migrate          Apply, inspect or roll back migrations.
@@ -58,6 +59,7 @@ Available commands:
 | [`dev`](#beak-dev) | none | yes | Nothing itself; serves the API |
 | [`migrate`](#beak-migrate) | `[up\|status\|down\|fresh\|refresh]` | yes | Nothing itself; changes the database |
 | [`seed`](#beak-seed) | none | yes | Nothing itself; changes the database |
+| [`make:definition`](#beak-makedefinition) | `<Model>` | no | One definition class |
 | [`make:resource`](#beak-makeresource) | `<Name>` | at the end | A schema class and a resource class |
 | [`make:migration`](#beak-makemigration) | `<Name>` | no | One migration file |
 | [`introspect`](#beak-introspect) | `<database-url>` | no | Schema classes, a baseline migration, optionally `.env` |
@@ -574,6 +576,33 @@ The default table name comes from a small pluraliser (`Day` becomes `days`, `Per
 >     --fields    Comma-separated name:kind pairs (string|text|int|decimal|double|bool|datetime).
 >                 (defaults to "")
 > ```
+
+## beak make:definition
+
+Writes a read-only definition class from an existing Serverpod model.
+
+```console
+beak make:definition <Model> [--project <path>] [--area <name>]
+```
+
+`Model` is the Serverpod `class:` name. The class declares every stored field
+with Serverpod's type and nullability, turns relations into `@BelongsTo`,
+`@HasOne` or `@HasMany`, marks timestamps and `version` `@ReadOnly`, copies
+Serverpod's `###` docs and writes the `part` directive. Server-only and
+secret-looking fields are left out. The annotation is read-only by default,
+with a `reason:`.
+
+`--project` points at the panel package when the command runs from the
+workspace root. `--area` picks the folder under
+`generate.definitions/lib/src`; it defaults to the only area, or to the
+model's server folder when that names an area. A relation whose target class
+does not exist yet fails with the class to generate first.
+
+```console
+$ beak make:definition Book --project apps/shop_admin
+  created apps/shop_admin/definitions/lib/src/catalog/book.dart
+$ beak generate --project apps/shop_admin
+```
 
 ## beak make:migration
 

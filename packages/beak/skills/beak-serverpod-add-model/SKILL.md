@@ -25,7 +25,16 @@ migration cannot be generated; create a migration first.
 
 ## 2. Write the definition class
 
-One file per model in the definitions package, named after the class:
+Start from the generated draft, which copies the fields, types, relations and
+Serverpod docs:
+
+```console
+$ beak make:definition Product --project apps/shop_admin
+  created apps/shop_admin/definitions/lib/src/catalog/product.dart
+```
+
+Then open the operations and add the rules the admin needs. One file per
+model in the definitions package, named after the class:
 
 ```dart
 import 'package:beak_core/beak_core.dart';

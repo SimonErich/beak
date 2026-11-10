@@ -10,7 +10,8 @@ refuses.
 
 | You want | Command or key |
 | --- | --- |
-| Expose a model | A `@Resource` + `@ServerpodModel` class in the definitions package |
+| Expose a model | `beak make:definition <Model>`, or write the class by hand |
+| Scaffold the definition | `beak make:definition <Model> --project apps/shop_admin` |
 | Generate the parts and handler bases | `beak generate --project apps/shop_admin` |
 | Prove the output is current | `beak generate ... --check` |
 | Say where the server is | `beak.yaml` `serverpod:` |
@@ -31,6 +32,11 @@ Four inputs decide the output, and none of them is the output itself:
    ([Labels in every language](../../panel/labels.md)).
 
 ## A definition class
+
+`beak make:definition <Model>` writes the first draft: every stored field with
+its Serverpod type and nullability, relations, read-only timestamps and
+version, the copied docs and the `part` directive. The model is read-only
+until you open an operation.
 
 A definition class has the Serverpod model's name and declares the fields the
 admin exposes, typed and named as Serverpod declares them. The field list is

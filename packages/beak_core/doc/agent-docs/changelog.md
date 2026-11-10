@@ -151,6 +151,11 @@ migration table at the end collects the common ones.
 
 #### beak generate
 
+- `beak make:definition <Model>` writes a read-only definition class from a
+  Serverpod model: typed fields, relations, read-only timestamps and version,
+  copied Serverpod docs and the `part` directive. Relations need their target
+  definition first; `--area` picks the folder when `beak.yaml` names more than
+  one.
 - `beak generate` reads a Serverpod server's `*.spy.yaml` models, the newest
   `definition_project.json` migration and the definition classes of the
   admin's pure-Dart definitions package, one `@Resource` + `@ServerpodModel`
