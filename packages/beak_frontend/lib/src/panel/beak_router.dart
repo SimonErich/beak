@@ -232,13 +232,15 @@ Widget _watchAuth(
   final auth = config.auth;
   if (auth == null) return Builder(builder: builder);
   final adapter = auth.adapter ?? beakDependencies(context)<BeakSessionStore>();
-  return Watch((context) {
-    final identity = switch (adapter.state.value) {
-      BeakAuthAuthenticated(:final identity) => identity.id,
-      _ => null,
-    };
-    return KeyedSubtree(key: ValueKey(identity), child: builder(context));
-  });
+  return SignalBuilder(
+    builder: (context) {
+      final identity = switch (adapter.state.value) {
+        BeakAuthAuthenticated(:final identity) => identity.id,
+        _ => null,
+      };
+      return KeyedSubtree(key: ValueKey(identity), child: builder(context));
+    },
+  );
 }
 
 /// Whether a custom page claims the home route `/`.
@@ -404,21 +406,25 @@ Widget _forbiddenPage(BuildContext context, BeakPanelConfig config) {
             (container.isRegistered<BeakSessionStore>()
                 ? container<BeakSessionStore>()
                 : null);
-  return Watch((context) {
-    final refused = switch (adapter?.state.value) {
-      BeakAuthAuthenticated(:final identity) => !identity.canAccessPanel,
-      _ => false,
-    };
-    return OiErrorPage.forbidden(
-      actionLabel: refused ? strings.authBackToLogin : strings.backToDashboard,
-      onAction: switch (adapter) {
-        final BeakAuthAdapter session when refused => () => unawaited(
-          session.logout(),
-        ),
-        _ => () => context.go('/'),
-      },
-    );
-  });
+  return SignalBuilder(
+    builder: (context) {
+      final refused = switch (adapter?.state.value) {
+        BeakAuthAuthenticated(:final identity) => !identity.canAccessPanel,
+        _ => false,
+      };
+      return OiErrorPage.forbidden(
+        actionLabel: refused
+            ? strings.authBackToLogin
+            : strings.backToDashboard,
+        onAction: switch (adapter) {
+          final BeakAuthAdapter session when refused => () => unawaited(
+            session.logout(),
+          ),
+          _ => () => context.go('/'),
+        },
+      );
+    },
+  );
 }
 
 /// The panel chrome around every routed page: an `OiAppShell` whose

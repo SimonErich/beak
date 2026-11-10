@@ -140,7 +140,7 @@ The API origin is a compile-time value. The panel is a Flutter web app with no e
 
 ### The Widget: render Signals, forward intent
 
-Panel widgets are `HookWidget`s. `StatefulWidget` is forbidden in Beak code. A widget owns its view model through hooks, refreshes it once and disposes it with the widget, and rebuilds through `Watch` when a signal changes.
+Panel widgets are `HookWidget`s. `StatefulWidget` is forbidden in Beak code. A widget owns its view model through hooks, refreshes it once and disposes it with the widget, and rebuilds through `SignalBuilder` when a signal changes.
 
 ```dart title="packages/beak_frontend/lib/src/table/beak_data_table.dart"
 useEffect(() {
@@ -151,7 +151,7 @@ useEffect(() {
 ```
 
 ```dart title="packages/beak_frontend/lib/src/table/beak_data_table.dart"
-return Watch.builder(
+return SignalBuilder(
   builder: (context) {
     final page = viewModel.page.value;
     final rows = page?.items ?? const <BeakRecord>[];
@@ -402,7 +402,7 @@ A non-forced delete, and a create or an update made outside a form (a dragged bo
 
 ## What it means for you
 
-- Read state through `Watch` on a `ReadonlySignal`. Do not copy a signal's value into widget state.
+- Read state through `SignalBuilder` on a `ReadonlySignal`. Do not copy a signal's value into widget state.
 - Custom widgets resolve dependencies with `beakDependencies(context)`, not `GetIt.instance`.
 - Call `beakRun` when a custom workflow needs the result boundary. Do not catch `BeakException` in a view model.
 - In a widget test pass `dataSource:` to `BeakPanel` with an `InMemoryBeakDataSource`. It implements no commit interface, so form saves go through the staged path.

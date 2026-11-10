@@ -18,7 +18,7 @@ Add to a project's `dev_dependencies`:
 
 ```yaml
 dev_dependencies:
-  build_runner: ^2.4.0
+  build_runner: ^2.17.1
   worm_generator:
     path: ../worm_generator
 ```

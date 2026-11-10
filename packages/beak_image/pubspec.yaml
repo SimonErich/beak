@@ -15,7 +15,7 @@ environment:
 dependencies:
   beak_core:
     path: ../beak_core
-  image: 4.9.1
+  image: ^4.9.2
 
 dev_dependencies:
   lints: ^6.0.0

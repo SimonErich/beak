@@ -33,7 +33,7 @@ class WormTableGenerator extends GeneratorForAnnotation<Table> {
     await _warnIfQueryBuilderUnresolved(buildStep);
     final tableName =
         annotation.peek('name')?.stringValue ??
-        NamingConvention.tableName(element.name);
+        NamingConvention.tableName(element.displayName);
     final columns = <ColumnDescriptor>[];
     for (final field in element.fields) {
       final annotation = _columnAnnotation(field);
@@ -41,7 +41,7 @@ class WormTableGenerator extends GeneratorForAnnotation<Table> {
       columns.add(_toColumnDescriptor(field, annotation));
     }
     final descriptor = ModelDescriptor(
-      className: element.name,
+      className: element.displayName,
       tableName: tableName,
       columns: columns,
       scopes: _readScopes(element),
@@ -73,8 +73,8 @@ class WormTableGenerator extends GeneratorForAnnotation<Table> {
     final routesConnection = connection != 'default';
     if (data.isEmpty && !routesConnection) return '';
     final lines = <String>[
-      '/// Generated annotation overrides for ${element.name}.',
-      'mixin _\$${element.name}Annotations on Model {',
+      '/// Generated annotation overrides for ${element.displayName}.',
+      'mixin _\$${element.displayName}Annotations on Model {',
     ];
     if (routesConnection) lines.add(_renderConnectionGetter(connection));
     if (data.hidden.isNotEmpty) lines.add(_renderHiddenGetter(data.hidden));
@@ -101,24 +101,24 @@ class WormTableGenerator extends GeneratorForAnnotation<Table> {
 
     for (final field in element.fields) {
       final dbName = _columnDbName(field);
-      for (final meta in field.metadata) {
+      for (final meta in field.metadata.annotations) {
         final value = meta.computeConstantValue();
         if (value == null) continue;
-        final type = value.type?.getDisplayString(withNullability: false);
+        final type = value.type?.getDisplayString();
         switch (type) {
           case 'Hidden':
             hidden.add(dbName);
           case 'CastAs':
             final castType = ConstantReader(value).peek('castType')?.typeValue;
-            final castName = castType?.getDisplayString(withNullability: false);
+            final castName = castType?.getDisplayString();
             if (castName != null) casts[dbName] = castName;
         }
       }
     }
-    for (final meta in element.metadata) {
+    for (final meta in element.metadata.annotations) {
       final value = meta.computeConstantValue();
       if (value == null) continue;
-      final type = value.type?.getDisplayString(withNullability: false);
+      final type = value.type?.getDisplayString();
       switch (type) {
         case 'Fillable':
           fillable.addAll(_readStringList(ConstantReader(value), 'fields'));
@@ -135,14 +135,14 @@ class WormTableGenerator extends GeneratorForAnnotation<Table> {
   }
 
   String _columnDbName(FieldElement field) {
-    for (final meta in field.metadata) {
+    for (final meta in field.metadata.annotations) {
       final reader = _readerFor(meta, 'Column');
       if (reader == null) continue;
       final explicit = reader.peek('name')?.stringValue;
       if (explicit != null) return explicit;
       break;
     }
-    return NamingConvention.toSnakeCase(field.name);
+    return NamingConvention.toSnakeCase(field.displayName);
   }
 
   List<String> _readStringList(ConstantReader reader, String name) {
@@ -207,8 +207,12 @@ class WormTableGenerator extends GeneratorForAnnotation<Table> {
   String _renderAccessorExtension(ClassElement element) {
     final getters = <String>[];
     for (final field in element.fields) {
-      for (final meta in field.metadata) {
-        final getter = _renderAccessorGetter(element.name, field.name, meta);
+      for (final meta in field.metadata.annotations) {
+        final getter = _renderAccessorGetter(
+          element.displayName,
+          field.displayName,
+          meta,
+        );
         if (getter == null) continue;
         getters.add(getter);
         break;
@@ -216,8 +220,8 @@ class WormTableGenerator extends GeneratorForAnnotation<Table> {
     }
     if (getters.isEmpty) return '';
     return [
-      '/// Relation accessors for ${element.name}.',
-      'extension ${element.name}Accessors on ${element.name} {',
+      '/// Relation accessors for ${element.displayName}.',
+      'extension ${element.displayName}Accessors on ${element.displayName} {',
       getters.join('\n\n'),
       '}',
     ].join('\n');
@@ -230,13 +234,11 @@ class WormTableGenerator extends GeneratorForAnnotation<Table> {
   ) {
     final value = meta.computeConstantValue();
     if (value == null) return null;
-    final type = value.type?.getDisplayString(withNullability: false);
+    final type = value.type?.getDisplayString();
     final reader = ConstantReader(value);
     final relatedType = reader.peek('related')?.typeValue;
     if (relatedType == null) return null;
-    final relatedClassName = relatedType.getDisplayString(
-      withNullability: false,
-    );
+    final relatedClassName = relatedType.getDisplayString();
     switch (type) {
       case 'HasMany':
       case 'HasOne':
@@ -327,7 +329,7 @@ class WormTableGenerator extends GeneratorForAnnotation<Table> {
       NamingConvention.pivotTableName(parentName, relatedName);
 
   ConstantReader? _columnAnnotation(FieldElement field) {
-    for (final meta in field.metadata) {
+    for (final meta in field.metadata.annotations) {
       final reader = _readerFor(meta, 'Column');
       if (reader != null) return reader;
     }
@@ -340,11 +342,11 @@ class WormTableGenerator extends GeneratorForAnnotation<Table> {
   ) {
     final dbName =
         column.peek('name')?.stringValue ??
-        NamingConvention.toSnakeCase(field.name);
-    final dartType = field.type.getDisplayString(withNullability: true);
+        NamingConvention.toSnakeCase(field.displayName);
+    final dartType = field.type.getDisplayString();
     final baseType = _stripNullable(dartType);
     return ColumnDescriptor(
-      dartName: field.name,
+      dartName: field.displayName,
       dbName: dbName,
       dartType: baseType,
       isNullable: field.type.nullabilitySuffix == NullabilitySuffix.question,
@@ -355,18 +357,19 @@ class WormTableGenerator extends GeneratorForAnnotation<Table> {
   List<ScopeDescriptor> _readScopes(ClassElement element) {
     final scopes = <ScopeDescriptor>[];
     for (final method in element.methods) {
-      for (final meta in method.metadata) {
+      for (final meta in method.metadata.annotations) {
         final reader = _readerFor(meta, 'Scope');
         if (reader == null) continue;
-        final scopeName = reader.peek('name')?.stringValue ?? method.name;
+        final scopeName =
+            reader.peek('name')?.stringValue ?? method.displayName;
         scopes.add(
           ScopeDescriptor(
             name: scopeName,
             parameters: <ScopeParameter>[
-              for (final param in method.parameters)
+              for (final param in method.formalParameters)
                 ScopeParameter(
-                  name: param.name,
-                  type: param.type.getDisplayString(withNullability: true),
+                  name: param.displayName,
+                  type: param.type.getDisplayString(),
                 ),
             ],
           ),
@@ -379,12 +382,12 @@ class WormTableGenerator extends GeneratorForAnnotation<Table> {
 
   List<String> _readGlobalScopes(ClassElement element) {
     final globals = <String>[];
-    for (final meta in element.metadata) {
+    for (final meta in element.metadata.annotations) {
       final reader = _readerFor(meta, 'GlobalScope');
       if (reader == null) continue;
       final type = reader.peek('scopeType')?.typeValue;
       if (type == null) continue;
-      globals.add(type.getDisplayString(withNullability: false));
+      globals.add(type.getDisplayString());
     }
     return globals;
   }
@@ -394,7 +397,7 @@ class WormTableGenerator extends GeneratorForAnnotation<Table> {
     if (value == null) return null;
     final type = value.type;
     if (type == null) return null;
-    if (type.getDisplayString(withNullability: false) != typeName) return null;
+    if (type.getDisplayString() != typeName) return null;
     return ConstantReader(value);
   }
 
@@ -414,7 +417,7 @@ class WormTableGenerator extends GeneratorForAnnotation<Table> {
       );
       return;
     }
-    if (library.exportNamespace.get('QueryBuilder') == null) {
+    if (library.exportNamespace.get2('QueryBuilder') == null) {
       log.warning(
         'QueryBuilder is not exported from package:worm/worm.dart; '
         'generated query starters will not compile.',

@@ -209,7 +209,7 @@ useEffect(() {
 ```
 
 ```dart title="packages/beak_frontend/lib/src/table/beak_data_table.dart"
-return Watch.builder(
+return SignalBuilder(
   builder: (context) {
     final page = viewModel.page.value;
     final rows = page?.items ?? const <BeakRecord>[];

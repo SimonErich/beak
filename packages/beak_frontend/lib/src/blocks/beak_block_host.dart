@@ -72,8 +72,8 @@ class BeakBlockHost extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => switch (block) {
-    final BeakVisibilityBlock visibility => Watch(
-      (_) => visibility.visibleWhen()
+    final BeakVisibilityBlock visibility => SignalBuilder(
+      builder: (_) => visibility.visibleWhen()
           ? BeakBlockHost(block: visibility.child)
           : const SizedBox.shrink(),
     ),

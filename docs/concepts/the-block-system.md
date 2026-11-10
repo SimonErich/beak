@@ -42,8 +42,8 @@ Every concrete block (about fifty: layout, content, data, chart, record and modu
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_block_host.dart"
   Widget build(BuildContext context) => switch (block) {
-    final BeakVisibilityBlock visibility => Watch(
-      (_) => visibility.visibleWhen()
+    final BeakVisibilityBlock visibility => SignalBuilder(
+      builder: (_) => visibility.visibleWhen()
           ? BeakBlockHost(block: visibility.child)
           : const SizedBox.shrink(),
     ),

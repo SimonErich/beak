@@ -276,8 +276,8 @@ class _SaveViewDialog extends HookWidget {
       () => store.form(controller, snapshot: snapshot),
       [store, controller],
     );
-    return Watch(
-      (context) => OiDialog.standard(
+    return SignalBuilder(
+      builder: (context) => OiDialog.standard(
         label: BeakLocalizations.of(context).saveView,
         title: BeakLocalizations.of(context).saveView,
         dismissible: false,

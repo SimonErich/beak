@@ -221,7 +221,7 @@ Drivers are one axis of the package family. Here is the full split:
 | --- | --- | --- |
 | `worm` | Core runtime: models, query builder, migrations, seeding, transactions, CLI, and `InMemoryAdapter` | Always |
 | `worm_generator` | `build_runner` codegen. Emits `.g.dart` part files (the typed `User$` companion, hydration) for annotated models | Whenever you define models with annotations, which is the recommended path |
-| `worm_lints` | `custom_lint` rules that enforce worm conventions during analysis | Optional, dev-time only |
+| `worm_lints` | Analyzer plugin rules that enforce worm conventions during analysis | Optional, dev-time only |
 | `worm_sqlite`, `worm_postgres`, `worm_mysql`, `worm_mongodb` | `DatabaseAdapter` implementations for real databases | One per backend you talk to |
 
 `worm` is the only required package. `worm_generator` and `worm_lints` are dev dependencies; the drivers are runtime dependencies you pick per connection. See [installation](../start-here/installation.md) for the full pubspec wiring.

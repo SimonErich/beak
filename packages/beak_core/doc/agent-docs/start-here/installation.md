@@ -11,7 +11,7 @@ Two things are not finished yet, and this page says so where they bite: Beak `0.
 | You need | Version | Why |
 | --- | --- | --- |
 | Dart SDK | `^3.11` | The CLI and the server half. |
-| Flutter | `3.41` or newer | The panel. `beak create` calls `flutter pub get` and `flutter create`. |
+| Flutter | `3.44` or newer | The panel. `beak create` calls `flutter pub get` and `flutter create`. |
 | git | any | The CLI and the obers_ui pin come from git. |
 
 That is the whole list. A new project's database is a SQLite file Beak creates on first run, so there is nothing to install or start before you see a panel. Docker and Postgres show up later, and only if you want them.
