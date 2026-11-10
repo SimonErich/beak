@@ -204,6 +204,21 @@ void main() {
     expect(messages, contains('"nobody.actions.x"'));
   });
 
+  test('a shared key every model overrides is reported as unused', () {
+    final resolution = resolveBeakLabels(
+      catalog: catalog({
+        'models_de.arb': '''
+{"@@locale": "de", "*.email": "E-Mail", "placedOrder.email": "Adresse"}''',
+      }),
+      schemas: const [_order],
+    );
+
+    expect(
+      resolution.errors.single.message,
+      allOf(contains('"*.email" is never used'), isNot(contains('Did you'))),
+    );
+  });
+
   test('a key missing in one locale is an error', () {
     final resolution = resolveBeakLabels(
       catalog: catalog({

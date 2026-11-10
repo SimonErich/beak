@@ -244,8 +244,11 @@ final class _Resolver {
     for (final key in catalog.keys.difference(_used).toList()..sort())
       BeakLabelIssue(
         path,
-        '"$key" names no model, field, relationship, enum value or action.'
-        '${_suggestionFor(key, modelKeys)}',
+        _asked.contains(key)
+            ? '"$key" is never used: every field, relationship or enum value '
+                  'of that name has its own key. Remove it.'
+            : '"$key" names no model, field, relationship, enum value or '
+                  'action.${_suggestionFor(key, modelKeys)}',
       ),
   ];
 
