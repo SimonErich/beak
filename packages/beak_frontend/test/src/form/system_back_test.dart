@@ -74,7 +74,9 @@ void main() {
       await tester.tap(find.text('Discard changes').last);
       await tester.pumpAndSettle();
 
-      expect(find.byType(BeakConfiguredForm), findsNothing);
+      // The show page is a form too; what matters is that the create draft is
+      // gone and the target path was reached.
+      expect(find.text('Unsaved'), findsNothing);
       expect(find.text('Leave this form?'), findsNothing);
       expect(router.routeInformationProvider.value.uri.path, '/notes/n1');
     },

@@ -894,6 +894,13 @@ class _BeakIdleLock extends HookWidget {
         timer = Timer(timeout, () {
           _lockingRouters.add(router);
           authRefresh?.lock();
+          // An open dialog, sheet or command palette would sit above the lock
+          // screen; close them before navigating.
+          closeBeakCommandBar();
+          Navigator.maybeOf(
+            context,
+            rootNavigator: true,
+          )?.popUntil((route) => route.isFirst);
           router.go('/lock');
         });
       }
