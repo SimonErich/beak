@@ -42,6 +42,7 @@ export 'src/pages/beak_resource_pages.dart';
 export 'src/pages/beak_screen_view.dart';
 export 'src/panel/beak_auth_config.dart';
 export 'src/panel/beak_maintenance_config.dart';
+export 'src/panel/beak_localized_panel.dart';
 export 'src/panel/beak_panel.dart';
 export 'src/panel/beak_panel_access.dart';
 export 'src/panel/beak_command_bar.dart';
