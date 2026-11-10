@@ -78,3 +78,11 @@ List<String> requiredRoles(Object? value, String key) {
     '$key must name a role, or list the roles that are all required.',
   );
 }
+
+/// [value] as a mapping, or `null` when the key is not written.
+YamlMap? optionalYamlMap(Object? value, String context) {
+  final Object? raw = value is YamlNode ? value.value : value;
+  if (raw == null) return null;
+  if (raw is YamlMap) return raw;
+  throw BeakProjectConfigException('$context must be a mapping.');
+}

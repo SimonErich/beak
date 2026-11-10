@@ -232,7 +232,7 @@ resources:
       );
       expect(
         () => parse('agents:\n  skills: [claude, vim]\n'),
-        rejects('agents.skills has "vim"; expected claude, agents or cursor'),
+        rejects('expected claude, agents, cursor or a folder path'),
       );
       expect(
         () => parse('agents:\n  skills: [3]\n'),

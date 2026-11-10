@@ -183,6 +183,60 @@ theme:
 
 The two sidebar behaviours are booleans, and both default as shown, so a panel that wants neither can leave them out. Anything else about the look of the panel is Dart, in `lib/theme.dart` (`beak eject theme`), see [Theming basics](../theming/theming-basics.md).
 
+## `serverpod`
+
+Where the Serverpod models are, when the admin's schema is generated from a
+server.
+
+```yaml
+serverpod:
+  server: ../../server
+  models: [lib/src]
+  exclude: [lib/src/features/erd]
+  migrations: migrations
+```
+
+- `server` is the server package, relative to `beak.yaml`. Required.
+- `models` are the folders scanned for `*.spy.yaml` (default `[lib/src]`).
+- `exclude` skips path prefixes. A class there is not importable, but its enums
+  still load when an admitted model uses them.
+- `migrations` holds the `*/definition_project.json` files; the newest is the
+  physical truth for columns, foreign keys (including Serverpod's shadow keys)
+  and unique indexes.
+
+## `generate`
+
+What `beak generate` writes, and the review rules it applies.
+
+```yaml
+generate:
+  output: generated
+  inventory: definitions/resources
+  prefix: Shop
+  roles: Permission
+  areas:
+    catalog: {read: readCatalog, write: writeCatalog}
+  writes: [configuration, translation, catalog]
+  conventions:
+    dateOnly: ['*Date', periodStart]
+    money: {fields: ['*Cents'], currency: EUR}
+    detailOnly: [version, isImported]
+```
+
+- `output` is the pure-Dart package. Required. Its `lib/` belongs to the
+  generator.
+- `inventory` is the folder of reviewed `*.yaml` admission files.
+- `prefix` names the generated classes; it defaults to the output package's
+  name without `_generated`, camel-cased.
+- `roles` names the Serverpod enum every area and access role is checked
+  against.
+- `areas` map an area to the roles that may read and write it.
+- `writes` is the set of write bindings, emitted as `enum <Prefix>Write`.
+- `conventions` set date-only columns, money columns and detail-only columns.
+
+Inventory files are the single source of truth for what may be written; see
+[Writes, commands and trees](../serverpod/admin-app/write-bindings.md).
+
 ## `resources`
 
 ```yaml

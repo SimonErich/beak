@@ -15,6 +15,7 @@ import '../schema/beak_migration_order.dart';
 import '../schema/beak_schema_emitter.dart';
 import '../schema/beak_schema_ir.dart';
 import '../schema/beak_schema_reader.dart';
+import '../serverpod/generator.dart';
 import 'agents_command.dart';
 
 /// Regenerates the wiring a Beak project needs, from what it declares.
@@ -65,6 +66,17 @@ final class PrepareCommand extends Command<int> {
 
   @override
   Future<int> run() async {
+    // A project that imports a Serverpod server regenerates its schema package
+    // first, so `beak prepare` is still the one command to run.
+    if (hasServerpodGenerate(environment.rootDirectory)) {
+      final generated = runServerpodGenerate(environment);
+      if (!generated.isSuccess) {
+        for (final problem in generated.problems) {
+          environment.out.writeln('beak generate: $problem');
+        }
+        return generated.exitCode;
+      }
+    }
     final BeakPrepareResult result = runPrepare(environment);
     if (result.isSuccess) {
       // The agent files describe what was just generated, so they follow it.

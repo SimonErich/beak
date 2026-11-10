@@ -132,6 +132,21 @@ migration table at the end collects the common ones.
 - `sqlite3 ^3` in `worm_sqlite` and `beak_cli`, which Serverpod needs. The pinned
   Serverpod 4.0.4 CLI wrapper lives in `tool/serverpod_cli_4`.
 
+#### beak generate
+
+- `beak generate` reads a Serverpod server's `*.spy.yaml` models, the newest
+  `definition_project.json` migration and the reviewed inventory, and writes a
+  self-contained schema package (`lib/` owned by the command, imports only
+  `beak_core` and its own files).
+- `beak.yaml` gains strict `serverpod:` and `generate:` sections (models,
+  migrations, output, inventory, prefix, roles, areas, writes, conventions).
+- The generated models declare `capabilities`, `permissions` and `admission`
+  from the inventory, resolve behavior and rules through `BeakDefinitions`, and
+  the barrel emits `<prefix>Models`, `create<Prefix>Registry` and
+  `enum <Prefix>Write`.
+- `--check`, orphan deletion (refusing files without the generated header), an
+  inputs stamp, `beak prepare` integration and a `beak doctor` check.
+
 #### Command line
 
 - `beak.yaml` takes `theme.preset` (`standard` or `gabel`). With `gabel`,

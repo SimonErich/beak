@@ -123,6 +123,7 @@ final class BeakAgentSettings {
     this.instructions = BeakAgentInstructions.all,
     this.docs = true,
     this.skills,
+    this.skillDirectories = const [],
   });
 
   /// Which `AGENTS.md` files Beak keeps its block in.
@@ -135,6 +136,10 @@ final class BeakAgentSettings {
   /// The folders `beak agents` installs skills into, or `null` to use the
   /// agent folders the workspace already has. An empty list installs none.
   final List<BeakSkillTarget>? skills;
+
+  /// Extra skill folders named by path in `agents.skills`, relative to the
+  /// workspace root (`.blueprints/skills`, for example).
+  final List<String> skillDirectories;
 }
 
 /// Per-resource presentation the panel reads before falling back to defaults.
@@ -311,6 +316,7 @@ final class BeakProjectConfig {
         instructions: _instructionsOf(agents?['instructions']),
         docs: _optionalBool(agents?['docs'], 'agents.docs') ?? true,
         skills: _skillTargetsOf(agents?['skills']),
+        skillDirectories: _skillDirectoriesOf(agents?['skills']),
       ),
       resources: resources,
       sidebarCollapsible:
@@ -516,6 +522,15 @@ final class BeakProjectConfig {
     );
   }
 
+  /// The `agents.skills` entries that are folder paths.
+  static List<String> _skillDirectoriesOf(Object? value) {
+    if (value is! YamlList) return const [];
+    return [
+      for (final entry in value)
+        if (entry is String && entry.contains('/')) entry,
+    ];
+  }
+
   /// The `agents.skills` targets, or `null` when the key is not written.
   static List<BeakSkillTarget>? _skillTargetsOf(Object? value) {
     if (value == null) {
@@ -528,12 +543,14 @@ final class BeakProjectConfig {
     }
     final targets = <BeakSkillTarget>[];
     for (final entry in value) {
+      if (entry is String && entry.contains('/')) continue;
       final BeakSkillTarget? target = entry is String
           ? BeakSkillTarget.parse(entry)
           : null;
       if (target == null) {
         throw BeakProjectConfigException(
-          'agents.skills has "$entry"; expected claude, agents or cursor.',
+          'agents.skills has "$entry"; expected claude, agents, cursor or a '
+          'folder path.',
         );
       }
       if (!targets.contains(target)) {

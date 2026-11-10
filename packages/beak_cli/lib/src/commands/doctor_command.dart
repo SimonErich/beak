@@ -27,6 +27,8 @@ import '../schema/beak_schema_drift.dart';
 import '../schema/beak_schema_emitter.dart';
 import '../schema/beak_schema_ir.dart';
 import '../schema/beak_schema_reader.dart';
+import '../serverpod/generate_issue.dart';
+import '../serverpod/generator.dart';
 import '../version.dart';
 import 'prepare_command.dart';
 
@@ -295,6 +297,32 @@ Future<List<BeakCheck>> diagnose(
     }
   }
   checks.add(_generatedFilesCheck(root, expected));
+  if (hasServerpodGenerate(root)) {
+    try {
+      final generated = runServerpodGenerate(environment, check: true);
+      checks.add(
+        BeakCheck(
+          status: generated.isSuccess
+              ? BeakCheckStatus.ok
+              : BeakCheckStatus.fail,
+          label: generated.isSuccess
+              ? 'the generated Serverpod schema is up to date'
+              : 'the generated Serverpod schema is stale',
+          remedy: generated.isSuccess ? null : 'run `beak generate`',
+          group: 'serverpod',
+        ),
+      );
+    } on BeakGenerateException catch (error) {
+      checks.add(
+        BeakCheck(
+          status: BeakCheckStatus.fail,
+          label: 'beak generate: ${error.issues.first}',
+          remedy: 'fix the server models, migration or inventory',
+          group: 'serverpod',
+        ),
+      );
+    }
+  }
   checks.addAll(_leftoverWiringChecks(root, config));
 
   checks.add(_migrationCoverageCheck(discovery, schemas, schemaIssues));

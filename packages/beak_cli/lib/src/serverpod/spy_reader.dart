@@ -78,8 +78,10 @@ final class SpyReader {
       }
       if (document.containsKey('exception')) continue;
       if (document.containsKey('enum')) {
+        // An excluded folder still declares the enums an admitted model uses.
         _readEnum(document, path, issues, enums);
       } else if (document.containsKey('class')) {
+        if (_excluded(path)) continue;
         _readClass(document, path, issues, classes);
       } else {
         issues.add(path, 'has none of `class:`, `enum:` or `exception:`.');
@@ -102,18 +104,15 @@ final class SpyReader {
       }
       for (final entity in directory.listSync(recursive: true)) {
         if (entity is! File || !entity.path.endsWith('.spy.yaml')) continue;
-        final String relative = p.posix.joinAll(
-          p.split(p.relative(entity.path, from: serverRoot.path)),
-        );
-        if (!settings.exclude.any(
-          (prefix) => relative == prefix || relative.startsWith('$prefix/'),
-        )) {
-          files.add(entity);
-        }
+        files.add(entity);
       }
     }
     return files..sort((a, b) => a.path.compareTo(b.path));
   }
+
+  bool _excluded(String path) => settings.exclude.any(
+    (prefix) => path == prefix || path.startsWith('$prefix/'),
+  );
 
   void _readClass(
     YamlMap document,

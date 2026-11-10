@@ -33,6 +33,8 @@ The example is a Serverpod project called `bookshop`, with two tables, `author` 
 
 ## Which page to read
 
+- [Generating the schema package](generate.md): the models, migration and inventory behind the typed model package.
+
 | You want to... | Read | For that |
 | --- | --- | --- |
 | Follow one request from the panel to the database | [How the admin app works](how-it-works.md) | The gated endpoint, the envelope, the session adapter, the receipts table |
