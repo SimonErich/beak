@@ -245,6 +245,7 @@ ServerpodIdentityResolver bookshopAdminIdentity(
   return BeakAuthIdentity(
     id: auth.authUserId,
     canAccessPanel: auth.scopeNames.contains(beakAdminScopeName),
+    roles: auth.scopeNames,
   );
 };
 ```
@@ -308,6 +309,13 @@ class _BeakIdleLock extends HookWidget {
         timer = Timer(timeout, () {
           _lockingRouters.add(router);
           authRefresh?.lock();
+          // An open dialog, sheet or command palette would sit above the lock
+          // screen; close them before navigating.
+          closeBeakCommandBar();
+          Navigator.maybeOf(
+            context,
+            rootNavigator: true,
+          )?.popUntil((route) => route.isFirst);
           router.go('/lock');
         });
       }
@@ -383,7 +391,11 @@ final routing = useMemoized(() {
         );
   return (
     container: container,
-    router: createBeakRouter(config, authRefresh: authRefresh),
+    router: createBeakRouter(
+      config,
+      authRefresh: authRefresh,
+      access: container<BeakPanelAccess>(),
+    ),
     authRefresh: authRefresh,
   );
   // The seams are part of the key: swapping a fake on rebuild used to

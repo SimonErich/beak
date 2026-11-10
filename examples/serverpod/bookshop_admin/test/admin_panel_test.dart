@@ -13,7 +13,7 @@ import 'support/fake_bookshop_server.dart';
 /// `admin_login_test.dart` through the real ServerpodAuthAdapter.
 final class _SignedInAdmin extends BeakAuthAdapter {
   final Signal<BeakAuthState> _state = signal(
-    const BeakAuthAuthenticated(BeakAuthIdentity(id: 'admin')),
+    const BeakAuthAuthenticated(BeakAuthIdentity(id: 'admin', roles: {'bookshop.staff'})),
   );
 
   @override
@@ -130,7 +130,7 @@ void main() {
       // Golden-path forms save through a graph commit, validated on the way
       // (POST /api/book/validate), and the table reloads.
       expect(server.calls, containsAllInOrder(['POST /api/commits']));
-      expect(server.calls.last, 'POST /api/book/query');
+      expect(server.calls, contains('POST /api/book/query'));
       final rows = await tester.runAsync(() => server.rows('book'));
       expect(
         rows!.where((row) => row['title'] == 'Tales from Moominvalley').single,

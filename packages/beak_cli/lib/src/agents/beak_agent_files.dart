@@ -252,7 +252,10 @@ final class BeakAgentReport {
         if (counts.containsKey(BeakSkillOutcome.unchanged))
           '${counts[BeakSkillOutcome.unchanged]} up to date',
       ].join(', ');
-      lines.add('  skills   ${target.directoryName}/skills: $summary');
+      lines.add(
+        '  skills   ${target.isDirectory ? target.label : '${target.directoryName}/skills'}: '
+        '$summary',
+      );
     }
     for (final warning in report.warnings) {
       lines.add('  ! $warning');

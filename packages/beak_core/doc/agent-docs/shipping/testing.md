@@ -17,6 +17,7 @@ A Beak project has two halves and they need different tests. The panel is Flutte
 | Who may read or write what | the real server, one client per role | `packages/beak_backend/test/src/auth/beak_policies_handlers_test.dart` |
 | That models and migrations agree | `expectSchemaParity` over a migrated database | `examples/clean_beak_config/test/shop_migration_test.dart` |
 | A `BeakDataSource` you wrote | `runBeakDataSourceContract` | `packages/beak_backend/test/src/data/worm/worm_data_source_contract_test.dart` |
+| That every screen renders at phone and desktop widths | `beakRouteSweep` | `packages/beak_test/lib/src/route_sweep.dart` |
 
 `beak create` writes the first row for you. This is the whole file:
 
@@ -552,6 +553,30 @@ $ beak doctor
   WARN invoices.subtotal is declared by Invoice.subtotal but missing from the database
        → beak make:migration AddSubtotalToInvoices --from-drift, then beak migrate
 ```
+
+## Sweeping every route
+
+`beakRouteSweep` mounts the panel at each width and opens every visible list,
+create, show and edit route, failing on a build exception or a rendered
+`ErrorWidget`. It is the cheapest way to catch an overflow at 375 px or a form
+that throws for a missing record:
+
+```dart
+testWidgets('every route renders', (tester) async {
+  await beakRouteSweep(
+    tester,
+    shopConfig,
+    dataSource: seededSource,
+    identity: const BeakAuthIdentity(
+      id: 'admin',
+      roles: {'adminRead', 'adminWrite'},
+    ),
+  );
+});
+```
+
+Without a seeded data source the sweep still visits every route: a detail page
+with no row renders its not-found state instead of a different route.
 
 ## Reference
 

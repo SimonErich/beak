@@ -12,7 +12,7 @@ void main() {
         ..register(const ProductModel())
         ..register(const CategoryModel()),
     );
-    await source.seed(const ProductModel(), [
+    source.seed(const ProductModel(), [
       BeakRecord.fromRow({
         'id': 'p1',
         'name': 'Espresso',
@@ -20,9 +20,9 @@ void main() {
         'active': true,
       }),
     ]);
-    final config = BeakPanelConfig(
+    const config = BeakPanelConfig(
       title: 'Sweep',
-      resources: const [BeakResource(model: ProductModel(), title: 'Products')],
+      resources: [BeakResource(model: ProductModel(), title: 'Products')],
     );
 
     final visited = await beakRouteSweep(

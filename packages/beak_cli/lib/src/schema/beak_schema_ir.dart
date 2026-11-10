@@ -105,6 +105,7 @@ final class BeakColumnIr {
     this.declaredValueType,
     this.arguments = const {},
     this.docComment,
+    this.omitFromValues = false,
   });
 
   /// The Dart field this column came from.
@@ -133,6 +134,13 @@ final class BeakColumnIr {
 
   /// The field's own doc comment, carried onto the generated constant.
   final String? docComment;
+
+  /// Whether the constant is emitted but kept out of `columns`.
+  ///
+  /// A relation foreign key needs a column constant the admission can name,
+  /// yet must not become a model column: the relation picker owns that value,
+  /// and a second raw input would edit the same storage twice.
+  final bool omitFromValues;
 
   /// Whether `@Column(unique: true)` was declared.
   ///

@@ -28,6 +28,16 @@ Every generated model names how its writes are persisted in
 generated enum has no value the switch does not mention, so adding a write
 binding is a compile error until you decide who executes it.
 
+## At a glance
+
+| You want | Use |
+| --- | --- |
+| Plain persistence | `BeakWriteHandler.stock()` |
+| A server stamp | `BeakWriteHandler.derive(...)` |
+| An existing use case | `BeakWriteHandler.commands(...)` |
+| No stock fallthrough | `otherwise: BeakUnmatched.refuse` |
+| A tree that stays a tree | `BeakTreeRule` |
+
 ## Binding the writes
 
 ```dart title="server/lib/src/admin_writes.dart"
@@ -121,6 +131,26 @@ The rule rejects a save that would:
 
 Cycles and over-deep moves are validation errors keyed on the parent field, so
 the form highlights the offending picker. A blocked delete is a conflict.
+
+## Rules and limits
+
+- A command plan must be a bare update with no other field changes
+  (`context.requireCommandOnly()`).
+- A write handler returns the persisted id; Beak re-reads the row in the same
+  transaction.
+- Tree rules lock small trees only; use `lockRows: false` for a cold tree.
+
+## Verify it
+
+- `writes.validate(registry)` passes at startup.
+- A command with extra field values is refused.
+- A blocked delete is a conflict; a cycle is a field error on the parent.
+
+## Reference
+
+- `packages/beak_backend/lib/src/writes/`
+- `packages/beak_backend/lib/src/auth/beak_tree_rule.dart`
+- `packages/beak_serverpod_server/lib/src/beak_serverpod_engine.dart`
 
 ## Composing the engine
 

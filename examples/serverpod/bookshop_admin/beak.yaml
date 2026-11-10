@@ -1,0 +1,16 @@
+# Beak project configuration of the bookshop admin. `beak generate` reads the
+# Serverpod models, the newest migration and the reviewed inventory below.
+name: Bookshop Admin
+
+serverpod:
+  server: ../bookshop_server
+  models: [lib/src]
+  migrations: migrations
+
+generate:
+  output: generated
+  inventory: definitions/resources
+  prefix: Bookshop
+  areas:
+    catalog: {read: bookshop.staff, write: bookshop.staff}
+  writes: [configuration]

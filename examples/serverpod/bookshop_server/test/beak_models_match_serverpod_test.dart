@@ -1,5 +1,5 @@
 import 'package:beak_core/beak_core.dart';
-import 'package:bookshop_beak/bookshop_beak.dart' as beak;
+import 'package:bookshop_definitions/bookshop_definitions.dart' as beak;
 import 'package:bookshop_server/src/generated/protocol.dart' as sp;
 import 'package:test/test.dart';
 

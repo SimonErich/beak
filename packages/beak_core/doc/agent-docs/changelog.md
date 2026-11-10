@@ -103,9 +103,6 @@ migration table at the end collects the common ones.
   form revision guards, queries, relations, summaries, delete and restore use
   the same keys. JSON columns normalize database objects and arrays to the
   existing document-text wire representation.
-- Removed the fixed-key constants `WormDataSource.softDeleteColumnKey` and
-  `BeakResourceService.createdAtColumnKey` / `updatedAtColumnKey`; use the
-  corresponding model metadata getters.
 
 - **Admin app in a Serverpod 4 workspace.** `beak_serverpod_server` runs Beak's
   stock Shelf API inside the Serverpod server, behind one gated endpoint method,
@@ -131,6 +128,65 @@ migration table at the end collects the common ones.
   selected, returned or stored in receipts.
 - `sqlite3 ^3` in `worm_sqlite` and `beak_cli`, which Serverpod needs. The pinned
   Serverpod 4.0.4 CLI wrapper lives in `tool/serverpod_cli_4`.
+
+<<<<<<< HEAD
+#### beak generate
+
+- `beak generate` reads a Serverpod server's `*.spy.yaml` models, the newest
+  `definition_project.json` migration and the reviewed inventory, and writes a
+  self-contained schema package (`lib/` owned by the command, imports only
+  `beak_core` and its own files).
+- `beak.yaml` gains strict `serverpod:` and `generate:` sections (models,
+  migrations, output, inventory, prefix, roles, areas, writes, conventions).
+- The generated models declare `capabilities`, `permissions` and `admission`
+  from the inventory, resolve behavior and rules through `BeakDefinitions`, and
+  the barrel emits `<prefix>Models`, `create<Prefix>Registry` and
+  `enum <Prefix>Write`.
+- `--check`, orphan deletion (refusing files without the generated header), an
+  inputs stamp, `beak prepare` integration and a `beak doctor` check.
+
+#### Panel APIs
+
+- `BeakPanelAccess` replaces the principal bridge: `can`, `canRead`, `has` and
+  `canAction` answer from the signed-in principal, and a `BeakPanelAccessScope`
+  refreshes every dependent widget when the roles change.
+- `BeakResource.standard(model, title, columns:, form:, tabs:, filters:,
+  header:, readOnly:)` declares the conventional list, detail page and forms.
+- `BeakPanelConfig.defaults` (`BeakListDefaults`), `labels` (`BeakLabels`) and
+  `definitions` give the whole panel one list shape, one label mapping and the
+  generated models' authored definitions.
+- `BeakLabels` localizes enum values, column labels and model commands in every
+  table cell, filter, form input, export and confirmation.
+- A detail page shows the model's metadata aside by default
+  (`showMetadataAside: false` opts out).
+- `BeakRelatedList`, `toMany.readOnlyRows`, `toMany.translationsForm` and
+  `toOne.link` cover the repeated relationship screens.
+- `BeakTableBlock.onRowTap` receives the row's context and opens the record by
+  default.
+- `runServerpodBeakAdmin` boots the whole Serverpod admin (path URLs, session,
+  roles, tunnel data source) in one call.
+- `beakRouteSweep` in `beak_test` mounts a panel at several widths and visits
+  every visible route.
+#### Server APIs
+
+- `BeakPolicies.admitted(registry, scopes:)` derives each rule from the model's
+  permissions, admission and capabilities; a model's capabilities are enforced
+  for every policy by the router and the graph commit service.
+- `BeakWriteBindings<W>` maps a generated write binding to a
+  `BeakWriteHandler`: stock persistence, a server-side stamp, or domain writes
+  with `otherwise: BeakUnmatched.refuse`. `BeakSaveOperationWrite.persisted(id)`
+  reads the row a use case wrote back in the same transaction, and
+  `BeakSaveOperationContext.merged` / `requireCommandOnly()` support commands.
+- Soft-deleted rows with an `admission.restoreKey` are restored by a stock
+  create instead of duplicated.
+- `BeakTreeRule` keeps a small tree a tree: cycles, delete-with-children or
+  references, repeated sibling values and over-deep moves are refused inside
+  the save transaction, after locking the tree's rows in a deadlock-free order.
+- `BeakServerpodEngine.admitted(...)` composes the registry, policy, write
+  bindings and tree rules in one call; `mapException` maps host failures;
+  `pruneExpiredReceipts(session)` deletes commit receipts older than 30 days.
+- `BeakException.forCategory` and `BeakServerpod.uuidOf` are the mapping and
+  identity seams a host use case usually needs.
 
 #### Command line
 
@@ -855,6 +911,10 @@ migration table at the end collects the common ones.
 
 ### Removed
 
+- **Breaking.** `WormDataSource.softDeleteColumnKey` and
+  `BeakResourceService.createdAtColumnKey` / `updatedAtColumnKey`: use
+  `BeakModel.deletedAtColumnKey`, `.isDeletedColumnKey`, `.createdAtColumnKey`
+  and `.updatedAtColumnKey`, which a model configures.
 - **Breaking, examples.** `examples/store`, `examples/superdashboard` and
   `examples/embedded` are gone, with their CI, deployment files and tutorial
   references. `examples/quickstart` stays, byte-identical to `beak create`

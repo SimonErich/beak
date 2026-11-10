@@ -19,8 +19,8 @@ dependencies:
     path: ../../../packages/beak_backend
   beak_serverpod_server:
     path: ../../../packages/beak_serverpod_server
-  bookshop_beak:
-    path: ../bookshop_beak
+  bookshop_definitions:
+    path: ../bookshop_admin/definitions
   serverpod: 4.0.4
   serverpod_auth_idp_server: 4.0.4
   serverpod_cloud_storage: 4.0.4
@@ -28,7 +28,7 @@ dependencies:
 
 The admin app pins its two `serverpod_*` packages to the same number and adds a Flutter floor:
 
-```yaml title="examples/serverpod/bookshop_admin/pubspec.yaml"
+```yaml
 environment:
   sdk: '^3.12.2'
   flutter: '^3.44.4'
@@ -40,8 +40,8 @@ dependencies:
     path: ../../../packages/beak
   beak_serverpod_flutter:
     path: ../../../packages/beak_serverpod_flutter
-  bookshop_beak:
-    path: ../bookshop_beak
+  bookshop_definitions:
+    path: definitions
   bookshop_client:
     path: ../bookshop_client
   flutter:

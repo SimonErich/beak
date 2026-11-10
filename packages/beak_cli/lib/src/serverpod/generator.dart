@@ -131,6 +131,12 @@ BeakGenerateResult runServerpodGenerate(
   if (ir.enums.isNotEmpty) {
     files['src/enums.dart'] = BeakSchemaEmitter.emitEnums(ir.enums);
   }
+  if (ir.writes.isNotEmpty) {
+    files['src/writes.dart'] = BeakSchemaEmitter.emitWrites(
+      prefix,
+      ir.writes,
+    );
+  }
   files['$outputName.dart'] = BeakSchemaEmitter.emitBarrel(
     prefix: prefix,
     models: ir.models,

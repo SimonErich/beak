@@ -208,41 +208,72 @@ A system ships rows nobody should remove, such as the built-in roles of an accou
 
 ```dart title="packages/beak_core/test/src/behavior/beak_model_behavior_test.dart"
 group('builtInRows', () {
-  const builtIn = BeakBoolColumn(key: 'is_system', label: 'System');
-
-  BeakRecord row(Object? flag) =>
-      BeakRecord.fromRow({'id': 'r', 'is_system': flag});
+  BeakRecord row(Object? flag, {String name = 'Admin'}) =>
+      BeakRecord.fromRow({'id': 'r', 'name': name, 'is_system': flag});
 
   test('refuses to delete a built-in row and allows any other', () {
-    final behavior = BeakModelBehavior.builtInRows(builtIn);
+    final behavior = BeakModelBehavior.builtInRows(_isSystem);
     expect(behavior.deletableWhen?.call(row(true)), isFalse);
     expect(behavior.deletableWhen?.call(row(false)), isTrue);
     expect(behavior.deletableWhen?.call(row(null)), isTrue);
   });
 
   test('leaves edits open unless lockEdits is set', () {
-    expect(BeakModelBehavior.builtInRows(builtIn).editableWhen, isNull);
-    final locked = BeakModelBehavior.builtInRows(builtIn, lockEdits: true);
+    expect(BeakModelBehavior.builtInRows(_isSystem).editableWhen, isNull);
+    final locked = BeakModelBehavior.builtInRows(_isSystem, lockEdits: true);
     expect(locked.editableWhen?.call(row(true)), isFalse);
     expect(locked.editableWhen?.call(row(false)), isTrue);
   });
 
   test('reads the flag the way a SQLite-backed row holds it', () {
-    final behavior = BeakModelBehavior.builtInRows(builtIn);
+    final behavior = BeakModelBehavior.builtInRows(_isSystem);
     expect(behavior.deletableWhen?.call(row(1)), isFalse);
     expect(behavior.deletableWhen?.call(row(0)), isTrue);
   });
 
   test('is a real behavior: it needs graph preparation and validates', () {
-    final behavior = BeakModelBehavior.builtInRows(builtIn, lockEdits: true);
+    final behavior = BeakModelBehavior.builtInRows(
+      _isSystem,
+      lockEdits: true,
+    );
     expect(behavior.isEmpty, isFalse);
-    behavior.validate(const _Model());
+    behavior.validate(const _Lookup());
   });
 
-  test('a column that is not boolean is a configuration error', () {
+  test('derives the flag from the stored row, never from the client', () {
+    final behavior = BeakModelBehavior.builtInRows(_isSystem);
+
+    final forged = behavior.apply(
+      row(true, name: 'Custom'),
+      initial: row(false),
+    );
+    final demoted = behavior.apply(row(false), initial: row(true));
+    final created = behavior.apply(
+      BeakRecord.fromRow({'name': 'New', 'is_system': true}),
+    );
+
+    expect(_isSystem.readFrom(forged), isFalse);
+    expect(_isSystem.readFrom(demoted), isTrue);
+    expect(_isSystem.readFrom(created), isFalse);
+  });
+
+  test('does not let the flag be authored while the row is edited', () {
+    final behavior = BeakModelBehavior.builtInRows(_isSystem);
+
+    expect(
+      behavior.canEdit('is_system', row(false), isCreate: true),
+      isFalse,
+    );
+    expect(behavior.canEdit('name', row(false)), isTrue);
+  });
+
+  test('a field that is not a boolean column is a configuration error', () {
     expect(
       () => BeakModelBehavior.builtInRows(
-        const BeakStringColumn(key: 'kind', label: 'Kind'),
+        const BeakScalarField<bool>(
+          model: _Lookup(),
+          column: BeakStringColumn(key: 'kind', label: 'Kind'),
+        ),
       ),
       throwsA(
         isA<BeakConfigurationException>().having(

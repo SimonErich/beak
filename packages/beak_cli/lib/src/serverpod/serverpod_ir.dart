@@ -194,7 +194,14 @@ _Draft _draftFor(
       final fk = _fkOf(field);
       if (db.columns.containsKey(fk) && seen.add(fk)) {
         columns.add(
-          _fkColumn(db.columns[fk]!, fk, resource, settings, hidden: false),
+          _fkColumn(
+            db.columns[fk]!,
+            fk,
+            resource,
+            settings,
+            hidden: false,
+            formSlot: true,
+          ),
         );
       }
       continue;
@@ -204,7 +211,15 @@ _Draft _draftFor(
       final fk = field.relation!.field ?? _fkOf(field);
       if (db.columns.containsKey(fk) && seen.add(fk)) {
         columns.add(
-          _fkColumn(db.columns[fk]!, fk, resource, settings, hidden: true),
+          _fkColumn(
+            db.columns[fk]!,
+            fk,
+            resource,
+            settings,
+            hidden: true,
+            omitFromValues: false,
+            formSlot: true,
+          ),
         );
         consumed.add(fk);
       }
@@ -229,6 +244,14 @@ _Draft _draftFor(
         _fkColumn(db.columns[fk]!, fk, resource, settings, hidden: true),
       );
       consumed.add(fk);
+    }
+  }
+  if (!seen.contains('id')) {
+    if (db.columns['id'] case final DbColumn id) {
+      columns.insert(
+        0,
+        _fkColumn(id, 'id', resource, settings, hidden: false),
+      );
     }
   }
   final display = resource.display ?? _displayOf(columns);
@@ -330,6 +353,8 @@ BeakColumnIr _fkColumn(
   InventoryResource resource,
   BeakGenerateSettings settings, {
   required bool hidden,
+  bool omitFromValues = false,
+  bool formSlot = false,
 }) {
   final uuid = column.dartType.startsWith('UuidValue');
   final kind = uuid ? BeakColumnKind.string : _kindOfDb(column.dartType);
@@ -342,10 +367,15 @@ BeakColumnIr _fkColumn(
     isRequired: false,
     arguments: {
       if (uuid) 'semantic': 'BeakSemantic.uuid()',
-      'visibleOn': hidden ? 'const <BeakContext>{}' : '{BeakContext.detail}',
+      'visibleOn': formSlot
+          ? '{BeakContext.form, BeakContext.detail}'
+          : hidden
+          ? '{}'
+          : '{BeakContext.detail}',
       'filterable': 'true',
     },
     docComment: 'The stored foreign key `${column.name}`.',
+    omitFromValues: omitFromValues,
   );
 }
 
@@ -641,7 +671,7 @@ void _ensureShadowColumn(BeakSchemaIr child, _Draft owner, String foreignKey) {
       isRequired: false,
       arguments: const {
         'semantic': 'BeakSemantic.uuid()',
-        'visibleOn': 'const <BeakContext>{}',
+        'visibleOn': '{}',
       },
       docComment: 'The stored foreign key `$foreignKey`.',
     ),

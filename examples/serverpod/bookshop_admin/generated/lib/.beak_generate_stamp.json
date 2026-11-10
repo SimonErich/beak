@@ -1,0 +1,6 @@
+{
+  "tool": "beak generate",
+  "beak": "0.9.0",
+  "package": "generated",
+  "inputs": "aa42e8365f1916fcc30b4567e9bbbad45338d780af125df4d0cc039067391f3e"
+}

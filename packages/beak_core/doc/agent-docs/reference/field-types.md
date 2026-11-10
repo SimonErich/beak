@@ -73,7 +73,7 @@ A field type Beak cannot map is an error from `beak prepare`, listed on [Annotat
 ```dart
 const BeakColumn({
   required this.key,
-  required this.label,
+  required String label,
   this.visibleOn = const {
     BeakContext.table,
     BeakContext.form,
@@ -87,7 +87,8 @@ const BeakColumn({
   this.rules = const [],
   this.semantic = const BeakSemantic(),
   Object? defaultValue,
-}) : _defaultValue = defaultValue,
+}) : _label = label,
+     _defaultValue = defaultValue,
      _searchable = searchable;
 ```
 

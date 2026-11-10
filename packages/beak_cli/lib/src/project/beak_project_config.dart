@@ -543,7 +543,6 @@ final class BeakProjectConfig {
     }
     final targets = <BeakSkillTarget>[];
     for (final entry in value) {
-      if (entry is String && entry.contains('/')) continue;
       final BeakSkillTarget? target = entry is String
           ? BeakSkillTarget.parse(entry)
           : null;

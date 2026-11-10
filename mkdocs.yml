@@ -249,7 +249,7 @@ nav:
           - "Clean shop": examples/clean-shop.md
           - "Foodio admin": examples/foodio.md
           - "Showcase": examples/showcase.md
-          - "Serverpod admin": examples/serverpod-admin.md
+          - "Serverpod admin app": examples/serverpod-admin.md
           - "Feature map": examples/feature-map.md
       - "Concepts":
           - concepts/index.md

@@ -345,6 +345,9 @@ jobs:
       - name: Resolve the workspace
         run: flutter pub get
         working-directory: examples/serverpod
+      - name: Generated schema is current
+        run: dart run ../../packages/beak_cli/bin/beak.dart generate --project bookshop_admin --check
+        working-directory: examples/serverpod
       - name: Analyze
         run: flutter analyze --fatal-infos --fatal-warnings
         working-directory: examples/serverpod/bookshop_admin

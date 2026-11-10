@@ -94,7 +94,7 @@ For coding agents. Humans: see [Recipes](../recipes/index.md). Find your task, r
 
 | Task | Read | Open | Verify |
 | --- | --- | --- | --- |
-| Decide who may read and write what | [Auth and policies](../backend/auth-and-policies.md) | `examples/serverpod/bookshop_server/lib/src/beak/bookshop_policy.dart` | A per-role API test. Reference test `packages/beak_backend/test/src/auth/beak_policies_handlers_test.dart` |
+| Decide who may read and write what | [Auth and policies](../backend/auth-and-policies.md) | `examples/serverpod/bookshop_server/lib/src/beak/bookshop_beak_engine.dart` | A per-role API test. Reference test `packages/beak_backend/test/src/auth/beak_policies_handlers_test.dart` |
 | Run a rule inside the save transaction | [Transactional business rules](../backend/graph-business-rules.md) | `examples/clean_beak_config/lib/domain/shop_graph_preparer.dart` | Reference test `examples/clean_beak_config/test/shop_api_test.dart` |
 | Force a model's writes through those rules | [Transactional business rules](../backend/graph-business-rules.md) | `examples/clean_beak_config/lib/server.dart` | A per-record `PATCH` from a caller the policy allows answers `422` |
 | Send an email or call a provider after a save | [Durable effects](../backend/durable-effects.md) | `examples/foodio-adminpanel/lib/domain/foodio_effects.dart` | Reference test `examples/foodio-adminpanel/test/foodio_api_test.dart` |

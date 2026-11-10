@@ -505,11 +505,12 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
       }
     }
 
-    if (sections == null) {
-      for (final MapEntry(:key, :value) in relationByForeignKey.entries) {
-        if (!_slotByKey.containsKey(key)) {
-          _registerForeignKey(value, rules: const [], section: null);
-        }
+    // A belongs-to picker stages its foreign key even when the key column is
+    // hidden from the form or sits outside a section: the relation input owns
+    // that value, so its slot must exist.
+    for (final MapEntry(:key, :value) in relationByForeignKey.entries) {
+      if (!_slotByKey.containsKey(key)) {
+        _registerForeignKey(value, rules: const [], section: null);
       }
     }
   }

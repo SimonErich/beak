@@ -9,37 +9,55 @@ import 'beak_package_config.dart';
 import 'beak_workspace.dart';
 
 /// A folder of the workspace root that coding agents read skills from.
-enum BeakSkillTarget {
+final class BeakSkillTarget {
+  const BeakSkillTarget._(this.label, this._skillsPath);
+
   /// Claude Code: `.claude/skills`.
-  claude('claude', '.claude'),
+  static const claude = BeakSkillTarget._('claude', '.claude/skills');
 
   /// The shared agent convention: `.agents/skills`.
-  agents('agents', '.agents'),
+  static const agents = BeakSkillTarget._('agents', '.agents/skills');
 
   /// Cursor: `.cursor/skills`.
-  cursor('cursor', '.cursor');
+  static const cursor = BeakSkillTarget._('cursor', '.cursor/skills');
 
-  const BeakSkillTarget(this.label, this.directoryName);
+  /// The built-in targets.
+  static const List<BeakSkillTarget> values = [claude, agents, cursor];
 
-  /// The name used in `beak.yaml` and on the command line.
+  /// The name used in `beak.yaml` and on the command line, or the folder path
+  /// for a target named by path.
   final String label;
 
-  /// The folder at the workspace root.
-  final String directoryName;
+  final String _skillsPath;
 
-  /// The target called [label], or `null` when there is none.
+  /// Whether this target is a folder path rather than a built-in agent.
+  bool get isDirectory => !values.contains(this);
+
+  /// The folder at the workspace root, such as `.claude`.
+  String get directoryName => switch (label) {
+    'claude' => '.claude',
+    'agents' => '.agents',
+    'cursor' => '.cursor',
+    _ => label,
+  };
+
+  /// The target called [label], a folder path (such as `.blueprints/skills`),
+  /// or `null` when the text names nothing.
   static BeakSkillTarget? parse(String label) {
+    final text = label.trim();
     for (final target in values) {
-      if (target.label == label.trim()) {
-        return target;
-      }
+      if (target.label == text) return target;
     }
+    if (text.isEmpty || text.startsWith('/') || text.contains(r'\')) {
+      return null;
+    }
+    if (text.contains('/')) return BeakSkillTarget._(text, text);
     return null;
   }
 
   /// The folder holding this target's skills, in [workspace].
   Directory skillsDirectory(BeakWorkspace workspace) =>
-      Directory(p.join(workspace.workspaceRoot.path, directoryName, 'skills'));
+      Directory(p.join(workspace.workspaceRoot.path, _skillsPath));
 }
 
 /// The targets `beak agents` writes to when nobody says otherwise.

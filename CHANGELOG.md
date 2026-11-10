@@ -103,9 +103,6 @@ migration table at the end collects the common ones.
   form revision guards, queries, relations, summaries, delete and restore use
   the same keys. JSON columns normalize database objects and arrays to the
   existing document-text wire representation.
-- Removed the fixed-key constants `WormDataSource.softDeleteColumnKey` and
-  `BeakResourceService.createdAtColumnKey` / `updatedAtColumnKey`; use the
-  corresponding model metadata getters.
 
 - **Admin app in a Serverpod 4 workspace.** `beak_serverpod_server` runs Beak's
   stock Shelf API inside the Serverpod server, behind one gated endpoint method,
@@ -914,6 +911,10 @@ migration table at the end collects the common ones.
 
 ### Removed
 
+- **Breaking.** `WormDataSource.softDeleteColumnKey` and
+  `BeakResourceService.createdAtColumnKey` / `updatedAtColumnKey`: use
+  `BeakModel.deletedAtColumnKey`, `.isDeletedColumnKey`, `.createdAtColumnKey`
+  and `.updatedAtColumnKey`, which a model configures.
 - **Breaking, examples.** `examples/store`, `examples/superdashboard` and
   `examples/embedded` are gone, with their CI, deployment files and tutorial
   references. `examples/quickstart` stays, byte-identical to `beak create`

@@ -44,7 +44,11 @@ final routing = useMemoized(() {
         );
   return (
     container: container,
-    router: createBeakRouter(config, authRefresh: authRefresh),
+    router: createBeakRouter(
+      config,
+      authRefresh: authRefresh,
+      access: container<BeakPanelAccess>(),
+    ),
     authRefresh: authRefresh,
   );
   // The seams are part of the key: swapping a fake on rebuild used to

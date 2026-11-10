@@ -196,8 +196,7 @@ The resource combines the two with its own switches. Every column of the table i
 ```dart title="packages/beak_frontend/test/src/panel/model_configuration_test.dart"
 test('model permissions and supported operations govern every resource', () {
   final account = _Account({'reader'});
-  BeakPrincipalBridge.attach(account, owner: account);
-  addTearDown(() => BeakPrincipalBridge.detach(owner: account));
+  final access = BeakPanelAccess.fromAuth(account);
   const resource = BeakResource(
     model: _BoundModel(
       permissions: BeakPermissions(
@@ -207,10 +206,10 @@ test('model permissions and supported operations govern every resource', () {
     ),
     icon: BeakIconToken(OiIcons.notebook),
   );
-  expect(resource.isVisible, isTrue);
-  expect(resource.allowsCreate, isFalse);
-  expect(resource.allowsEdit, isFalse);
-  expect(resource.allowsDelete, isFalse);
+  expect(resource.isVisibleTo(access), isTrue);
+  expect(resource.allowsCreateTo(access), isFalse);
+  expect(resource.allowsEditTo(access), isFalse);
+  expect(resource.allowsDeleteTo(access), isFalse);
   final custom = resource.copyWith(
     screens: [
       BeakCustomResourceScreen(
@@ -219,14 +218,15 @@ test('model permissions and supported operations govern every resource', () {
       ),
     ],
   );
-  expect(custom.allowsCreate, isTrue);
-  expect(custom.allowsEdit, isFalse);
+  expect(custom.allowsCreateTo(access), isTrue);
+  expect(custom.allowsEditTo(access), isFalse);
   account.setRoles(const {});
-  expect(resource.isVisible, isFalse);
-  expect(custom.allowsCreate, isFalse);
+  expect(resource.isVisibleTo(access), isFalse);
+  expect(custom.allowsCreateTo(access), isFalse);
 });
 
 test('a custom edit screen supplies an edit the transport lacks', () {
+  final access = BeakPanelAccess.anonymous;
   final resource = BeakResource(
     model: const _BoundModel(),
     icon: const BeakIconToken(OiIcons.notebook),
@@ -237,10 +237,10 @@ test('a custom edit screen supplies an edit the transport lacks', () {
       ),
     ],
   );
-  expect(resource.allowsEdit, isTrue);
-  expect(resource.allowsCreate, isFalse);
+  expect(resource.allowsEditTo(access), isTrue);
+  expect(resource.allowsCreateTo(access), isFalse);
   expect(
-    resource.copyWith(canEdit: false).allowsEdit,
+    resource.copyWith(canEdit: false).allowsEditTo(access),
     isFalse,
     reason: 'canEdit still switches a custom edit screen off',
   );

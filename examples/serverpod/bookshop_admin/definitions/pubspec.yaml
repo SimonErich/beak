@@ -1,0 +1,15 @@
+name: bookshop_definitions
+description: Authored behavior and rules for the bookshop Beak admin.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: '>=3.12.0 <4.0.0'
+
+resolution: workspace
+
+dependencies:
+  beak_core:
+    path: ../../../../packages/beak_core
+  bookshop_generated:
+    path: ../generated

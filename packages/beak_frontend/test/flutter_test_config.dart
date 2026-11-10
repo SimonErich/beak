@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Gives every widget test a local settings store.

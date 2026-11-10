@@ -81,7 +81,7 @@ Declares the class a resource. The class name drives the defaults: `Product` bec
 | `deletedAtColumnKey` | `String` | `deleted_at` | Nullable deletion timestamp storage key. |
 | `isDeletedColumnKey` | `String?` | `null` | Optional boolean visibility flag; false is live and true is deleted. Delete and restore also update the deletion timestamp. |
 
-```dart title="examples/serverpod/bookshop_beak/lib/models/book.dart"
+```dart
 @Resource(table: 'book', managesSchema: false)
 final class Book extends BeakSchema {
 ```
@@ -174,7 +174,7 @@ When a rule list repeats a bound, the tightest wins. A bound that is not an inte
 
 A non-nullable field gets `BeakRequired()` at the front of its `rules`. A `List` field, a `BeakJsonObject` field and a string field with an explicit empty-string default get `BeakRequired(allowEmpty: true)`, so the declared empty value remains valid while null is rejected. Additional declared rules still apply. A nullable `bool` becomes a tri-state column. A password field is visible on `{BeakContext.form}` only, unless you pass `visibleOn`.
 
-```dart title="examples/serverpod/bookshop_beak/lib/models/book.dart"
+```dart
   /// Shelf price in cents.
   @Column(
     columnName: 'priceInCents',
@@ -304,7 +304,7 @@ const BelongsTo({
 
 `onDelete` is `BeakOnDelete.restrict` for a non-nullable field and `BeakOnDelete.setNull` for a nullable one, unless you pass a value. `BeakOnDelete` has `cascade`, `ormCascade`, `restrict`, `setNull`, `setDefault` and `noAction`.
 
-```dart title="examples/serverpod/bookshop_beak/lib/models/book.dart"
+```dart
   /// Who wrote it.
   @BelongsTo(
     foreignKey: 'authorId',
@@ -344,7 +344,7 @@ const HasMany({
 | `onDelete` | `BeakOnDelete` | `BeakOnDelete.restrict` | What happens to the children when this row is deleted. |
 | `owned` | `bool` | `false` | The children belong exclusively to this record. An explicitly configured relationship editor may delete them. |
 
-```dart title="examples/serverpod/bookshop_beak/lib/models/author.dart"
+```dart
   /// Every book this author wrote.
   @HasMany(foreignKey: 'authorId', onDelete: BeakOnDelete.cascade)
   late final List<Book>? books;
@@ -446,7 +446,7 @@ The plain Dart types `String`, `int`, `double`, `bool`, `DateTime`, any project 
 - `packages/beak_core/lib/src/schema/beak_schema_types.dart` declares the authoring types.
 - `packages/beak_cli/lib/src/schema/beak_schema_reader.dart` reads the class and produces the errors above.
 - `packages/beak_cli/lib/src/schema/beak_schema_emitter.dart` writes the part file.
-- `examples/serverpod/bookshop_beak/lib/models` holds the `Author` and `Book` schemas quoted here.
+- `examples/foodio-adminpanel/lib/models` holds annotated schema classes in the same style.
 
 ## Continue reading
 

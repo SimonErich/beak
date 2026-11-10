@@ -1,0 +1,13 @@
+name: bookshop_generated
+description: Generated Beak schema of the bookshop Serverpod models.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: '>=3.12.0 <4.0.0'
+
+resolution: workspace
+
+dependencies:
+  beak_core:
+    path: ../../../../packages/beak_core

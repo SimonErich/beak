@@ -87,28 +87,26 @@ Build it in `main`, after the client has restored its stored session, and call `
 /// The bookshop admin: Serverpod's email login through Beak's auth screens,
 /// and every panel request tunnelled through the generated
 /// `client.beakAdmin.dispatch`.
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  final sessionManager = FlutterAuthSessionManager();
-  final Client client =
+Future<void> main() => runServerpodBeakAdmin<Client>(
+  apiUrl: getServerUrl,
+  client: (url) =>
       Client(
-          await getServerUrl(),
-          // Buffered CSV export rides the tunnel too; the 20 second default
-          // is for ordinary calls.
-          connectionTimeout: const Duration(seconds: 60),
-        )
-        ..connectivityMonitor = FlutterConnectivityMonitor()
-        ..authSessionManager = sessionManager;
-  // Restores the stored session and refreshes its access token if needed.
-  await client.auth.initialize();
-  final auth = ServerpodAuthAdapter(
-    client: client,
-    sessionManager: sessionManager,
-    resolveIdentity: bookshopAdminIdentity(sessionManager),
-  );
-  await auth.initialize();
-  runApp(bookshopAdminPanel(dispatch: client.beakAdmin.dispatch, auth: auth));
-}
+        url,
+        // Buffered CSV export rides the tunnel too; the 20 second default is
+        // for ordinary calls.
+        connectionTimeout: const Duration(seconds: 60),
+      )..connectivityMonitor = FlutterConnectivityMonitor(),
+  initialize: (client) => client.auth.initialize(),
+  dispatch: (client) => client.beakAdmin.dispatch,
+  roles: (client) async =>
+      client.authSessionManager.authInfo?.scopeNames ?? const <String>{},
+  panelRole: beakAdminScopeName,
+  config: (auth) => BeakPanelConfig(
+    title: 'Dog-Eared Books',
+    resources: bookshopResources(),
+    auth: BeakAuthConfig(adapter: auth, register: true, recover: true),
+  ),
+);
 ```
 
 `resolveIdentity` is where the app decides who may open the panel. Return `null` for a guest, or a `BeakAuthIdentity` whose `canAccessPanel` comes from the token's scopes:
@@ -129,6 +127,7 @@ ServerpodIdentityResolver bookshopAdminIdentity(
   return BeakAuthIdentity(
     id: auth.authUserId,
     canAccessPanel: auth.scopeNames.contains(beakAdminScopeName),
+    roles: auth.scopeNames,
   );
 };
 ```

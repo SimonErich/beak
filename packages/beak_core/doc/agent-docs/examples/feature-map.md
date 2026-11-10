@@ -161,7 +161,7 @@ To run an example, follow its tour page or the run table on [Examples](index.md)
 | Explicit migrations that upgrade data | [Shop](clean-shop.md) | `examples/clean_beak_config/lib/migrations/expand_shop_catalog.dart` | [Migrations](../backend/migrations.md) |
 | Repeatable seeder | [Shop](clean-shop.md) | `examples/clean_beak_config/lib/seeders/shop_seeder.dart` | [Seeding](../backend/seeding.md) |
 | A large seeded fixture | [Foodio](foodio.md) | `examples/foodio-adminpanel/lib/seeders/foodio_seeder.dart` | [Seeding](../backend/seeding.md) |
-| Deny-by-default policy | [Serverpod](serverpod-admin.md) | `examples/serverpod/bookshop_server/lib/src/beak/bookshop_policy.dart` | [Auth and policies](../backend/auth-and-policies.md) |
+| Deny-by-default policy | [Serverpod](serverpod-admin.md) | `examples/serverpod/bookshop_server/lib/src/beak/bookshop_beak_engine.dart` | [Auth and policies](../backend/auth-and-policies.md) |
 | A gated endpoint carrying the API | [Serverpod](serverpod-admin.md) | `examples/serverpod/bookshop_server/lib/src/beak/beak_admin_endpoint.dart` | [How the admin app works](../serverpod/admin-app/how-it-works.md) |
 | Beak engine on a Serverpod session | [Serverpod](serverpod-admin.md) | `examples/serverpod/bookshop_server/lib/src/beak/bookshop_beak_engine.dart` | [How the admin app works](../serverpod/admin-app/how-it-works.md) |
 | Panel data source over the tunnel | [Serverpod](serverpod-admin.md) | `examples/serverpod/bookshop_admin/lib/src/bookshop_admin.dart` | [How the admin app works](../serverpod/admin-app/how-it-works.md) |

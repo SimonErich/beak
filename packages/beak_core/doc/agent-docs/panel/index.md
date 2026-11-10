@@ -24,7 +24,11 @@ final routing = useMemoized(() {
         );
   return (
     container: container,
-    router: createBeakRouter(config, authRefresh: authRefresh),
+    router: createBeakRouter(
+      config,
+      authRefresh: authRefresh,
+      access: container<BeakPanelAccess>(),
+    ),
     authRefresh: authRefresh,
   );
   // The seams are part of the key: swapping a fake on rebuild used to
@@ -163,6 +167,8 @@ Pick one form per panel. `BeakPanel(config: ...)` together with an individual ev
 Permissions are not on this list on purpose. The panel hides what an account may not use, the server refuses it, and the server is the only one that counts. [Where authority lives](../concepts/where-authority-lives.md) has the long version.
 
 ## Which page to read
+
+- [Defaults, labels and standard resources](defaults-and-labels.md): one conventional resource, one list shape, one label mapping.
 
 | You want to... | Read | For that |
 | --- | --- | --- |

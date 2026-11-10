@@ -46,6 +46,7 @@ ServerpodIdentityResolver bookshopAdminIdentity(
   return BeakAuthIdentity(
     id: auth.authUserId,
     canAccessPanel: auth.scopeNames.contains(beakAdminScopeName),
+    roles: auth.scopeNames,
   );
 };
 // --8<-- [end:bookshopAdminIdentity]

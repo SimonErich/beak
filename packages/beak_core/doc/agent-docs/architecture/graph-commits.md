@@ -371,21 +371,66 @@ final class BeakSaveOperationContext {
 
   /// Authenticated caller accepted by the server policy.
   final BeakPrincipal? principal;
+
+  /// The record as this operation leaves it: the stored [existing] values with
+  /// the validated input [values] laid over them.
+  ///
+  /// What a domain write usually wants to read, so it sees the fields the
+  /// client did not send as well as the ones it did.
+  BeakRecord get merged => BeakRecord(
+    values: {...?existing?.values, ...values.values},
+    relations: existing?.relations ?? const {},
+  );
+
+  /// Refuses the operation unless it is a bare command: the only operation of
+  /// its plan, an update, and carrying no values and no references.
+  ///
+  /// A command such as "cancel the order" has one effect, the one its domain
+  /// write performs. Call this first so a client cannot attach changes to
+  /// other fields to it. Throws a [BeakValidationException].
+  void requireCommandOnly() {
+    if (plan.operations.length != 1 ||
+        operation.kind != BeakSaveOperationKind.update ||
+        operation.values.values.isNotEmpty ||
+        operation.references.isNotEmpty) {
+      throw const BeakValidationException(
+        'This command cannot change other values.',
+      );
+    }
+  }
 }
 
 /// A completed domain write, or trusted scalar derivations for stock persistence.
 final class BeakSaveOperationWrite {
   /// [record] is required for create/update and carries the persisted identity.
   /// Deletes and link writes need no record.
-  const BeakSaveOperationWrite({this.record}) : values = null;
+  const BeakSaveOperationWrite({this.record})
+    : values = null,
+      persistedId = null;
 
   /// Merges trusted, registered scalar values into the authorized input before
   /// ordinary persistence. Values are validated and cannot replace identity.
   /// Use this for server-owned bookkeeping without duplicating stock writes.
-  const BeakSaveOperationWrite.withValues(this.values) : record = null;
+  const BeakSaveOperationWrite.withValues(this.values)
+    : record = null,
+      persistedId = null;
+
+  /// A domain write that persisted the record with primary key [id].
+  ///
+  /// The service reads the stored row in the same transaction and returns it,
+  /// so the use case needs no record to hand back, only the identity it
+  /// created or changed (a `UuidValue` is read as its text). An update must
+  /// name the operation's own target.
+  const BeakSaveOperationWrite.persisted(Object id)
+    : persistedId = id,
+      record = null,
+      values = null;
 
   /// Persisted record; the service rereads it before accepting the write.
   final BeakRecord? record;
+
+  /// Primary key of the record a domain write persisted, or `null`.
+  final Object? persistedId;
 
   /// Server-derived fields, or null when the domain write already persisted.
   final BeakRecord? values;

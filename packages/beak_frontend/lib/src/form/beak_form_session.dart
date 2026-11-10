@@ -157,7 +157,21 @@ class BeakDraftRecord implements BeakDraftReader {
   /// Whether the server permits displaying this placement.
   bool visible(BeakFormNode node) {
     final field = _placementField(node);
-    if (field != null && !_capabilities.canRead(field.key)) return false;
+    final readKey = switch (node) {
+      BeakRelationInput(:final field) => switch (field.relation) {
+        BeakBelongsTo(:final foreignKey) => foreignKey,
+        _ => field.key,
+      },
+      _ => field?.key,
+    };
+    // A relation picker is shown unless the server refuses the model: the
+    // foreign key itself is an implementation detail of the relation, so the
+    // column-level allowlist cannot decide it.
+    if (node is! BeakRelationInput &&
+        readKey != null &&
+        !_capabilities.canRead(readKey)) {
+      return false;
+    }
     final dependencies = switch (node) {
       BeakFormSummary(source: final source?) => [source],
       BeakFormSummary(:final lines) => [
@@ -194,11 +208,6 @@ class BeakDraftRecord implements BeakDraftReader {
       )) {
         return false;
       }
-    }
-    if (node case BeakRelationInput(
-      field: BeakToOneField(relation: BeakBelongsTo(:final foreignKey)),
-    )) {
-      if (!_capabilities.canRead(foreignKey)) return false;
     }
     return node.visibleIf?.call(BeakFormReader(this)) ?? true;
   }

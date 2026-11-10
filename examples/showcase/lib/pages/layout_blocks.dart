@@ -158,7 +158,7 @@ BeakBlock _masonrySection() => BeakSectionBlock(
 BeakBlock _visibilitySection() => BeakSectionBlock(
   title: 'Visibility',
   child: BeakVisibilityBlock(
-    visibleWhen: () => true,
+    visibleWhen: (_) => true,
     child: const BeakTextBlock(
       'The child mounts while its live callback allows it.',
     ),

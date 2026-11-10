@@ -69,8 +69,19 @@ Future<BeakSavePlan> _prepare(
       _authorizeTable(operation, principal);
     }
     final prepared = await _prepareBehavior(plan, transactional, principal);
-    return await preparePlan?.call(prepared, transactional, principal) ??
-        prepared;
+    final shaped = await applyBeakTreeRules(
+      trees,
+      prepared,
+      transactional,
+      registry,
+      principal,
+    );
+    try {
+      return await preparePlan?.call(shaped, transactional, principal) ??
+          shaped;
+    } on Object catch (error, stackTrace) {
+      throw _mapped(plan, error, stackTrace);
+    }
   } on BeakException catch (error) {
     // The transaction has not dispatched the prepared graph. Persist a
     // definite rejection so the client can edit instead of treating it as an
@@ -169,21 +180,66 @@ final class BeakSaveOperationContext {
 
   /// Authenticated caller accepted by the server policy.
   final BeakPrincipal? principal;
+
+  /// The record as this operation leaves it: the stored [existing] values with
+  /// the validated input [values] laid over them.
+  ///
+  /// What a domain write usually wants to read, so it sees the fields the
+  /// client did not send as well as the ones it did.
+  BeakRecord get merged => BeakRecord(
+    values: {...?existing?.values, ...values.values},
+    relations: existing?.relations ?? const {},
+  );
+
+  /// Refuses the operation unless it is a bare command: the only operation of
+  /// its plan, an update, and carrying no values and no references.
+  ///
+  /// A command such as "cancel the order" has one effect, the one its domain
+  /// write performs. Call this first so a client cannot attach changes to
+  /// other fields to it. Throws a [BeakValidationException].
+  void requireCommandOnly() {
+    if (plan.operations.length != 1 ||
+        operation.kind != BeakSaveOperationKind.update ||
+        operation.values.values.isNotEmpty ||
+        operation.references.isNotEmpty) {
+      throw const BeakValidationException(
+        'This command cannot change other values.',
+      );
+    }
+  }
 }
 
 /// A completed domain write, or trusted scalar derivations for stock persistence.
 final class BeakSaveOperationWrite {
   /// [record] is required for create/update and carries the persisted identity.
   /// Deletes and link writes need no record.
-  const BeakSaveOperationWrite({this.record}) : values = null;
+  const BeakSaveOperationWrite({this.record})
+    : values = null,
+      persistedId = null;
 
   /// Merges trusted, registered scalar values into the authorized input before
   /// ordinary persistence. Values are validated and cannot replace identity.
   /// Use this for server-owned bookkeeping without duplicating stock writes.
-  const BeakSaveOperationWrite.withValues(this.values) : record = null;
+  const BeakSaveOperationWrite.withValues(this.values)
+    : record = null,
+      persistedId = null;
+
+  /// A domain write that persisted the record with primary key [id].
+  ///
+  /// The service reads the stored row in the same transaction and returns it,
+  /// so the use case needs no record to hand back, only the identity it
+  /// created or changed (a `UuidValue` is read as its text). An update must
+  /// name the operation's own target.
+  const BeakSaveOperationWrite.persisted(Object id)
+    : persistedId = id,
+      record = null,
+      values = null;
 
   /// Persisted record; the service rereads it before accepting the write.
   final BeakRecord? record;
+
+  /// Primary key of the record a domain write persisted, or `null`.
+  final Object? persistedId;
 
   /// Server-derived fields, or null when the domain write already persisted.
   final BeakRecord? values;
@@ -233,21 +289,22 @@ Future<Response> query(Request request) async {
 
 `BeakPolicies` is a typed rule set. Everything you don't list is denied, and a model with no rule is invisible: its endpoints answer 401 to an anonymous request and 403 to anyone else. This is the whole policy of the Serverpod bookshop:
 
-```dart title="examples/serverpod/bookshop_server/lib/src/beak/bookshop_policy.dart"
-/// Who may do what in the bookshop admin.
+```dart title="examples/serverpod/bookshop_server/lib/src/beak/bookshop_beak_engine.dart"
+/// The bookshop's Beak engine: one per process, shared by every request.
 ///
-/// Deny by default: holding `beak.admin` opens the tunnel and grants nothing.
-/// Staff (the `bookshop.staff` scope) read and write authors and books.
-/// Nobody may delete: a rule that is not written is a rule that is closed, so
-/// removing an author (and, by cascade, their books) needs a deliberate rule.
-final BeakPolicies bookshopPolicy = BeakPolicies(
-  rules: [
-    BeakModelRules(const AuthorModel(), read: _staff, write: _staff),
-    BeakModelRules(const BookModel(), read: _staff, write: _staff),
-  ],
+/// It serves Beak's stock API for the generated bookshop models on the
+/// request's own Serverpod session, so every statement runs on Serverpod's
+/// database with its transactions and logging.
+final BeakServerpodEngine bookshopBeak = BeakServerpodEngine.admitted(
+  models: bookshopModels,
+  definitions: bookshopDefinitions,
+  principal: BeakServerpodPrincipal.fromScopes,
+  writes: BeakWriteBindings<BookshopWrite>(
+    (binding) => switch (binding) {
+      BookshopWrite.configuration => const BeakWriteHandler.stock(),
+    },
+  ),
 );
-
-final BeakAccess _staff = BeakAccess.role(BookshopScopes.staff.name!);
 ```
 
 Nobody can delete, because nobody was given `delete`. `BeakModelRules` also takes `rowScope`, `hiddenFields`, `readOnlyFields` and `actions`, each written with typed references, never a column name.
@@ -483,6 +540,7 @@ ServerpodIdentityResolver bookshopAdminIdentity(
   return BeakAuthIdentity(
     id: auth.authUserId,
     canAccessPanel: auth.scopeNames.contains(beakAdminScopeName),
+    roles: auth.scopeNames,
   );
 };
 ```
