@@ -209,6 +209,8 @@ class BeakPanel extends HookWidget {
       maintenance,
       mapException,
     ]);
+    // One mapping for every column and command the panel renders below.
+    BeakLabels.current = config.labels;
     // --8<-- [start:panelRouting]
     final routing = useMemoized(() {
       final container = GetIt.asNewInstance();

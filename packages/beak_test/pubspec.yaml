@@ -11,13 +11,21 @@ topics: [admin-panel, testing, fakes]
 
 environment:
   sdk: ^3.11.0
+  flutter: '>=3.41.0'
 
 dependencies:
   beak_core:
     path: ../beak_core
+  beak_frontend:
+    path: ../beak_frontend
+  flutter:
+    sdk: flutter
+  go_router: ^18.1.1
   # A `test` dependency in a testing package is the point, not an accident:
   # runBeakDataSourceContract declares real groups and expectations.
   test: ^1.25.6
 
 dev_dependencies:
+  flutter_test:
+    sdk: flutter
   lints: ^6.0.0

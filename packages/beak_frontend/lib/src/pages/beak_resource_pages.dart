@@ -30,6 +30,7 @@ import '../form/beak_form_controller_builder.dart' show BeakFormValueMode;
 import '../form/beak_form_layout.dart';
 import '../panel/beak_resource_screen.dart';
 import '../panel/beak_panel_access.dart';
+import '../panel/beak_metadata_aside.dart';
 import '../panel/beak_panel_config.dart';
 import '../panel/beak_routes.dart';
 import '../table/beak_data_table.dart';
@@ -215,10 +216,17 @@ class BeakResourceListPage extends HookWidget {
     );
 
     Widget content() {
+      final listDefaults = beakDependencies(
+        context,
+      ).isRegistered<BeakPanelConfig>()
+          ? beakDependencies(context)<BeakPanelConfig>().defaults
+          : null;
       var spec =
           sharedQuery?.query ??
           tableScreen?.query ??
-          BeakQuerySpec(table: model.table);
+          BeakQuerySpec(table: model.table).paginate(
+            perPage: listDefaults?.pageSize,
+          );
       final base = spec.filter;
       final combined = switch ((base, filter.value)) {
         (final BeakFilter a, final BeakFilter b) => BeakAndFilter([a, b]),
@@ -755,7 +763,11 @@ class BeakResourceShowPage extends HookWidget {
           showChangeBar: screen.showChangeBar,
           header: screen.header,
           recordHeader: screen.recordHeader,
-          aside: screen.aside,
+          aside:
+              screen.aside ??
+              (screen.showMetadataAside
+                  ? beakMetadataAside(context, resource.model)
+                  : null),
           asideWidthInPixels: screen.asideWidthInPixels,
           asideFraction: screen.asideFraction,
           asideFooter: screen.asideFooter,
@@ -911,7 +923,11 @@ class BeakResourceCreatePage extends HookWidget {
         showChangeBar: form?.showChangeBar ?? false,
         header: form?.header,
         recordHeader: form?.recordHeader,
-        aside: form?.aside,
+        aside:
+            form?.aside ??
+            ((form?.showMetadataAside ?? true)
+                ? beakMetadataAside(context, resource.model)
+                : null),
         asideWidthInPixels: form?.asideWidthInPixels ?? 360,
         asideFraction: form?.asideFraction,
         asideFooter: form?.asideFooter,
@@ -1002,7 +1018,11 @@ class BeakResourceEditPage extends HookWidget {
         showChangeBar: form?.showChangeBar ?? false,
         header: form?.header,
         recordHeader: form?.recordHeader,
-        aside: form?.aside,
+        aside:
+            form?.aside ??
+            ((form?.showMetadataAside ?? true)
+                ? beakMetadataAside(context, resource.model)
+                : null),
         asideWidthInPixels: form?.asideWidthInPixels ?? 360,
         asideFraction: form?.asideFraction,
         asideFooter: form?.asideFooter,

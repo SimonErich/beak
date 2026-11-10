@@ -383,6 +383,24 @@ class BeakLocalizations {
   /// Record detail section label.
   String get details => _de ? 'Details' : 'Details';
 
+  /// Default first form tab.
+  String get general => _de ? 'Allgemein' : 'General';
+
+  /// Filter choice that disables the filter.
+  String get all => _de ? 'Alle' : 'All';
+
+  /// Detail-page metadata aside heading.
+  String get metadata => _de ? 'Metadaten' : 'Metadata';
+
+  /// Creation timestamp label.
+  String get createdAt => _de ? 'Erstellt am' : 'Created at';
+
+  /// Last-update timestamp label.
+  String get updatedAt => _de ? 'Geändert am' : 'Updated at';
+
+  /// Soft-delete timestamp label.
+  String get deletedAt => _de ? 'Gelöscht am' : 'Deleted at';
+
   /// Additional record fields section.
   String get more => _de ? 'Weitere Angaben' : 'More';
 

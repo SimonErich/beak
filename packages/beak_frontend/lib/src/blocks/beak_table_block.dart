@@ -84,5 +84,8 @@ final class BeakTableBlock extends BeakBlock {
   final List<BeakTableAction> actions;
 
   /// Invoked when a row is tapped.
-  final void Function(BeakRecord record)? onRowTap;
+  ///
+  /// Defaults to opening the record's show page, which is the useful action
+  /// for an embedded list. Return an explicit callback to navigate elsewhere.
+  final void Function(BuildContext context, BeakRecord record)? onRowTap;
 }

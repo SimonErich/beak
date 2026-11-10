@@ -1,5 +1,7 @@
 import 'package:meta/meta.dart';
 
+import '../localization/beak_labels.dart';
+
 import '../common/beak_color.dart';
 import '../common/beak_exception.dart';
 import '../context/beak_context.dart';
@@ -68,7 +70,7 @@ sealed class BeakColumn {
   // --8<-- [start:BeakColumn]
   const BeakColumn({
     required this.key,
-    required this.label,
+    required String label,
     this.visibleOn = const {
       BeakContext.table,
       BeakContext.form,
@@ -82,7 +84,8 @@ sealed class BeakColumn {
     this.rules = const [],
     this.semantic = const BeakSemantic(),
     Object? defaultValue,
-  }) : _defaultValue = defaultValue,
+  }) : _label = label,
+       _defaultValue = defaultValue,
        _searchable = searchable;
   // --8<-- [end:BeakColumn]
 
@@ -90,8 +93,13 @@ sealed class BeakColumn {
   /// reference the column constant itself, never this string.
   final String key;
 
+  final String _label;
+
   /// Human-readable label shown in tables, forms, and detail views.
-  final String label;
+  ///
+  /// A [BeakLabels.field] mapping from the panel renames it without touching
+  /// the generated model.
+  String get label => BeakLabels.current.field?.call(this) ?? _label;
 
   /// The surfaces this column appears on. Defaults to table, form, and
   /// detail (but not filter); narrow it to hide a field from a surface — e.g.

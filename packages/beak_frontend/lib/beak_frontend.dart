@@ -73,6 +73,7 @@ export 'src/panel/beak_resource_screen.dart';
 export 'src/panel/beak_navigation.dart';
 export 'src/panel/beak_back_button.dart';
 export 'src/form/beak_form_layout.dart';
+export 'src/form/beak_related_list.dart';
 export 'src/form/beak_input_presentation.dart';
 export 'package:beak_core/beak_core.dart' show BeakAttributeType;
 export 'src/form/beak_form_session.dart';

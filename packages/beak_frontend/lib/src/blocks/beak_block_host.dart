@@ -15,6 +15,7 @@ import '../query/beak_query_scope.dart';
 import '../localization/beak_localizations.dart';
 import '../overlays/beak_overlays.dart';
 import '../panel/beak_panel_access.dart';
+import '../panel/beak_routes.dart';
 import '../detail/beak_record_scope.dart';
 import '../detail/relation_manager.dart';
 import '../di/beak_locator.dart';

@@ -3,6 +3,9 @@ import 'package:flutter/widgets.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 import '../actions/beak_action.dart';
+import '../form/beak_form_layout.dart';
+import '../presentation/beak_record_template.dart';
+import '../query/beak_list_defaults.dart';
 import '../filters/beak_default_filters.dart';
 import '../filters/beak_filter_widget.dart';
 import '../form/upload_field.dart';
@@ -10,6 +13,7 @@ import 'beak_destination.dart';
 import 'beak_panel_access.dart';
 import 'beak_resource_screen.dart';
 import 'beak_routes.dart';
+import 'beak_standard_resource.dart';
 
 /// A typed icon reference for panel navigation.
 ///
@@ -77,6 +81,55 @@ class BeakResource implements BeakDestination {
     this.duplication,
   });
   // --8<-- [end:BeakResource]
+
+  /// The conventional resource: a list, a detail page and the create/edit
+  /// forms, with the panel's list defaults and a metadata aside.
+  ///
+  /// [columns] and [form] default to the model's own table and form fields, so
+  /// the shortest declaration is:
+  ///
+  /// ```dart
+  /// BeakResource.standard(const ProductModel(), 'Products')
+  /// ```
+  ///
+  /// [tabs] replace the single form card with a General tab plus one tab per
+  /// [BeakTab]. A [readOnly] resource offers reads only, whatever its model's
+  /// permissions would allow: the server still enforces its own policy.
+  factory BeakResource.standard(
+    BeakModel model,
+    String title, {
+    BeakIconToken icon = const BeakIconToken(OiIcons.database),
+    String? navigationTitle,
+    String? navigationGroup,
+    int navigationRank = 0,
+    List<BeakScalarField<Object>>? columns,
+    List<BeakFormNode>? form,
+    List<BeakTab> tabs = const [],
+    List<BeakFilterDef> filters = const [],
+    BeakRecordTemplate? header,
+    bool readOnly = false,
+    BeakListDefaults defaults = const BeakListDefaults(),
+    List<BeakRecordAction> recordActions = const [],
+    List<BeakBulkAction> bulkActions = const [],
+    List<BeakGlobalAction> globalActions = const [],
+  }) => buildStandardResource(
+    model,
+    title,
+    icon: icon,
+    navigationTitle: navigationTitle,
+    navigationGroup: navigationGroup,
+    navigationRank: navigationRank,
+    columns: columns,
+    form: form,
+    tabs: tabs,
+    filters: filters,
+    header: header,
+    readOnly: readOnly,
+    defaults: defaults,
+    recordActions: recordActions,
+    bulkActions: bulkActions,
+    globalActions: globalActions,
+  );
 
   /// Enables the standard Duplicate action with explicit owned-child copying.
   final BeakDuplicationSpec? duplication;

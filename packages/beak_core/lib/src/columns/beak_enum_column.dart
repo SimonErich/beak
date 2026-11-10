@@ -69,7 +69,10 @@ final class BeakEnumColumn<T extends Enum> extends BeakColumn
 
   /// The display label: [labelOf], then [labels], then the stored enum name.
   String labelFor(T value) =>
-      labelOf?.call(value) ?? labels[value] ?? value.name;
+      labelOf?.call(value) ??
+      labels[value] ??
+      BeakLabels.current.enumValue?.call(value) ??
+      value.name;
 
   /// Returns the declared value whose `name` matches [name], or `null` when
   /// none does — the one way wire strings (query params, stored rows) decode
