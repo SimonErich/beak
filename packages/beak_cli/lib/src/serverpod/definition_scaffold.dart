@@ -53,8 +53,12 @@ String scaffoldDefinition(
     ..writeln()
     ..writeln("part '${definitionFileStem(spy.name)}.beak.dart';")
     ..writeln();
-  for (final line in _docLines(classDoc, 'The ${spy.name} admin model.')) {
-    buffer.writeln(line);
+  if (classDoc == null || classDoc.trim().isEmpty) {
+    buffer.writeln('/// The ${spy.name} admin model.');
+  } else {
+    for (final line in _docLines(classDoc)) {
+      buffer.writeln(line);
+    }
   }
   buffer
     ..writeln('@Resource()')
@@ -73,8 +77,10 @@ String scaffoldDefinition(
     if (!first) buffer.writeln();
     first = false;
     final doc = fieldDocs[field.name];
-    for (final line in _docLines(doc, 'The ${field.name} field.')) {
-      buffer.writeln('  $line');
+    if (doc != null) {
+      for (final line in _docLines(doc)) {
+        buffer.writeln('  $line');
+      }
     }
     buffer.write(_field(field, project, database, spy));
   }
@@ -150,10 +156,9 @@ String _relationKind(
 String _escape(String value) =>
     value.replaceAll(r'\', r'\\').replaceAll("'", r"\'");
 
-List<String> _docLines(String? doc, String fallback) {
-  final text = (doc == null || doc.trim().isEmpty) ? fallback : doc.trim();
-  return [for (final line in text.split('\n')) '/// ${line.trim()}'];
-}
+List<String> _docLines(String doc) => [
+  for (final line in doc.trim().split('\n')) '/// ${line.trim()}',
+];
 
 /// The Serverpod `###` comments above the class and each field.
 ({String? classDoc, Map<String, String> fields}) readSpyDocs(String source) {

@@ -59,6 +59,7 @@ final class Author extends BeakSchema {
     expect(source, contains('@BelongsTo()'));
     expect(source, contains('late final Author? author;'));
     expect(source, contains('late final String title;'));
+    expect(source, isNot(contains('/// The stock field.')));
     expect(
       source,
       contains("import 'package:shop_definitions/src/catalog/author.dart';"),
