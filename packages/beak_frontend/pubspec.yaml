@@ -46,6 +46,7 @@ dependencies:
       path: packages/obers_ui_charts
       ref: c956d25634c93e23847ec5a4150c1d62fe3a7c90
   signals: ^7.1.0
+  signals_flutter: ^7.1.0
   url_launcher: ^6.3.2
 
 dev_dependencies:

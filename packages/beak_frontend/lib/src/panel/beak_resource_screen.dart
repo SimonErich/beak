@@ -62,6 +62,7 @@ class BeakFormScreen extends BeakResourceScreen {
     this.showBack = true,
     this.pagePadding,
     this.pageGapInPixels,
+    this.showMetadataAside = true,
     super.roles = const {BeakScreenRole.create, BeakScreenRole.edit},
   });
 
@@ -98,6 +99,10 @@ class BeakFormScreen extends BeakResourceScreen {
 
   /// Whether generated page chrome includes its separate Back button.
   final bool showBack;
+
+  /// Whether a form without its own [aside] gets the model's metadata
+  /// timestamps. Pass `false` for a form that should use the full width.
+  final bool showMetadataAside;
 
   /// Optional outer page insets and spacing; defaults preserve standard chrome.
   final EdgeInsetsGeometry? pagePadding;
@@ -181,6 +186,7 @@ class BeakWizardScreen extends BeakFormScreen {
     super.showBack,
     super.pagePadding,
     super.pageGapInPixels,
+    super.showMetadataAside,
     super.roles = const {BeakScreenRole.create, BeakScreenRole.edit},
   });
 }

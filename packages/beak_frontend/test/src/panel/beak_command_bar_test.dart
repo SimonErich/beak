@@ -30,7 +30,12 @@ void main() {
         ],
       );
       final source = FakeDataSource();
-      final result = await beakSearchResourcePage(panel, source, 'private');
+      final result = await beakSearchResourcePage(
+        panel,
+        source,
+        'private',
+        access: BeakPanelAccess.anonymous,
+      );
       expect(result.items, isEmpty);
       expect(result.errors.values.single, isA<BeakConfigurationException>());
       expect(source.queryCalls, isEmpty);
@@ -131,7 +136,12 @@ void main() {
         title: 'Search',
         resources: [BeakResource(model: model)],
       );
-      final numeric = await beakSearchResourcePage(panel, source, '42');
+      final numeric = await beakSearchResourcePage(
+        panel,
+        source,
+        '42',
+        access: BeakPanelAccess.anonymous,
+      );
       expect(numeric.items.single.title, 'Coffee');
       expect(source.queryCalls.last.search, isNull);
       final predicates = switch (source.queryCalls.last.filter) {
@@ -146,9 +156,19 @@ void main() {
               .having((f) => f.value, 'value', const BeakIntValue(42)),
         ),
       );
-      final boolean = await beakSearchResourcePage(panel, source, 'false');
+      final boolean = await beakSearchResourcePage(
+        panel,
+        source,
+        'false',
+        access: BeakPanelAccess.anonymous,
+      );
       expect(boolean.items.single.title, 'Coffee');
-      await beakSearchResourcePage(panel, source, '2026-09-26');
+      await beakSearchResourcePage(
+        panel,
+        source,
+        '2026-09-26',
+        access: BeakPanelAccess.anonymous,
+      );
       final dates = switch (source.queryCalls.last.filter) {
         BeakOrFilter(:final filters) =>
           filters.whereType<BeakAndFilter>().single.filters,
@@ -311,7 +331,12 @@ void main() {
         ],
         apiBaseUrl: 'http://localhost',
       );
-      final results = await beakSearchResources(panel, source, 'Coffee');
+      final results = await beakSearchResources(
+        panel,
+        source,
+        'Coffee',
+        access: BeakPanelAccess.anonymous,
+      );
       expect(results.map((result) => result.title), ['Beans']);
       expect(results.single.id, '/articles/a1');
       expect(source.queryCalls.single.search?.columnKeys, ['category.name']);
@@ -320,7 +345,11 @@ void main() {
 
   test('navigation commands cover the resources and pages', () {
     final routes = <String>[];
-    final commands = beakNavigationCommands(config, routes.add);
+    final commands = beakNavigationCommands(
+      config,
+      routes.add,
+      access: BeakPanelAccess.anonymous,
+    );
 
     final labels = [for (final c in commands) c.label];
     expect(labels, containsAll(<String>['Notes', 'Reports']));
@@ -349,7 +378,12 @@ void main() {
       ],
     );
     final labels = [
-      for (final c in beakNavigationCommands(withHome, (_) {})) c.label,
+      for (final c in beakNavigationCommands(
+        withHome,
+        (_) {},
+        access: BeakPanelAccess.anonymous,
+      ))
+        c.label,
     ];
     expect(labels, contains('Home'));
   });
@@ -365,7 +399,10 @@ void main() {
         ),
       ],
     );
-    expect(beakNavigationCommands(hidden, (_) {}), isEmpty);
+    expect(
+      beakNavigationCommands(hidden, (_) {}, access: BeakPanelAccess.anonymous),
+      isEmpty,
+    );
   });
 }
 

@@ -49,9 +49,12 @@ A block is `const` configuration. It carries no widget code and no callbacks, ex
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_block_host.dart"
   Widget build(BuildContext context) => switch (block) {
     final BeakVisibilityBlock visibility => SignalBuilder(
-      builder: (_) => visibility.visibleWhen()
-          ? BeakBlockHost(block: visibility.child)
-          : const SizedBox.shrink(),
+      builder: (context) {
+        final access = BeakPanelAccess.of(context);
+        return visibility.visibleWhen(access)
+            ? BeakBlockHost(block: visibility.child)
+            : const SizedBox.shrink();
+      },
     ),
     final BeakColumnBlock column => _column(context, column),
     final BeakRowBlock row => _row(context, row),

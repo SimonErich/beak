@@ -3,13 +3,17 @@ import 'package:flutter/widgets.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 import '../actions/beak_action.dart';
+import '../form/beak_form_layout.dart';
+import '../presentation/beak_record_template.dart';
+import '../query/beak_list_defaults.dart';
 import '../filters/beak_default_filters.dart';
 import '../filters/beak_filter_widget.dart';
 import '../form/upload_field.dart';
 import 'beak_destination.dart';
-import 'beak_principal_bridge.dart';
+import 'beak_panel_access.dart';
 import 'beak_resource_screen.dart';
 import 'beak_routes.dart';
+import 'beak_standard_resource.dart';
 
 /// A typed icon reference for panel navigation.
 ///
@@ -77,6 +81,55 @@ class BeakResource implements BeakDestination {
     this.duplication,
   });
   // --8<-- [end:BeakResource]
+
+  /// The conventional resource: a list, a detail page and the create/edit
+  /// forms, with the panel's list defaults and a metadata aside.
+  ///
+  /// [columns] and [form] default to the model's own table and form fields, so
+  /// the shortest declaration is:
+  ///
+  /// ```dart
+  /// BeakResource.standard(const ProductModel(), 'Products')
+  /// ```
+  ///
+  /// [tabs] replace the single form card with a General tab plus one tab per
+  /// [BeakTab]. A [readOnly] resource offers reads only, whatever its model's
+  /// permissions would allow: the server still enforces its own policy.
+  factory BeakResource.standard(
+    BeakModel model,
+    String title, {
+    BeakIconToken icon = const BeakIconToken(OiIcons.database),
+    String? navigationTitle,
+    String? navigationGroup,
+    int navigationRank = 0,
+    List<BeakScalarField<Object>>? columns,
+    List<BeakFormNode>? form,
+    List<BeakTab> tabs = const [],
+    List<BeakFilterDef> filters = const [],
+    BeakRecordTemplate? header,
+    bool readOnly = false,
+    BeakListDefaults defaults = const BeakListDefaults(),
+    List<BeakRecordAction> recordActions = const [],
+    List<BeakBulkAction> bulkActions = const [],
+    List<BeakGlobalAction> globalActions = const [],
+  }) => buildStandardResource(
+    model,
+    title,
+    icon: icon,
+    navigationTitle: navigationTitle,
+    navigationGroup: navigationGroup,
+    navigationRank: navigationRank,
+    columns: columns,
+    form: form,
+    tabs: tabs,
+    filters: filters,
+    header: header,
+    readOnly: readOnly,
+    defaults: defaults,
+    recordActions: recordActions,
+    bulkActions: bulkActions,
+    globalActions: globalActions,
+  );
 
   /// Enables the standard Duplicate action with explicit owned-child copying.
   final BeakDuplicationSpec? duplication;
@@ -160,60 +213,53 @@ class BeakResource implements BeakDestination {
         screen is BeakCustomResourceScreen && screen.roles.contains(role),
   );
 
-  /// Whether read access is currently available in the panel.
+  /// Whether [access] may list and open this resource: the model supports
+  /// reading and its [BeakModel.permissions] admit the account.
   ///
-  /// Checks [BeakModel.permissions] against the signed-in principal, so a
-  /// schema class declaring `static BeakPermissions get permissions` controls
-  /// navigation and every resource route.
-  bool get isVisible =>
-      model.capabilities.contains(BeakOperation.read) &&
-      model.permissions.allows(BeakOperation.read, BeakPrincipalBridge.current);
+  /// Navigation, the command bar and the resource routes ask this, so a
+  /// schema class declaring `permissions` controls what each role sees.
+  bool isVisibleTo(BeakPanelAccess access) => access.canRead(model);
 
-  /// Whether creation is currently available: the model supports it or a
-  /// custom create screen supplies the workflow, [canCreate] is set and
-  /// [BeakModel.permissions] allow it.
-  bool get allowsCreate =>
-      isVisible &&
+  /// Whether [access] may create records here: the model supports it or a
+  /// custom create screen supplies the workflow, [canCreate] is set and the
+  /// permissions admit the account.
+  bool allowsCreateTo(BeakPanelAccess access) =>
+      isVisibleTo(access) &&
       canCreate &&
       (model.capabilities.contains(BeakOperation.create) ||
           _hasCustomScreen(BeakScreenRole.create)) &&
-      model.permissions.allows(
-        BeakOperation.create,
-        BeakPrincipalBridge.current,
-      );
+      access.permits(model, BeakOperation.create);
 
-  /// Whether editing is currently available: the model supports it or a
-  /// custom edit screen supplies the workflow, [canEdit] is set and
-  /// [BeakModel.permissions] allow it.
-  bool get allowsEdit =>
-      isVisible &&
+  /// Whether [access] may edit records here: the model supports it or a custom
+  /// edit screen supplies the workflow, [canEdit] is set and the permissions
+  /// admit the account.
+  bool allowsEditTo(BeakPanelAccess access) =>
+      isVisibleTo(access) &&
       canEdit &&
       (model.capabilities.contains(BeakOperation.update) ||
           _hasCustomScreen(BeakScreenRole.edit)) &&
-      model.permissions.allows(
-        BeakOperation.update,
-        BeakPrincipalBridge.current,
-      );
+      access.permits(model, BeakOperation.update);
 
-  /// Whether deletion is currently available.
-  bool get allowsDelete =>
-      isVisible &&
+  /// Whether [access] may delete records here.
+  bool allowsDeleteTo(BeakPanelAccess access) =>
+      isVisibleTo(access) &&
       canDelete &&
-      model.capabilities.contains(BeakOperation.delete) &&
-      model.permissions.allows(
-        BeakOperation.delete,
-        BeakPrincipalBridge.current,
-      );
+      access.can(model, BeakOperation.delete);
 
-  /// Live availability of a built-in or configured resource action.
-  /// Custom actions require read access and retain their own domain checks.
-  bool allowsAction(BeakAction action) {
-    if (identical(action, deleteAction)) return allowsDelete;
+  /// Whether [access] may use [action] on this resource.
+  ///
+  /// The built-in create, edit and delete actions follow their operations.
+  /// A global action that declares `visibleWhen` follows it. Any other action
+  /// needs read access and keeps its own domain checks.
+  bool allowsActionTo(BeakPanelAccess access, BeakAction action) {
+    if (identical(action, deleteAction)) return allowsDeleteTo(access);
     return switch (action) {
-      BeakCreateAction() => allowsCreate,
-      BeakEditAction() => allowsEdit,
-      BeakDeleteAction() || BeakArchiveAction() => allowsDelete,
-      _ => isVisible,
+      BeakCreateAction() => allowsCreateTo(access),
+      BeakEditAction() => allowsEditTo(access),
+      BeakDeleteAction() || BeakArchiveAction() => allowsDeleteTo(access),
+      BeakGlobalAction(:final visibleWhen?) =>
+        isVisibleTo(access) && visibleWhen(access),
+      _ => isVisibleTo(access),
     };
   }
 

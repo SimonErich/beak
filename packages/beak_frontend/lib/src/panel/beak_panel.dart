@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:get_it/get_it.dart';
 import 'package:http/http.dart' as http;
 import 'package:obers_ui/obers_ui.dart';
+import 'package:signals_flutter/signals_flutter.dart';
 
 import '../di/beak_locator.dart';
 import '../data/beak_data_changes.dart';
@@ -13,8 +14,8 @@ import '../auth/beak_auth_gate.dart';
 import '../auth/beak_session_store.dart';
 import '../localization/beak_localizations.dart';
 import '../formatting/beak_formatting.dart';
+import 'beak_panel_access.dart';
 import 'beak_panel_config.dart';
-import 'beak_principal_bridge.dart';
 import 'beak_router.dart';
 import 'beak_theme_controller.dart';
 import 'beak_auth_config.dart';
@@ -209,6 +210,8 @@ class BeakPanel extends HookWidget {
       maintenance,
       mapException,
     ]);
+    // One mapping for every column and command the panel renders below.
+    BeakLabels.current = config.labels;
     // --8<-- [start:panelRouting]
     final routing = useMemoized(() {
       final container = GetIt.asNewInstance();
@@ -225,7 +228,11 @@ class BeakPanel extends HookWidget {
             );
       return (
         container: container,
-        router: createBeakRouter(config, authRefresh: authRefresh),
+        router: createBeakRouter(
+          config,
+          authRefresh: authRefresh,
+          access: container<BeakPanelAccess>(),
+        ),
         authRefresh: authRefresh,
       );
       // The seams are part of the key: swapping a fake on rebuild used to
@@ -252,7 +259,6 @@ class BeakPanel extends HookWidget {
           routing.container<BeakClient>().close();
         }
         routing.container<BeakThemeController>().dispose();
-        BeakPrincipalBridge.detach(owner: routing.container);
         routing.container.reset();
       },
       [routing],
@@ -285,9 +291,18 @@ class BeakPanel extends HookWidget {
         ),
       ),
     );
+    final access = routing.container<BeakPanelAccess>();
+    // Rebuild the scope when the principal (identity or roles) changes; every
+    // BeakPanelAccess.of below depends on it.
+    final scoped = SignalBuilder(
+      builder: (context) {
+        access.principal;
+        return BeakPanelAccessScope(access: access, child: panel);
+      },
+    );
     final effectiveFormatting = config.formatting;
     return effectiveFormatting == null
-        ? panel
-        : BeakFormattingScope(formatting: effectiveFormatting, child: panel);
+        ? scoped
+        : BeakFormattingScope(formatting: effectiveFormatting, child: scoped);
   }
 }

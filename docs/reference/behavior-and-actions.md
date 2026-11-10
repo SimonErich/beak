@@ -186,13 +186,13 @@ A named command on one record. The same declaration supplies the label, the allo
 ```dart title="packages/beak_core/lib/src/behavior/beak_model_behavior.dart"
 const BeakModelAction({
   required this.name,
-  required this.label,
+  required String label,
   this.description,
   this.availableWhen,
   this.inputModel,
   this.allowOnCreate = false,
   this.values = const [],
-});
+}) : _label = label;
 ```
 
 | Field | Type | Default | Meaning |
@@ -380,6 +380,7 @@ const BeakGlobalAction({
   super.icon,
   super.color,
   super.requiresConfirmation,
+  this.visibleWhen,
 });
 ```
 

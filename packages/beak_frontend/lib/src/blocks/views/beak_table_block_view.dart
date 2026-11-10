@@ -7,15 +7,23 @@ class _BeakTableBlockView extends StatelessWidget {
 
   final BeakTableBlock block;
 
+  void _openRecord(BuildContext context, BeakRecord record) {
+    final id = block.model.primaryKeyOf(record);
+    if (id == null) return;
+    context.go(BeakRoutes.show(block.model.table, id));
+  }
+
   @override
   Widget build(BuildContext context) {
+    final void Function(BuildContext, BeakRecord) open =
+        block.onRowTap ?? _openRecord;
     final table = SizedBox(
       height: block.heightInPixels,
       child: BeakDataTable(
         model: block.model,
         dataSource: beakDependencies(context)<BeakDataSource>(),
         actions: block.actions,
-        onRowTap: block.onRowTap,
+        onRowTap: (record) => open(context, record),
         columns: block.columns,
         fields: block.fields,
         presentations: block.tableColumns,
