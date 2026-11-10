@@ -53,8 +53,13 @@ part 'book.beak.dart';
   area: 'catalog',
   create: BeakHandling.stock,
   update: BeakHandling.stock,
+  commands: ['restock'],
 )
 final class Book extends BeakSchema {
+  /// The commands staff can run on a book.
+  static BeakModelBehavior get behavior =>
+      BeakModelBehavior(actions: [BookActions.restock]);
+
   /// The title printed on the cover.
   @Display()
   late final String title;

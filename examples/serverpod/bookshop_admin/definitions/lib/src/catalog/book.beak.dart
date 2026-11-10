@@ -318,6 +318,9 @@ final class BookModel extends BeakModel {
   );
 
   @override
+  BeakModelBehavior get behavior => Book.behavior;
+
+  @override
   List<BeakModel> get relatedModels => const [AuthorModel()];
 
   @override
@@ -336,6 +339,15 @@ final class BookModel extends BeakModel {
   BeakModelLabels get labels => const BeakModelLabels(
     one: {'en': 'Book', 'de': 'Buch'},
     other: {'en': 'Books', 'de': 'Bücher'},
+    actions: {
+      'restock': {'en': 'Restock', 'de': 'Nachbestellen'},
+    },
+    actionDescriptions: {
+      'restock': {
+        'en': 'Add five copies to the shelf.',
+        'de': 'Fünf Exemplare zum Lager hinzufügen.',
+      },
+    },
   );
 
   @override

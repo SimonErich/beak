@@ -13,6 +13,9 @@
   "book.publishedOn": "Published on",
   "book.author": "Author",
 
+  "book.actions.restock": "Restock",
+  "book.actions.restock.description": "Add five copies to the shelf.",
+
   "bookFormat.paperback": "Paperback",
   "bookFormat.hardcover": "Hardcover",
   "bookFormat.ebook": "E-book",

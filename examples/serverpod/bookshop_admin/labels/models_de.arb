@@ -13,6 +13,9 @@
   "book.publishedOn": "Erschienen am",
   "book.author": "Autor",
 
+  "book.actions.restock": "Nachbestellen",
+  "book.actions.restock.description": "Fünf Exemplare zum Lager hinzufügen.",
+
   "bookFormat.paperback": "Taschenbuch",
   "bookFormat.hardcover": "Gebundene Ausgabe",
   "bookFormat.ebook": "E-Book",

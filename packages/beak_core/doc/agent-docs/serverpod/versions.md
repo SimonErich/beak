@@ -17,6 +17,8 @@ resolution: workspace
 dependencies:
   beak_backend:
     path: ../../../packages/beak_backend
+  beak_core:
+    path: ../../../packages/beak_core
   beak_serverpod_server:
     path: ../../../packages/beak_serverpod_server
   bookshop_definitions:

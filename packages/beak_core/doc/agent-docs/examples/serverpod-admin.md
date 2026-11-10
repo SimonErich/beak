@@ -76,8 +76,13 @@ Uploads, an outbox worker, custom handlers and row scopes are not used here; see
   area: 'catalog',
   create: BeakHandling.stock,
   update: BeakHandling.stock,
+  commands: ['restock'],
 )
 final class Book extends BeakSchema {
+  /// The commands staff can run on a book.
+  static BeakModelBehavior get behavior =>
+      BeakModelBehavior(actions: [BookActions.restock]);
+
   /// The title printed on the cover.
   @Display()
   late final String title;
@@ -114,11 +119,11 @@ deliberate server change.
 ///
 /// It serves Beak's stock API for the bookshop's definition classes on the
 /// request's own Serverpod session, so every statement runs on Serverpod's
-/// database with its transactions and logging. No bookshop model runs custom
-/// code, so the generated handlers take no arguments.
+/// database with its transactions and logging. Book runs its restock command
+/// through the app's typed handler; Author is saved the stock way.
 final BeakServerpodEngine bookshopBeak = BeakServerpodEngine.admitted(
   models: bookshopModels,
-  handlers: const BookshopHandlers(),
+  handlers: const BookshopHandlers(book: BookAdminHandler()),
   principal: BeakServerpodPrincipal.fromScopes,
 );
 ```

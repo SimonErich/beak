@@ -3,6 +3,9 @@
 import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_serverpod_server/beak_serverpod_server.dart';
 import 'package:bookshop_definitions/bookshop_definitions.dart' as admin;
+import 'package:bookshop_server/src/beak/generated/book_handler.dart';
+
+export 'package:bookshop_server/src/beak/generated/book_handler.dart';
 
 /// The server handlers of the admin models.
 ///
@@ -11,13 +14,16 @@ import 'package:bookshop_definitions/bookshop_definitions.dart' as admin;
 /// saved the stock way.
 final class BookshopHandlers implements BeakServerpodHandlers {
   /// Creates the handlers.
-  const BookshopHandlers();
+  const BookshopHandlers({required this.book});
+
+  /// Runs the custom code of Book.
+  final BookHandler book;
 
   @override
   BeakWriteBindings<admin.BookshopWrite> get writes => BeakWriteBindings(
     (binding) => switch (binding) {
-      admin.BookshopWrite.author ||
-      admin.BookshopWrite.book => const BeakWriteHandler.stock(),
+      admin.BookshopWrite.book => book.writes,
+      admin.BookshopWrite.author => const BeakWriteHandler.stock(),
     },
   );
 

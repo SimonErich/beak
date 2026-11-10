@@ -74,14 +74,14 @@ The generator refuses a mismatch with Serverpod before writing anything
 ```dart title="examples/serverpod/bookshop_server/lib/src/beak/bookshop_beak_engine.dart"
 final BeakServerpodEngine bookshopBeak = BeakServerpodEngine.admitted(
   models: bookshopModels,
-  handlers: const BookshopHandlers(),
+  handlers: const BookshopHandlers(book: BookAdminHandler()),
   principal: BeakServerpodPrincipal.fromScopes,
 );
 ```
 
 `bookshopModels` comes from the definitions package and `BookshopHandlers` from
-the generated handler folder. No bookshop model runs custom code, so the
-handlers take no arguments; a model that opens custom code adds a required
+the generated handler folder. Book's restock command runs through
+`BookAdminHandler`; a model that opens custom code adds a required
 argument ([Writes, commands and trees](write-bindings.md)). The endpoint keeps
 its own sign-in and scope gate and returns
 `bookshopBeak.dispatch(session, request)`.

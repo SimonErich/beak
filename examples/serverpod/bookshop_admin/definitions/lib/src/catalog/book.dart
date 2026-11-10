@@ -14,8 +14,13 @@ part 'book.beak.dart';
   area: 'catalog',
   create: BeakHandling.stock,
   update: BeakHandling.stock,
+  commands: ['restock'],
 )
 final class Book extends BeakSchema {
+  /// The commands staff can run on a book.
+  static BeakModelBehavior get behavior =>
+      BeakModelBehavior(actions: [BookActions.restock]);
+
   /// The title printed on the cover.
   @Display()
   late final String title;
@@ -41,4 +46,10 @@ final class Book extends BeakSchema {
 
   // supplierCostInCents is server only in Serverpod and not declared here,
   // so the admin never reads or writes it.
+}
+
+/// Commands staff run on a book.
+abstract final class BookActions {
+  /// Adds five copies to the shelf.
+  static const restock = BeakModelAction(name: 'restock', label: 'Restock');
 }

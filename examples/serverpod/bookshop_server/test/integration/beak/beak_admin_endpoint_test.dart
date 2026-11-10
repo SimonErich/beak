@@ -31,7 +31,14 @@ int _idOf(BeakWireResponse response) =>
       final Object? other => fail('no int id in ${response.body} ($other)'),
     };
 
-BeakSavePlan _createBookPlan(String saveId, {required int authorId}) {
+BeakSavePlan _createBookPlan(
+  String saveId, {
+  required int authorId,
+  String title = 'Tales from Moominvalley',
+  String? isbn,
+  int priceInCents = 1599,
+  int stock = 5,
+}) {
   const draft = BeakRecordRef.draft('book', 'book');
   return BeakSavePlan(
     saveId: saveId,
@@ -43,11 +50,11 @@ BeakSavePlan _createBookPlan(String saveId, {required int authorId}) {
         target: draft,
         values: BeakRecord(
           values: {
-            'title': const BeakStringValue('Tales from Moominvalley'),
-            'isbn': BeakStringValue('isbn-$saveId'),
+            'title': BeakStringValue(title),
+            'isbn': BeakStringValue(isbn ?? 'isbn-$saveId'),
             'format': const BeakStringValue('hardcover'),
-            'priceInCents': const BeakIntValue(1599),
-            'stock': const BeakIntValue(5),
+            'priceInCents': BeakIntValue(priceInCents),
+            'stock': BeakIntValue(stock),
           },
         ),
         references: {'authorId': BeakRecordRef.existing('author', authorId)},
@@ -55,6 +62,31 @@ BeakSavePlan _createBookPlan(String saveId, {required int authorId}) {
     ],
   );
 }
+
+BeakSavePlan _updateBookPlan(
+  String saveId,
+  int bookId,
+  Map<String, BeakValue> values,
+) {
+  final target = BeakRecordRef.existing('book', bookId.toString());
+  return BeakSavePlan(
+    saveId: saveId,
+    root: target,
+    operations: [
+      BeakSaveOperation(
+        id: 'book',
+        kind: BeakSaveOperationKind.update,
+        target: target,
+        values: BeakRecord(values: values),
+      ),
+    ],
+  );
+}
+
+int _rootId(BeakSaveResult result) => switch (result.rootRecord?['id']?.raw) {
+  final int id => id,
+  final Object? other => fail('no int id in ${result.toJson()} ($other)'),
+};
 
 /// The admin tunnel through Serverpod's real endpoint dispatch: the
 /// `BeakAdminGate` mixin, the engine, the session adapter and Serverpod's own
@@ -136,12 +168,15 @@ void main() {
         expect(
           (await staff.call(
             'PATCH',
-            '/api/book/${bookId()}',
-            json: {'stock': 3},
+            '/api/author/${catalog.tove.id}',
+            json: {'bio': 'Updated'},
           )).status,
           200,
         );
-        final delete = await staff.call('DELETE', '/api/book/${bookId()}');
+        final delete = await staff.call(
+          'DELETE',
+          '/api/author/${catalog.tove.id}',
+        );
         expect(delete.status, 403, reason: delete.body);
         expect(
           await sp.Book.db.findById(sessionBuilder.build(), bookId()),
@@ -177,28 +212,35 @@ void main() {
 
         final book = await staff.call(
           'POST',
-          '/api/book',
-          json: {
-            'title': 'Pippi Longstocking',
-            'isbn': '978-0-19-000000-1',
-            'format': 'hardcover',
-            'priceInCents': 1999,
-            'stock': 4,
-            'authorId': authorId,
-          },
+          '/api/commits',
+          json: _createBookPlan(
+            'pippi',
+            authorId: authorId,
+            title: 'Pippi Longstocking',
+            isbn: '978-0-19-000000-1',
+            priceInCents: 1999,
+            stock: 4,
+          ).toJson(),
         );
-        expect(book.status, 201, reason: book.body);
-        final bookId = _idOf(book);
+        expect(book.status, 200, reason: book.body);
+        final created = BeakSaveResult.fromJson(_json(book));
+        expect(created.complete, isTrue, reason: book.body);
+        final bookId = _rootId(created);
 
         final updated = await staff.call(
-          'PATCH',
-          '/api/book/$bookId',
-          json: {
-            'title': 'Pippi Longstocking (revised)',
-            'priceInCents': 2099,
-          },
+          'POST',
+          '/api/commits',
+          json: _updateBookPlan('pippi-revised', bookId, {
+            'title': const BeakStringValue('Pippi Longstocking (revised)'),
+            'priceInCents': const BeakIntValue(2099),
+          }).toJson(),
         );
         expect(updated.status, 200, reason: updated.body);
+        expect(
+          BeakSaveResult.fromJson(_json(updated)).complete,
+          isTrue,
+          reason: updated.body,
+        );
 
         // Serverpod's typed ORM sees exactly what Beak wrote.
         final stored = await sp.Book.db.findById(
@@ -244,19 +286,55 @@ void main() {
           'second row', () async {
         final duplicate = await staff.call(
           'POST',
-          '/api/book',
-          json: {
-            'title': 'Comet again',
-            'isbn': catalog.books.first.isbn,
-            'format': 'ebook',
-            'priceInCents': 100,
-            'stock': 1,
-            'authorId': catalog.tove.id,
-          },
+          '/api/commits',
+          json: _createBookPlan(
+            'duplicate-isbn',
+            authorId: catalog.tove.id!,
+            title: 'Comet again',
+            isbn: catalog.books.first.isbn,
+            priceInCents: 100,
+            stock: 1,
+          ).toJson(),
         );
-        expect(duplicate.status, anyOf(409, 422), reason: duplicate.body);
+        expect(duplicate.status, 200, reason: duplicate.body);
+        expect(
+          BeakSaveResult.fromJson(_json(duplicate)).complete,
+          isFalse,
+          reason: duplicate.body,
+        );
         expect(await sp.Book.db.count(sessionBuilder.build()), 3);
       });
+    });
+
+    test('a command runs through the generated typed handler', () async {
+      final target = BeakRecordRef.existing('book', bookId().toString());
+      final plan = BeakSavePlan(
+        saveId: 'restock-1',
+        root: target,
+        action: BookActions.restock.name,
+        operations: [
+          BeakSaveOperation(
+            id: 'restock',
+            kind: BeakSaveOperationKind.update,
+            target: target,
+          ),
+        ],
+      );
+
+      final response = await staff.call(
+        'POST',
+        '/api/commits',
+        json: plan.toJson(),
+      );
+      expect(response.status, 200, reason: response.body);
+      final result = BeakSaveResult.fromJson(_json(response));
+      expect(result.complete, isTrue, reason: response.body);
+
+      final stored = await sp.Book.db.findById(
+        sessionBuilder.build(),
+        bookId(),
+      );
+      expect(stored!.stock, catalog.books.first.stock + 5);
     });
 
     group('the form save is a graph commit', () {
