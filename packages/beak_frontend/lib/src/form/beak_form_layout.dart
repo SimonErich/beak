@@ -1959,6 +1959,38 @@ class BeakCalculated extends BeakFormNode {
     super.visibleIf,
   });
 
+  /// The live value of [field], read-only, labelled with the field's label
+  /// in the panel's language unless [label] is given.
+  ///
+  /// [format] follows the column: currency for money (the draft already
+  /// reads integer minor units as a decimal amount), a date or date-time for
+  /// dates, text otherwise.
+  factory BeakCalculated.field(
+    BeakScalarField<Object> field, {
+    String? label,
+    BeakValueFormat? format,
+    BeakCalculatedPresentation presentation = BeakCalculatedPresentation.text,
+  }) {
+    final column = field.column;
+    final bool money = column.semantic.kind == BeakSemanticKind.money;
+    return BeakCalculated(
+      label: label,
+      labelBuilder: label == null ? (_) => field.label : null,
+      dependencies: [field],
+      presentation: presentation,
+      format:
+          format ??
+          switch (column) {
+            _ when money => BeakValueFormat.currency,
+            BeakDateTimeColumn(format: BeakDateFormat.dateOnly) =>
+              BeakValueFormat.date,
+            BeakDateTimeColumn() => BeakValueFormat.dateTime,
+            _ => BeakValueFormat.text,
+          },
+      value: (state) => state.read(field),
+    );
+  }
+
   /// Reactive display calculation; its result is never submitted.
   final Object? Function(BeakFormReader state) value;
 

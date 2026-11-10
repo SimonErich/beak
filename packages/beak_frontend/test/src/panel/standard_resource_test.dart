@@ -91,4 +91,3 @@ void main() {
     expect(definition.export?.fileName, 'products.csv');
   });
 }
-
