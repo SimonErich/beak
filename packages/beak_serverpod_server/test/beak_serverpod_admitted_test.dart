@@ -61,6 +61,16 @@ final class _AdminBookModel extends BeakModel {
   );
 }
 
+final class _NoWriteHandlers implements BeakServerpodHandlers {
+  const _NoWriteHandlers();
+
+  @override
+  BeakWriteBindings<_Write>? get writes => null;
+
+  @override
+  List<BeakRowScope> get scopes => const [];
+}
+
 final class _Handlers implements BeakServerpodHandlers {
   const _Handlers({this.scopes = const []});
 
@@ -151,14 +161,28 @@ void main() {
     BeakSavePlanPreparer? preparePlan,
     BeakException? Function(Object error, StackTrace stackTrace)? mapException,
     List<BeakRowScope> scopes = const [],
+    BeakServerpodHandlers? handlers,
   }) => BeakServerpodEngine.admitted(
     models: const [_AdminBookModel(), AuthorModel()],
     principal: BeakServerpodPrincipal.fromScopes,
-    handlers: _Handlers(scopes: scopes),
+    handlers: handlers ?? _Handlers(scopes: scopes),
     preparePlan: preparePlan,
     mapException: mapException,
     adapter: adapter,
   );
+
+  test('an admitted engine refuses handlers without write bindings', () {
+    expect(
+      () => admitted(handlers: const _NoWriteHandlers()),
+      throwsA(
+        isA<BeakConfigurationException>().having(
+          (error) => error.message,
+          'message',
+          allOf(contains('no write bindings'), contains('"book"')),
+        ),
+      ),
+    );
+  });
 
   test('an admitted engine creates a row through its write binding', () async {
     final engine = admitted();

@@ -165,7 +165,7 @@ final class BeakServerpodEngine {
   factory BeakServerpodEngine.admitted({
     required List<BeakModel> models,
     required BeakServerpodPrincipalResolver principal,
-    BeakServerpodHandlers? handlers,
+    required BeakServerpodHandlers handlers,
     List<BeakTreeRule> trees = const [],
     BeakServerpodAdmission admit = BeakServerpodAdmissionRules.adminScope,
     BeakUnexpectedErrorListener onUnexpectedError = _logError,
@@ -181,14 +181,25 @@ final class BeakServerpodEngine {
     DatabaseAdapter? adapter,
   }) {
     final registry = BeakModelRegistry.of(models);
-    final writes = handlers?.writes;
-    writes?.validate(registry);
+    final writes = handlers.writes;
+    if (writes == null) {
+      final writable = [
+        for (final model in registry.all)
+          if (model.admission?.write != null) model.table,
+      ];
+      if (writable.isNotEmpty) {
+        throw BeakConfigurationException(
+          'The server handlers return no write bindings, but '
+          '${writable.map((table) => '"$table"').join(', ')} admit writes. '
+          'Return them from the generated handlers, or close the writes.',
+        );
+      }
+    } else {
+      writes.validate(registry);
+    }
     return BeakServerpodEngine(
       registry: registry,
-      policy: BeakPolicies.admitted(
-        registry,
-        scopes: handlers?.scopes ?? const [],
-      ),
+      policy: BeakPolicies.admitted(registry, scopes: handlers.scopes),
       principal: principal,
       admit: admit,
       onUnexpectedError: onUnexpectedError,

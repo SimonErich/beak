@@ -48,7 +48,10 @@ void checkDeclaredFields(
   void report(String message) => issues.add(definition.path, message);
   final foreignKeys = {
     for (final field in spyFields.values)
-      if (field.relation != null && !field.isCollection) foreignKeyOf(field),
+      if (field.relation != null &&
+          !field.isCollection &&
+          (table?.columns.containsKey(foreignKeyOf(field)) ?? false))
+        foreignKeyOf(field): field,
   };
   for (final field in definition.fields) {
     final what = '$owner.${field.name}';
@@ -96,7 +99,7 @@ void checkDeclaredFields(
     }
     final spy = spyFields[field.name];
     if (spy == null) {
-      if (field.name == 'id' || foreignKeys.contains(field.name)) {
+      if (field.name == 'id') {
         final stored = table?.columns[field.name]?.dartType ?? 'String';
         _checkType(
           what,
@@ -104,6 +107,23 @@ void checkDeclaredFields(
           stored.startsWith('int') ? 'int' : 'String',
           report,
         );
+        continue;
+      }
+      if (foreignKeys[field.name] case final SpyField foreign) {
+        final stored = table?.columns[field.name]?.dartType ?? 'String';
+        _checkType(
+          what,
+          field,
+          stored.startsWith('int') ? 'int' : 'String',
+          report,
+        );
+        if (foreign.nullable != field.nullable) {
+          report(
+            '$what is ${foreign.nullable ? 'nullable' : 'not nullable'} in '
+            'Serverpod (`${foreign.type}`); declare it '
+            '${foreign.nullable ? 'with' : 'without'} `?`.',
+          );
+        }
         continue;
       }
       report('$what is not a field of the Serverpod model $owner.');

@@ -719,6 +719,9 @@ migration table at the end collects the common ones.
 
 ### Changed
 
+- Breaking: `BeakServerpodEngine.admitted` requires `handlers:`. It also refuses
+  an aggregate that returns no write bindings while a model admits writes,
+  instead of silently saving that model the stock way.
 - Breaking: `BeakResource.standard(model, title)` takes `title:` as an optional
   named parameter; without it the title is the model's plural label. Its form
   card and first tab are Beak's General, not the title.

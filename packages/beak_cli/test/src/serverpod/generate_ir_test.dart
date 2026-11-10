@@ -166,6 +166,28 @@ final class Sample extends BeakSchema {
     );
   });
 
+  test('a scalar foreign key keeps the relation\'s nullability', () {
+    fixture
+      ..model('account', '''
+class: Account
+table: account
+fields:
+  id: UuidValue
+  authUser: module:serverpod_auth_core:AuthUser?, relation(onDelete=Cascade)
+''')
+      ..database([
+        ServerpodFixture.table('account', ['id', 'authUserId']),
+      ])
+      ..define('account', '''
+@Resource()
+@ServerpodModel(area: 'catalog', reason: 'Closed.')
+final class Account extends BeakSchema {
+  late final String authUserId;
+}''');
+
+    expect(fixture.ir, failsWith('authUserId is nullable in Serverpod'));
+  });
+
   test('a stock create needs every required field', () {
     sample('  title: String\n  code: String');
     fixture.define('sample', '''
