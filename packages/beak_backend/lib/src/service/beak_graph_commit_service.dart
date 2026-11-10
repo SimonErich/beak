@@ -10,6 +10,7 @@ import '../auth/beak_capability_policy.dart';
 import '../auth/beak_policy.dart';
 import '../auth/beak_field_policy.dart';
 import '../auth/beak_query_authorizer.dart';
+import '../auth/beak_tree_rule.dart';
 import '../data/worm/worm_data_source.dart';
 import '../data/worm/beak_soft_delete.dart';
 import 'beak_adapter_errors.dart';
@@ -187,6 +188,8 @@ final class BeakGraphCommitService {
     this.preparePlan,
     this.finalizePlan,
     this.executeOperation,
+    this.trees = const [],
+    this.mapException,
     this.receipts = BeakCommitReceiptTable.beak,
     this.maxStagedReceipts = defaultMaxStagedReceipts,
     DateTime Function()? now,
@@ -232,6 +235,16 @@ final class BeakGraphCommitService {
 
   /// Optional transactional persistence override for existing domain use cases.
   final BeakSaveOperationExecutor? executeOperation;
+
+  /// Trees every save has to keep shapely, validated in this transaction.
+  final List<BeakTreeRule> trees;
+
+  /// Maps a host exception thrown by [preparePlan], [executeOperation] or
+  /// [finalizePlan] to a [BeakException], so the caller gets a typed status and
+  /// message instead of an internal error. Return `null` to leave the failure
+  /// as it is.
+  final BeakException? Function(Object error, StackTrace stackTrace)?
+  mapException;
 
   /// The durable receipt store (worm sources only).
   final BeakCommitReceiptTable receipts;
@@ -707,6 +720,11 @@ final class BeakGraphCommitService {
   }
   // --8<-- [end:authorizeTable]
 
+  // Converts a host exception through [mapException]; a host that returns
+  // nothing has chosen to let the original failure through.
+  Object _mapped(BeakSavePlan plan, Object error, StackTrace stackTrace) =>
+      mapException?.call(error, stackTrace) ?? error;
+
   // --8<-- [start:prepareGraph]
   Future<BeakSavePlan> _prepare(
     BeakSavePlan plan,
@@ -719,8 +737,19 @@ final class BeakGraphCommitService {
         _authorizeTable(operation, principal);
       }
       final prepared = await _prepareBehavior(plan, transactional, principal);
-      return await preparePlan?.call(prepared, transactional, principal) ??
-          prepared;
+      final shaped = await applyBeakTreeRules(
+        trees,
+        prepared,
+        transactional,
+        registry,
+        principal,
+      );
+      try {
+        return await preparePlan?.call(shaped, transactional, principal) ??
+            shaped;
+      } on Object catch (error, stackTrace) {
+        throw _mapped(plan, error, stackTrace);
+      }
     } on BeakException catch (error) {
       // The transaction has not dispatched the prepared graph. Persist a
       // definite rejection so the client can edit instead of treating it as an
@@ -1607,18 +1636,22 @@ final class BeakGraphCommitService {
           );
         }
         dispatched = true;
-        delegated = await executeOperation!(
-          BeakSaveOperationContext(
-            plan: plan,
-            operation: op,
-            model: model,
-            values: values,
-            existing: existing,
-            id: id,
-            transaction: data,
-            principal: principal,
-          ),
-        );
+        try {
+          delegated = await executeOperation!(
+            BeakSaveOperationContext(
+              plan: plan,
+              operation: op,
+              model: model,
+              values: values,
+              existing: existing,
+              id: id,
+              transaction: data,
+              principal: principal,
+            ),
+          );
+        } on Object catch (error, stackTrace) {
+          throw _mapped(plan, error, stackTrace);
+        }
       }
       if (delegated?.values case final BeakRecord derived) {
         if ((op.kind != BeakSaveOperationKind.create &&

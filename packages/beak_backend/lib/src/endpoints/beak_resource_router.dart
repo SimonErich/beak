@@ -6,6 +6,7 @@ import 'package:shelf_router/shelf_router.dart';
 
 import '../auth/auth_router.dart';
 import '../auth/beak_capability_policy.dart';
+import '../auth/beak_tree_rule.dart';
 import '../auth/beak_policy.dart';
 import '../data/worm/worm_data_source.dart';
 import '../export/csv_export_service.dart';
@@ -148,6 +149,8 @@ Handler beakApiRouter({
   BeakSavePlanPreparer? preparePlan,
   BeakSavePlanFinalizer? finalizePlan,
   BeakSaveOperationExecutor? executeOperation,
+  List<BeakTreeRule> trees = const [],
+  BeakException? Function(Object error, StackTrace stackTrace)? mapException,
   List<BeakModel> graphOnly = const [],
   BeakCommitReceiptTable commitReceipts = BeakCommitReceiptTable.beak,
   int? maxStagedReceipts,
@@ -248,6 +251,8 @@ Handler beakApiRouter({
       preparePlan: preparePlan,
       finalizePlan: finalizePlan,
       executeOperation: executeOperation,
+      trees: trees,
+      mapException: mapException,
       receipts: commitReceipts,
       maxStagedReceipts:
           maxStagedReceipts ?? BeakGraphCommitService.defaultMaxStagedReceipts,

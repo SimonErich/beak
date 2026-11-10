@@ -75,6 +75,5 @@ Future<BeakRecord?> beakRestoreSoftDeleted(
   );
 }
 
-String _names(List<BeakColumn> key) => [
-  for (final column in key) column.label.toLowerCase(),
-].join(' and ');
+String _names(List<BeakColumn> key) =>
+    [for (final column in key) column.label.toLowerCase()].join(' and ');

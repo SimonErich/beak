@@ -1,6 +1,3 @@
-# Every path the docs site has ever served, relative to docs/.
-# tool/check_docs.dart fails when an entry is neither a page nor a key of
-# redirect_maps in mkdocs.yml, so a moved page can never break an old link.
 # Add a line for every page published in a release; never remove one.
 architecture/backend-flow.md
 architecture/block-system-internals.md
@@ -56,6 +53,7 @@ deployment/environment-and-config.md
 deployment/going-to-production.md
 deployment/index.md
 deployment/working-with-obers-ui.md
+# Every path the docs site has ever served, relative to docs/.
 extending/custom-blocks-and-widgets.md
 extending/custom-columns.md
 extending/custom-data-sources.md
@@ -106,14 +104,15 @@ panel/view-modes.md
 panel/workflow-presentations.md
 recipes/a-belongs-to-picker.md
 recipes/a-dashboard-kpi.md
+recipes/add-a-resource.md
 recipes/a-kanban-view.md
 recipes/a-multi-step-form.md
-recipes/a-row-action.md
-recipes/add-a-resource.md
 recipes/an-enum-badge-column.md
+recipes/a-row-action.md
 recipes/export-to-csv.md
 recipes/hide-a-resource.md
 recipes/index.md
+# redirect_maps in mkdocs.yml, so a moved page can never break an old link.
 reference/annotations.md
 reference/beak-yaml.md
 reference/blocks-index.md
@@ -128,6 +127,7 @@ reference/libraries.md
 reference/packages.md
 reference/rest-api.md
 reference/validation-rules.md
+serverpod/admin-app/write-bindings.md
 start-here/index.md
 start-here/installation.md
 start-here/project-structure.md
@@ -137,9 +137,10 @@ start-here/why-beak.md
 theming/built-in-themes.md
 theming/colors-and-tokens.md
 theming/index.md
-theming/the-shell.md
 theming/theming-basics.md
+theming/the-shell.md
 theming/typography-and-icons.md
+# tool/check_docs.dart fails when an entry is neither a page nor a key of
 tutorial/01-hatch-the-project.md
 tutorial/01-your-first-resource.md
 tutorial/02-columns-and-validation.md

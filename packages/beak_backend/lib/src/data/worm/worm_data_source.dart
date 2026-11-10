@@ -94,6 +94,27 @@ final class WormDataSource implements BeakDataSource, BeakSummaryDataSource {
   });
   // --8<-- [end:query]
 
+  /// Locks every row of [model] for the rest of the transaction.
+  ///
+  /// `SELECT … FOR UPDATE` on PostgreSQL and MySQL; SQLite and the in-memory
+  /// adapter serialize writers themselves and ignore it. Rows are ordered by
+  /// the primary key, so two transactions that lock the same table take its
+  /// rows in the same order and cannot deadlock. A tree rule calls this before
+  /// it validates a structural change.
+  ///
+  /// Must run inside the save transaction: outside one the lock ends with the
+  /// statement and protects nothing.
+  Future<void> lockRows(BeakModel model) async {
+    await _adapter.select(
+      QueryDescriptor(
+        table: model.table,
+        columns: [model.primaryKey.key],
+        orderBy: [SortClause(model.primaryKey.key)],
+        lock: true,
+      ),
+    );
+  }
+
   @override
   Future<BeakRecord?> getOne(String table, Object id) => _read(() async {
     final model = registry.byTableOrThrow(table);
