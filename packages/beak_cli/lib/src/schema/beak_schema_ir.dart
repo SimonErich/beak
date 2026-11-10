@@ -106,6 +106,7 @@ final class BeakColumnIr {
     this.arguments = const {},
     this.docComment,
     this.omitFromValues = false,
+    this.enumValueNames = const [],
   });
 
   /// The Dart field this column came from.
@@ -125,6 +126,10 @@ final class BeakColumnIr {
 
   /// For [BeakColumnKind.enumeration], the enum's Dart type name.
   final String? enumTypeName;
+
+  /// For [BeakColumnKind.enumeration], the names of the enum's values, so
+  /// their labels can be looked up (`orderStatus.pending`).
+  final List<String> enumValueNames;
 
   /// Semantic Dart type when it differs from its physical column reader.
   final String? declaredValueType;
@@ -261,10 +266,15 @@ final class BeakSchemaIr {
     this.hasPermissions = false,
     this.hasCapabilities = false,
     this.docComment,
+    this.labelKey,
   });
 
   /// The annotated class's name.
   final String className;
+
+  /// The key its labels are found under in the label files, when it is not
+  /// the lowerCamelCase [className] (`@Resource(labelKey: 'order')`).
+  final String? labelKey;
 
   /// Physical table name.
   final String table;

@@ -39,6 +39,11 @@ extension BeakClassSyntax on ClassDeclaration {
 extension BeakEnumSyntax on EnumDeclaration {
   /// The name of the enum.
   String get enumName => namePart.typeName.lexeme;
+
+  /// The names of the enum's values, in declaration order.
+  List<String> get valueNames => [
+    for (final constant in body.constants) constant.name.lexeme,
+  ];
 }
 
 /// One argument of a call or an annotation.

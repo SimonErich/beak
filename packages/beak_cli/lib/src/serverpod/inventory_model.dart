@@ -70,6 +70,7 @@ final class InventoryResource {
     this.reason,
     this.restoreKey,
     this.fields = const {},
+    this.labelKey,
   });
 
   /// The Serverpod class name.
@@ -119,6 +120,10 @@ final class InventoryResource {
 
   /// Presentation overrides by field name.
   final Map<String, InventoryField> fields;
+
+  /// The key the model's labels are found under in the label files, instead
+  /// of its lowerCamelCase class name.
+  final String? labelKey;
 
   /// Whether any operation besides `read` is open.
   bool get writes => operations.any((operation) => operation != 'read');

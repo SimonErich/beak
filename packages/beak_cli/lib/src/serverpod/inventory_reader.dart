@@ -24,6 +24,7 @@ const Set<String> _resourceKeys = {
   'reason',
   'restoreKey',
   'fields',
+  'labelKey',
 };
 const Set<String> _fieldKeys = {
   'label',
@@ -195,6 +196,7 @@ InventoryResource? _resource(
     reason: optionalYamlString(map['reason'], '$name.reason'),
     restoreKey: optionalYamlStringList(map['restoreKey'], '$name.restoreKey'),
     fields: _fields(name, map['fields']),
+    labelKey: optionalYamlString(map['labelKey'], '$name.labelKey'),
   );
 }
 

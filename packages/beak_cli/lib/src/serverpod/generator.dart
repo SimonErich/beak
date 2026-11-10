@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../cli_runner.dart';
+import '../labels/project_label_loader.dart';
 import '../project/beak_project_config.dart';
 import '../schema/beak_schema_emitter.dart';
 import '../version.dart';
@@ -27,6 +28,7 @@ final class BeakGenerateResult {
     this.unchanged = const [],
     this.removed = const [],
     this.problems = const [],
+    this.warnings = const [],
   });
 
   /// Generated files whose contents changed.
@@ -40,6 +42,10 @@ final class BeakGenerateResult {
 
   /// Why `--check` failed, or an empty list when the output is current.
   final List<String> problems;
+
+  /// What is worth fixing but does not fail the run, such as a shown field
+  /// without a label in some language.
+  final List<String> warnings;
 
   /// Whether the output is current (a check) or was made current (a run).
   bool get isSuccess => problems.isEmpty;
@@ -106,6 +112,24 @@ BeakGenerateResult runServerpodGenerate(
     inventory: inventory,
     settings: settings,
   );
+  final labels = loadProjectLabels(
+    root: root,
+    settings: config.labels,
+    schemas: [
+      for (final model in ir.models) model.schema,
+      for (final input in ir.inputs) input.schema,
+    ],
+    enumValues: {
+      for (final generated in ir.enums)
+        generated.name: [for (final value in generated.values) value.name],
+    },
+  );
+  if (labels.errors.isNotEmpty) {
+    throw BeakGenerateException([
+      for (final issue in labels.errors)
+        BeakGenerateIssue(path: issue.path, message: issue.message),
+    ]);
+  }
   final output = Directory(p.join(root.path, settings.output));
   final outputPackage = File(p.join(output.path, 'pubspec.yaml'));
   if (!outputPackage.existsSync()) {
@@ -121,12 +145,14 @@ BeakGenerateResult runServerpodGenerate(
     files[model.schema.libraryPath] = BeakSchemaEmitter.emitLibrary(
       model,
       ir.models,
+      labels: labels.labels,
     );
   }
   for (final input in ir.inputs) {
     files[input.schema.libraryPath] = BeakSchemaEmitter.emitInputLibrary(
       input,
       ir.models,
+      labels: labels.labels,
     );
   }
   files['src/models.dart'] = BeakSchemaEmitter.emitModelsBarrel(
@@ -151,10 +177,18 @@ BeakGenerateResult runServerpodGenerate(
     configFile: configFile,
     serverRoot: serverRoot,
     inventory: Directory(p.join(root.path, settings.inventory)),
+    labelFiles: projectLabelFiles(root, config.labels),
     output: output,
   );
   files['.beak_generate_stamp.json'] = stamp;
-  return _sync(output, files, check: check);
+  final result = _sync(output, files, check: check);
+  return BeakGenerateResult(
+    written: result.written,
+    unchanged: result.unchanged,
+    removed: result.removed,
+    problems: result.problems,
+    warnings: [for (final issue in labels.warnings) issue.toString()],
+  );
 }
 
 String _packageName(File pubspec) {
@@ -184,6 +218,7 @@ String _stampContent({
   required File configFile,
   required Directory serverRoot,
   required Directory inventory,
+  required List<File> labelFiles,
   required Directory output,
 }) {
   final inputs = <String>[];
@@ -197,6 +232,7 @@ String _stampContent({
     if (inventory.existsSync())
       for (final entity in inventory.listSync(recursive: true))
         if (entity is File && entity.path.endsWith('.yaml')) entity,
+    ...labelFiles,
   ]..sort((a, b) => a.path.compareTo(b.path))) {
     final path = p.relative(file.path, from: root.path);
     inputs.add(

@@ -8,6 +8,8 @@ import '../cli_runner.dart';
 import '../project/beak_authored_main.dart';
 import '../project/beak_discovery.dart';
 import '../project/beak_emitters.dart';
+import '../labels/project_label_loader.dart';
+import '../labels/project_labels.dart';
 import '../project/beak_project_config.dart';
 import '../project/beak_theme_preset.dart';
 import '../schema/beak_migration_emitter.dart';
@@ -280,8 +282,26 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
   // --8<-- [start:preparePartsAndScan]
   // Schema classes generate their own part files first, so the models they
   // declare exist before discovery goes looking for them.
-  final (schemas, schemaIssues) = BeakSchemaReader(root).readChecked();
-  final parts = _writeSchemaParts(root, schemas, schemaIssues);
+  final (schemas, readIssues) = BeakSchemaReader(root).readChecked();
+  final labels = loadProjectLabels(
+    root: root,
+    settings: config.labels,
+    schemas: schemas,
+  );
+  for (final warning in labels.warnings) {
+    environment.out.writeln('warning: $warning');
+  }
+  final schemaIssues = [
+    ...readIssues,
+    for (final issue in labels.errors)
+      BeakDiscoveryIssue(path: issue.path, message: issue.message),
+  ];
+  final parts = _writeSchemaParts(
+    root,
+    schemas,
+    schemaIssues,
+    labels: labels.labels,
+  );
 
   final BeakDiscovery discovery = BeakProjectScanner(
     root,
@@ -449,8 +469,9 @@ BeakPrepareResult _prepareModelsOnly(
 ({List<String> written, List<String> unchanged}) _writeSchemaParts(
   Directory root,
   List<BeakSchemaIr> schemas,
-  List<BeakDiscoveryIssue> schemaIssues,
-) {
+  List<BeakDiscoveryIssue> schemaIssues, {
+  BeakProjectLabels labels = BeakProjectLabels.none,
+}) {
   final written = <String>[];
   final unchanged = <String>[];
   if (schemaIssues.isNotEmpty) {
@@ -460,7 +481,7 @@ BeakPrepareResult _prepareModelsOnly(
     final String path = BeakSchemaEmitter.partPathOf(schema);
     final bool changed = _writeIfChanged(
       File('${root.path}/$path'),
-      BeakSchemaEmitter.emit(schema, schemas),
+      BeakSchemaEmitter.emit(schema, schemas, labels: labels),
     );
     (changed ? written : unchanged).add(path);
   }

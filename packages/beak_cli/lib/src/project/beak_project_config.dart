@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:yaml/yaml.dart';
 
 import '../agents/beak_skill_installer.dart';
+import '../labels/label_settings.dart';
 import '../serverpod/generate_settings.dart';
 import 'beak_discovery.dart';
 import 'beak_emitters.dart' show BeakEmitters;
@@ -191,6 +192,7 @@ final class BeakProjectConfig {
     this.themePreset = BeakThemePreset.standard,
     this.serverpod,
     this.generate,
+    this.labels,
   });
 
   /// The defaults applied when a project has no `beak.yaml` at all.
@@ -225,6 +227,7 @@ final class BeakProjectConfig {
       'resources',
       'serverpod',
       'generate',
+      'labels',
     }, '');
 
     final YamlMap? api = _optionalMap(root['api'], 'api');
@@ -334,6 +337,7 @@ final class BeakProjectConfig {
         root['generate'],
         hasServerpod: serverpodSettings != null,
       ),
+      labels: _labelsOf(root['labels']),
     );
   }
 
@@ -386,6 +390,10 @@ final class BeakProjectConfig {
   /// What `beak generate` writes (`generate:`), or `null` when the project
   /// has no generated schema package.
   final BeakGenerateSettings? generate;
+
+  /// Where the model, field, enum and action labels are (`labels:`), or
+  /// `null` when the models keep their generated labels.
+  final BeakLabelSettings? labels;
 
   /// [yamlSource] as a YAML document.
   ///
@@ -488,6 +496,14 @@ final class BeakProjectConfig {
   }
 
   /// The `agents.instructions` choice; `all` when it is not written.
+  static BeakLabelSettings? _labelsOf(Object? value) {
+    try {
+      return BeakLabelSettings.parse(value);
+    } on FormatException catch (error) {
+      throw BeakProjectConfigException(error.message);
+    }
+  }
+
   static BeakThemePreset _themePresetOf(Object? value) {
     final Object? raw = value is YamlNode ? value.value : value;
     if (raw == null) {

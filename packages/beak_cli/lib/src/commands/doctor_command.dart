@@ -18,6 +18,7 @@ import '../introspect/beak_schema_introspection.dart';
 import '../project/beak_authored_main.dart';
 import '../project/beak_discovery.dart';
 import '../project/beak_emitters.dart';
+import '../labels/project_label_loader.dart';
 import '../project/beak_project_config.dart';
 import '../project/beak_theme_preset.dart';
 import '../schema/beak_drift_migration_emitter.dart';
@@ -288,10 +289,16 @@ Future<List<BeakCheck>> diagnose(
     // wide enough for `examples/quickstart` to sit 18 lines behind the
     // emitter while reporting "generated files up to date".
     if (schemaIssues.isEmpty) {
+      final labels = loadProjectLabels(
+        root: root,
+        settings: config.labels,
+        schemas: schemas,
+      ).labels;
       for (final schema in schemas) {
         expected[BeakSchemaEmitter.partPathOf(schema)] = BeakSchemaEmitter.emit(
           schema,
           schemas,
+          labels: labels,
         );
       }
     }

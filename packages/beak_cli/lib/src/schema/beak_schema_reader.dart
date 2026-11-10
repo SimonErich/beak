@@ -34,7 +34,7 @@ final class BeakSchemaReader {
     // Enums declared anywhere under lib/. An unresolved parse cannot
     // tell `ProductStatus` from `Uri` by name alone, so collect the real
     // declarations and treat anything else as an error the author can fix.
-    final enums = <String>{};
+    final enums = <String, List<String>>{};
     final root = Directory('${projectRoot.path}/lib');
     if (!root.existsSync()) {
       return (schemas, issues);
@@ -61,7 +61,7 @@ final class BeakSchemaReader {
       units.add((_libRelative(file), unit));
       for (final declaration in unit.declarations) {
         if (declaration is EnumDeclaration) {
-          enums.add(declaration.enumName);
+          enums[declaration.enumName] = declaration.valueNames;
         }
       }
     }
@@ -214,6 +214,7 @@ final class BeakSchemaReader {
           hasPermissions: schema.hasPermissions,
           hasCapabilities: schema.hasCapabilities,
           docComment: schema.docComment,
+          labelKey: schema.labelKey,
         ),
     ];
   }
@@ -240,6 +241,7 @@ final class BeakSchemaReader {
         kind: identity.kind,
         isRequired: relation.isRequired,
         enumTypeName: identity.enumTypeName,
+        enumValueNames: identity.enumValueNames,
         declaredValueType: identity.declaredValueType,
         arguments: column.arguments,
         docComment: column.docComment,
@@ -253,7 +255,7 @@ final class BeakSchemaReader {
     ClassDeclaration declaration,
     Annotation resource,
     String path,
-    Set<String> enums,
+    Map<String, List<String>> enums,
   ) {
     final issues = <BeakDiscoveryIssue>[];
     final String className = declaration.className;
@@ -535,6 +537,7 @@ final class BeakSchemaReader {
     return (
       BeakSchemaIr(
         className: className,
+        labelKey: _unquote(options['labelKey']),
         table: table,
         libraryPath: path,
         columns: allColumns,
@@ -579,7 +582,7 @@ final class BeakSchemaReader {
     required NamedType type,
     required NodeList<Annotation> metadata,
     required String? docComment,
-    required Set<String> enums,
+    required Map<String, List<String>> enums,
   }) {
     final String typeName = type.name.lexeme;
     final bool nullable = type.question != null;
@@ -643,7 +646,7 @@ final class BeakSchemaReader {
         : (primitiveType == null
                   ? BeakColumnKind.ofType(typeName)
                   : BeakColumnKind.json) ??
-              (enums.contains(typeName) ? BeakColumnKind.enumeration : null);
+              (enums.containsKey(typeName) ? BeakColumnKind.enumeration : null);
 
     if (kind == null) {
       return _FieldIssue(
@@ -800,6 +803,9 @@ final class BeakSchemaReader {
         kind: kind,
         isRequired: !nullable,
         enumTypeName: kind == BeakColumnKind.enumeration ? typeName : null,
+        enumValueNames: kind == BeakColumnKind.enumeration
+            ? enums[typeName] ?? const []
+            : const [],
         declaredValueType: semanticType,
         arguments: arguments,
         docComment: docComment,

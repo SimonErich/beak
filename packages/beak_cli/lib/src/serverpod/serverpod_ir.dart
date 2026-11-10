@@ -260,6 +260,7 @@ _Draft _draftFor(
       columns.any((column) => column.fieldName == 'updatedAt');
   final schema = BeakSchemaIr(
     className: spy.name,
+    labelKey: resource.labelKey,
     table: spy.table!,
     libraryPath: 'src/models/${_snake(spy.name)}.dart',
     columns: columns,

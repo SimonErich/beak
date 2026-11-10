@@ -58,6 +58,9 @@ final class GenerateCommand extends Command<int> {
         check: args['check'] == true,
       );
       final out = environment.out;
+      for (final warning in result.warnings) {
+        out.writeln('warning: $warning');
+      }
       if (args['check'] == true) {
         if (result.isSuccess) {
           out.writeln('beak generate: generated files are up to date.');
