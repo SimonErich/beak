@@ -28,13 +28,20 @@ import 'serverpod_beak_data_source.dart';
 ///   },
 ///   panelRole: 'accessAdminPanel',
 ///   initialize: (client) => client.auth.initialize(),
-///   config: (auth) => BeakPanelConfig(
-///     title: 'Shop',
+///   locale: const Locale('de'),
+///   supportedLocales: AppLocalizations.supportedLocales,
+///   localizationsDelegates: AppLocalizations.localizationsDelegates,
+///   config: (context, auth) => BeakPanelConfig(
+///     title: AppLocalizations.of(context).appTitle,
 ///     resources: shopResources,
 ///     auth: BeakAuthConfig(adapter: auth),
 ///   ),
 /// );
 /// ```
+///
+/// [config] runs in a [BuildContext] that holds the app's localizations, so
+/// the app's own copy is read from it (see [BeakLocalizedPanel]); model and
+/// field labels come from the generated models in [locale]'s language.
 ///
 /// [roles] answers the account's effective roles after every sign-in; model
 /// permissions are checked against them. [panelRole], when set, must be one of
@@ -44,7 +51,11 @@ Future<void> runServerpodBeakAdmin<C extends ServerpodClientShared>({
   required FutureOr<String> Function() apiUrl,
   required C Function(String url) client,
   required BeakTunnelDispatch Function(C client) dispatch,
-  required BeakPanelConfig Function(BeakAuthAdapter auth) config,
+  required BeakPanelConfig Function(BuildContext context, BeakAuthAdapter auth)
+  config,
+  Locale? locale,
+  List<Locale> supportedLocales = BeakLocalizations.supportedLocales,
+  Iterable<LocalizationsDelegate<Object?>> localizationsDelegates = const [],
   Future<Set<String>> Function(C client)? roles,
   String? panelRole,
   BeakException? Function(Object error, StackTrace stackTrace)? mapException,
@@ -82,8 +93,11 @@ Future<void> runServerpodBeakAdmin<C extends ServerpodClientShared>({
   );
   await auth.initialize();
   runApp(
-    BeakPanel(
-      config: config(auth),
+    BeakLocalizedPanel(
+      locale: locale,
+      supportedLocales: supportedLocales,
+      localizationsDelegates: localizationsDelegates,
+      config: (context) => config(context, auth),
       dataSource: serverpodBeakDataSource(dispatch(api)),
     ),
   );
