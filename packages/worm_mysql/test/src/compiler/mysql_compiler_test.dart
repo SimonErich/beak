@@ -941,4 +941,23 @@ void main() {
       );
     });
   });
+
+  test('a locking select ends in FOR UPDATE and refuses DISTINCT', () {
+    final result = compiler.compileSelect(
+      const QueryDescriptor(
+        table: 'nodes',
+        columns: ['id'],
+        orderBy: [SortClause('id')],
+        lock: true,
+      ),
+    );
+
+    expect(result.sql, 'SELECT `id` FROM `nodes` ORDER BY `id` ASC FOR UPDATE');
+    expect(
+      () => compiler.compileSelect(
+        const QueryDescriptor(table: 'nodes', distinct: true, lock: true),
+      ),
+      throwsA(isA<QueryException>()),
+    );
+  });
 }

@@ -24,6 +24,7 @@ final class QueryDescriptor {
     this.joins = const <JoinClause>[],
     this.groupBy = const <String>[],
     this.having = const <HavingClause>[],
+    this.lock = false,
   });
 
   /// The target table name.
@@ -59,6 +60,17 @@ final class QueryDescriptor {
   /// HAVING conditions applied after grouping (SQL adapters only).
   final List<HavingClause> having;
 
+  /// Whether the selected rows are locked against concurrent writers until
+  /// the surrounding transaction ends (`SELECT ... FOR UPDATE`).
+  ///
+  /// Adapters without row locks ignore it: SQLite serializes writers with one
+  /// database lock and the in-memory adapter runs transactions one at a
+  /// time. Combine it with an `orderBy` so every transaction that locks the
+  /// same rows takes them in the same order, which is what keeps two of them
+  /// from deadlocking. A locking query cannot be [distinct], grouped or
+  /// aggregated; SQL adapters reject that combination.
+  final bool lock;
+
   /// Returns a copy of this descriptor with selected
   /// fields overridden. Pass `clearWhere: true` to
   /// reset [where] back to `null`.
@@ -75,6 +87,7 @@ final class QueryDescriptor {
     List<JoinClause>? joins,
     List<String>? groupBy,
     List<HavingClause>? having,
+    bool? lock,
   }) => QueryDescriptor(
     table: table ?? this.table,
     tableAlias: tableAlias ?? this.tableAlias,
@@ -87,6 +100,7 @@ final class QueryDescriptor {
     joins: joins ?? this.joins,
     groupBy: groupBy ?? this.groupBy,
     having: having ?? this.having,
+    lock: lock ?? this.lock,
   );
 
   /// Serializes to a map for golden snapshots.
@@ -108,5 +122,6 @@ final class QueryDescriptor {
     if (limit != null) 'limit': limit,
     if (offset != null) 'offset': offset,
     if (distinct) 'distinct': distinct,
+    if (lock) 'lock': lock,
   };
 }

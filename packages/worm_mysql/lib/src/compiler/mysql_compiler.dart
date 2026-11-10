@@ -39,7 +39,23 @@ final class MysqlCompiler {
   const MysqlCompiler();
 
   /// Compile a [QueryDescriptor] into a `SELECT` statement.
+  ///
+  /// A [QueryDescriptor.lock] query ends in `FOR UPDATE`, which MySQL refuses
+  /// beside `DISTINCT`, `GROUP BY` and `HAVING`; such a descriptor throws a
+  /// [QueryException] here instead of failing at the server.
   MysqlCompileResult compileSelect(QueryDescriptor descriptor) {
+    if (descriptor.lock &&
+        (descriptor.distinct ||
+            descriptor.groupBy.isNotEmpty ||
+            descriptor.having.isNotEmpty)) {
+      throw QueryException(
+        query: descriptor.table,
+        message:
+            'A locking query cannot be DISTINCT, grouped or filtered by '
+            'HAVING: MySQL rejects FOR UPDATE with them.',
+        table: descriptor.table,
+      );
+    }
     final params = <Object?>[];
     final sql = StringBuffer('SELECT ');
     if (descriptor.distinct) sql.write('DISTINCT ');
@@ -56,18 +72,14 @@ final class MysqlCompiler {
     _appendHaving(sql, descriptor.having, params);
     _appendOrderBy(sql, descriptor.orderBy);
     _appendLimitOffset(sql, descriptor.limit, descriptor.offset);
+    if (descriptor.lock) sql.write(' FOR UPDATE');
     return _result(sql, params);
   }
 
   /// Compiles a current single-row read, bypassing an InnoDB snapshot and
   /// retaining update locks until the current transaction completes.
-  MysqlCompileResult compileCurrentSelect(QueryDescriptor descriptor) {
-    final compiled = compileSelect(descriptor.copyWith(limit: 1));
-    return MysqlCompileResult(
-      sql: '${compiled.sql} FOR UPDATE',
-      parameters: compiled.parameters,
-    );
-  }
+  MysqlCompileResult compileCurrentSelect(QueryDescriptor descriptor) =>
+      compileSelect(descriptor.copyWith(limit: 1, lock: true));
 
   void _appendJoins(StringBuffer sql, List<JoinClause> joins) {
     for (final join in joins) {

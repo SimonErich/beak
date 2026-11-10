@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:serverpod/serverpod.dart' show Session, Transaction;
+import 'package:serverpod/serverpod.dart' show Session, Transaction, UuidValue;
 import 'package:worm/worm.dart' show DatabaseAdapter;
 
 import 'serverpod_session_adapter.dart';
@@ -43,6 +43,16 @@ abstract final class BeakServerpod {
   static R runInSession<R>(Session session, R Function() body) =>
       runZoned(body, zoneValues: {_sessionKey: session});
   // --8<-- [end:runInSession]
+
+  /// [id] as the text a Beak string primary key stores.
+  ///
+  /// A Serverpod `UuidValue` is written as its canonical lowercase text, so a
+  /// domain use case can return the `UuidValue` it persisted and
+  /// `BeakSaveOperationWrite.persisted` reads the row back with it.
+  static String uuidOf(Object id) => switch (id) {
+    final UuidValue value => value.uuid,
+    _ => id.toString(),
+  };
 
   /// The zone's session, or `null` outside [runInSession].
   static Session? get currentSessionOrNull =>

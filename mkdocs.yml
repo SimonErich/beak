@@ -368,6 +368,7 @@ nav:
           - "How the admin app works": serverpod/admin-app/how-it-works.md
           - "Generating the schema package": serverpod/admin-app/generate.md
           - "Setting up the admin app": serverpod/admin-app/setup.md
+          - "Writes, commands and trees": serverpod/admin-app/write-bindings.md
           - "Limits and next steps": serverpod/admin-app/limits-and-next-steps.md
       - "Client bridge":
           - serverpod/bridge/index.md

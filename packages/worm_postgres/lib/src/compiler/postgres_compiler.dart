@@ -23,7 +23,24 @@ final class PostgresCompiler {
   const PostgresCompiler();
 
   /// Compile a [QueryDescriptor] into a `SELECT` statement.
+  ///
+  /// A [QueryDescriptor.lock] query ends in `FOR UPDATE`. Postgres refuses
+  /// that clause beside `DISTINCT`, `GROUP BY` and `HAVING`, so such a
+  /// descriptor throws a [QueryException] here instead of failing at the
+  /// server.
   PostgresCompileResult compileSelect(QueryDescriptor descriptor) {
+    if (descriptor.lock &&
+        (descriptor.distinct ||
+            descriptor.groupBy.isNotEmpty ||
+            descriptor.having.isNotEmpty)) {
+      throw QueryException(
+        query: descriptor.table,
+        message:
+            'A locking query cannot be DISTINCT, grouped or filtered by '
+            'HAVING: Postgres rejects FOR UPDATE with them.',
+        table: descriptor.table,
+      );
+    }
     final params = <Object?>[];
     final sql = StringBuffer('SELECT ');
     if (descriptor.distinct) sql.write('DISTINCT ');
@@ -40,6 +57,7 @@ final class PostgresCompiler {
     _appendHaving(sql, descriptor.having, params);
     _appendOrderBy(sql, descriptor.orderBy);
     _appendLimitOffset(sql, descriptor.limit, descriptor.offset);
+    if (descriptor.lock) sql.write(' FOR UPDATE');
     return _result(sql, params);
   }
 

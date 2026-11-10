@@ -15,6 +15,8 @@ export 'src/auth/beak_policy.dart' hide beakRowScope;
 export 'src/auth/beak_action_policy.dart';
 export 'src/auth/beak_field_policy.dart';
 export 'src/auth/beak_query_authorizer.dart';
+export 'src/auth/beak_row_scope.dart';
+export 'src/auth/beak_tree_rule.dart';
 export 'src/auth/token_session_store.dart';
 export 'src/config/beak_backend_config.dart';
 export 'src/config/env_loader.dart';
@@ -38,6 +40,9 @@ export 'src/service/beak_commit_receipts_migration.dart';
 export 'src/service/beak_framework_tables.dart';
 export 'src/service/beak_outbox.dart';
 export 'src/service/beak_revision_timestamp.dart' show beakRevisionTimestamp;
+export 'src/service/beak_restore.dart' show beakRestoreSoftDeleted;
+export 'src/writes/beak_write_bindings.dart';
+export 'src/writes/beak_write_handler.dart';
 
 // Who a request is and who may do what live in beak_core, where the panel
 // shares them. They stay importable from here, so a server needs one import.

@@ -132,6 +132,7 @@ migration table at the end collects the common ones.
 - `sqlite3 ^3` in `worm_sqlite` and `beak_cli`, which Serverpod needs. The pinned
   Serverpod 4.0.4 CLI wrapper lives in `tool/serverpod_cli_4`.
 
+<<<<<<< HEAD
 #### beak generate
 
 - `beak generate` reads a Serverpod server's `*.spy.yaml` models, the newest
@@ -169,6 +170,26 @@ migration table at the end collects the common ones.
   roles, tunnel data source) in one call.
 - `beakRouteSweep` in `beak_test` mounts a panel at several widths and visits
   every visible route.
+#### Server APIs
+
+- `BeakPolicies.admitted(registry, scopes:)` derives each rule from the model's
+  permissions, admission and capabilities; a model's capabilities are enforced
+  for every policy by the router and the graph commit service.
+- `BeakWriteBindings<W>` maps a generated write binding to a
+  `BeakWriteHandler`: stock persistence, a server-side stamp, or domain writes
+  with `otherwise: BeakUnmatched.refuse`. `BeakSaveOperationWrite.persisted(id)`
+  reads the row a use case wrote back in the same transaction, and
+  `BeakSaveOperationContext.merged` / `requireCommandOnly()` support commands.
+- Soft-deleted rows with an `admission.restoreKey` are restored by a stock
+  create instead of duplicated.
+- `BeakTreeRule` keeps a small tree a tree: cycles, delete-with-children or
+  references, repeated sibling values and over-deep moves are refused inside
+  the save transaction, after locking the tree's rows in a deadlock-free order.
+- `BeakServerpodEngine.admitted(...)` composes the registry, policy, write
+  bindings and tree rules in one call; `mapException` maps host failures;
+  `pruneExpiredReceipts(session)` deletes commit receipts older than 30 days.
+- `BeakException.forCategory` and `BeakServerpod.uuidOf` are the mapping and
+  identity seams a host use case usually needs.
 
 #### Command line
 

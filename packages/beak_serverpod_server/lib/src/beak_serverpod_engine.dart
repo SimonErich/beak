@@ -109,6 +109,8 @@ final class BeakServerpodEngine {
     BeakSavePlanPreparer? preparePlan,
     BeakSavePlanFinalizer? finalizePlan,
     BeakSaveOperationExecutor? executeOperation,
+    List<BeakTreeRule> trees = const [],
+    BeakException? Function(Object error, StackTrace stackTrace)? mapException,
     List<BeakModel> graphOnly = const [],
     int statementTimeoutInSeconds = 30,
     this.frameworkTables = beakServerpodFrameworkTables,
@@ -129,6 +131,8 @@ final class BeakServerpodEngine {
       preparePlan: preparePlan,
       finalizePlan: finalizePlan,
       executeOperation: executeOperation,
+      trees: trees,
+      mapException: mapException,
       graphOnly: graphOnly,
       frameworkTables: frameworkTables,
       now: now,
@@ -136,6 +140,70 @@ final class BeakServerpodEngine {
       onUnexpectedError: onUnexpectedError,
       onRequest: onRequest,
       dataSource: _source,
+    );
+  }
+
+  /// Builds the pipeline from generated models and their authored
+  /// definitions.
+  ///
+  /// This is the one-line composition a generated admin uses: it registers
+  /// [models] (binding [definitions] first), derives the policy from each
+  /// model's permissions, admission and capabilities, and validates [writes].
+  ///
+  /// ```dart
+  /// final engine = BeakServerpodEngine.admitted(
+  ///   models: qateryAdminModels,
+  ///   definitions: qateryAdminDefinitions,
+  ///   principal: resolveQateryPrincipal,
+  ///   writes: qateryAdminWrites,
+  ///   trees: qateryAdminTrees,
+  /// );
+  /// ```
+  ///
+  /// [writes] drive [executeOperation]; pass a handler per binding and the
+  /// engine runs it in the save transaction. A binding that returns `null`
+  /// persists the operation the stock way.
+  factory BeakServerpodEngine.admitted({
+    required List<BeakModel> models,
+    required BeakDefinitions definitions,
+    required BeakServerpodPrincipalResolver principal,
+    BeakWriteBindings<Enum>? writes,
+    List<BeakTreeRule> trees = const [],
+    BeakServerpodAdmission admit = BeakServerpodAdmissionRules.adminScope,
+    BeakUnexpectedErrorListener onUnexpectedError = _logError,
+    void Function(BeakRequestLogEntry) onRequest = _logRequest,
+    String Function()? generateId,
+    BeakSavePlanPreparer? preparePlan,
+    BeakSavePlanFinalizer? finalizePlan,
+    BeakException? Function(Object error, StackTrace stackTrace)? mapException,
+    List<BeakModel> graphOnly = const [],
+    int statementTimeoutInSeconds = 30,
+    BeakFrameworkTables frameworkTables = beakServerpodFrameworkTables,
+    DateTime Function()? now,
+    DatabaseAdapter? adapter,
+  }) {
+    final registry = BeakModelRegistry.of(models, definitions: definitions);
+    writes?.validate(registry);
+    return BeakServerpodEngine(
+      registry: registry,
+      policy: BeakPolicies.admitted(registry),
+      principal: principal,
+      admit: admit,
+      onUnexpectedError: onUnexpectedError,
+      onRequest: onRequest,
+      generateId: generateId,
+      preparePlan: preparePlan,
+      finalizePlan: finalizePlan,
+      executeOperation: writes == null
+          ? null
+          : (context) => writes.handlerForModel(context.model).run(context),
+      trees: trees,
+      mapException: mapException,
+      graphOnly: graphOnly,
+      statementTimeoutInSeconds: statementTimeoutInSeconds,
+      frameworkTables: frameworkTables,
+      now: now,
+      adapter: adapter,
     );
   }
 
@@ -157,6 +225,24 @@ final class BeakServerpodEngine {
   final WormDataSource _source;
   late final shelf.Handler _handler;
 
+  /// How long a commit receipt is kept by
+  /// [pruneExpiredReceipts] unless told otherwise.
+  static const Duration receiptRetention = Duration(days: 30);
+
+  /// Deletes the commit receipts older than [retain] (default: 30 days).
+  ///
+  /// Schedule this from a host `FutureCall`; Serverpod only discovers those in
+  /// the host package, so the engine cannot register one itself. The window
+  /// must stay longer than any client retry, because a pruned receipt no
+  /// longer protects a replayed save.
+  Future<int> pruneExpiredReceipts(
+    Session session, {
+    Duration retain = receiptRetention,
+  }) => pruneReceipts(
+    session,
+    olderThan: DateTime.now().toUtc().subtract(retain),
+  );
+
   /// Deletes durable receipts strictly older than [olderThan], using the mapped
   /// receipt table and the maintenance session. Schedule this in the host.
   /// Removing a receipt ends its replay protection; retain it longer than any
@@ -177,6 +263,9 @@ final class BeakServerpodEngine {
     required BeakSavePlanPreparer? preparePlan,
     required BeakSavePlanFinalizer? finalizePlan,
     required BeakSaveOperationExecutor? executeOperation,
+    required List<BeakTreeRule> trees,
+    required BeakException? Function(Object error, StackTrace stackTrace)?
+    mapException,
     required List<BeakModel> graphOnly,
     required BeakFrameworkTables frameworkTables,
     required DateTime Function()? now,
@@ -199,6 +288,8 @@ final class BeakServerpodEngine {
           preparePlan: preparePlan,
           finalizePlan: finalizePlan,
           executeOperation: executeOperation,
+          trees: trees,
+          mapException: mapException,
           graphOnly: graphOnly,
           commitReceipts: frameworkTables.receipts,
           now: now,

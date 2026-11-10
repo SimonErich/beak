@@ -6,9 +6,11 @@ import 'package:crypto/crypto.dart';
 import 'package:worm/worm.dart';
 
 import '../auth/beak_action_policy.dart';
+import '../auth/beak_capability_policy.dart';
 import '../auth/beak_policy.dart';
 import '../auth/beak_field_policy.dart';
 import '../auth/beak_query_authorizer.dart';
+import '../auth/beak_tree_rule.dart';
 import '../data/worm/worm_data_source.dart';
 import '../data/worm/beak_soft_delete.dart';
 import 'beak_adapter_errors.dart';
@@ -92,21 +94,66 @@ final class BeakSaveOperationContext {
 
   /// Authenticated caller accepted by the server policy.
   final BeakPrincipal? principal;
+
+  /// The record as this operation leaves it: the stored [existing] values with
+  /// the validated input [values] laid over them.
+  ///
+  /// What a domain write usually wants to read, so it sees the fields the
+  /// client did not send as well as the ones it did.
+  BeakRecord get merged => BeakRecord(
+    values: {...?existing?.values, ...values.values},
+    relations: existing?.relations ?? const {},
+  );
+
+  /// Refuses the operation unless it is a bare command: the only operation of
+  /// its plan, an update, and carrying no values and no references.
+  ///
+  /// A command such as "cancel the order" has one effect, the one its domain
+  /// write performs. Call this first so a client cannot attach changes to
+  /// other fields to it. Throws a [BeakValidationException].
+  void requireCommandOnly() {
+    if (plan.operations.length != 1 ||
+        operation.kind != BeakSaveOperationKind.update ||
+        operation.values.values.isNotEmpty ||
+        operation.references.isNotEmpty) {
+      throw const BeakValidationException(
+        'This command cannot change other values.',
+      );
+    }
+  }
 }
 
 /// A completed domain write, or trusted scalar derivations for stock persistence.
 final class BeakSaveOperationWrite {
   /// [record] is required for create/update and carries the persisted identity.
   /// Deletes and link writes need no record.
-  const BeakSaveOperationWrite({this.record}) : values = null;
+  const BeakSaveOperationWrite({this.record})
+    : values = null,
+      persistedId = null;
 
   /// Merges trusted, registered scalar values into the authorized input before
   /// ordinary persistence. Values are validated and cannot replace identity.
   /// Use this for server-owned bookkeeping without duplicating stock writes.
-  const BeakSaveOperationWrite.withValues(this.values) : record = null;
+  const BeakSaveOperationWrite.withValues(this.values)
+    : record = null,
+      persistedId = null;
+
+  /// A domain write that persisted the record with primary key [id].
+  ///
+  /// The service reads the stored row in the same transaction and returns it,
+  /// so the use case needs no record to hand back, only the identity it
+  /// created or changed (a `UuidValue` is read as its text). An update must
+  /// name the operation's own target.
+  const BeakSaveOperationWrite.persisted(Object id)
+    : persistedId = id,
+      record = null,
+      values = null;
 
   /// Persisted record; the service rereads it before accepting the write.
   final BeakRecord? record;
+
+  /// Primary key of the record a domain write persisted, or `null`.
+  final Object? persistedId;
 
   /// Server-derived fields, or null when the domain write already persisted.
   final BeakRecord? values;
@@ -137,15 +184,18 @@ final class BeakGraphCommitService {
   BeakGraphCommitService({
     required this.registry,
     required this.source,
-    this.policy = const BeakAllowAllPolicy(),
+    BeakPolicy policy = const BeakAllowAllPolicy(),
     this.preparePlan,
     this.finalizePlan,
     this.executeOperation,
+    this.trees = const [],
+    this.mapException,
     this.receipts = BeakCommitReceiptTable.beak,
     this.maxStagedReceipts = defaultMaxStagedReceipts,
     DateTime Function()? now,
     String Function()? generateId,
-  }) : _now = now ?? DateTime.now,
+  }) : policy = BeakCapabilityPolicy.enforcing(policy),
+       _now = now ?? DateTime.now,
        _generateId = generateId {
     if (maxStagedReceipts < 1) {
       throw BeakConfigurationException(
@@ -170,6 +220,10 @@ final class BeakGraphCommitService {
   final BeakDataSource source;
 
   /// Authoritative policy, checked for every graph node.
+  ///
+  /// The service asks it through a wrapper that refuses every operation the
+  /// model's `capabilities` leave out first, so this is the policy given to
+  /// the constructor with that check in front of it.
   final BeakPolicy policy;
 
   /// Optional authoritative aggregate validation and derived-value calculation.
@@ -181,6 +235,16 @@ final class BeakGraphCommitService {
 
   /// Optional transactional persistence override for existing domain use cases.
   final BeakSaveOperationExecutor? executeOperation;
+
+  /// Trees every save has to keep shapely, validated in this transaction.
+  final List<BeakTreeRule> trees;
+
+  /// Maps a host exception thrown by [preparePlan], [executeOperation] or
+  /// [finalizePlan] to a [BeakException], so the caller gets a typed status and
+  /// message instead of an internal error. Return `null` to leave the failure
+  /// as it is.
+  final BeakException? Function(Object error, StackTrace stackTrace)?
+  mapException;
 
   /// The durable receipt store (worm sources only).
   final BeakCommitReceiptTable receipts;
@@ -656,6 +720,11 @@ final class BeakGraphCommitService {
   }
   // --8<-- [end:authorizeTable]
 
+  // Converts a host exception through [mapException]; a host that returns
+  // nothing has chosen to let the original failure through.
+  Object _mapped(BeakSavePlan plan, Object error, StackTrace stackTrace) =>
+      mapException?.call(error, stackTrace) ?? error;
+
   // --8<-- [start:prepareGraph]
   Future<BeakSavePlan> _prepare(
     BeakSavePlan plan,
@@ -668,8 +737,19 @@ final class BeakGraphCommitService {
         _authorizeTable(operation, principal);
       }
       final prepared = await _prepareBehavior(plan, transactional, principal);
-      return await preparePlan?.call(prepared, transactional, principal) ??
-          prepared;
+      final shaped = await applyBeakTreeRules(
+        trees,
+        prepared,
+        transactional,
+        registry,
+        principal,
+      );
+      try {
+        return await preparePlan?.call(shaped, transactional, principal) ??
+            shaped;
+      } on Object catch (error, stackTrace) {
+        throw _mapped(plan, error, stackTrace);
+      }
     } on BeakException catch (error) {
       // The transaction has not dispatched the prepared graph. Persist a
       // definite rejection so the client can edit instead of treating it as an
@@ -1556,18 +1636,22 @@ final class BeakGraphCommitService {
           );
         }
         dispatched = true;
-        delegated = await executeOperation!(
-          BeakSaveOperationContext(
-            plan: plan,
-            operation: op,
-            model: model,
-            values: values,
-            existing: existing,
-            id: id,
-            transaction: data,
-            principal: principal,
-          ),
-        );
+        try {
+          delegated = await executeOperation!(
+            BeakSaveOperationContext(
+              plan: plan,
+              operation: op,
+              model: model,
+              values: values,
+              existing: existing,
+              id: id,
+              transaction: data,
+              principal: principal,
+            ),
+          );
+        } on Object catch (error, stackTrace) {
+          throw _mapped(plan, error, stackTrace);
+        }
       }
       if (delegated?.values case final BeakRecord derived) {
         if ((op.kind != BeakSaveOperationKind.create &&
@@ -1620,20 +1704,29 @@ final class BeakGraphCommitService {
         if (op.kind == BeakSaveOperationKind.create ||
             op.kind == BeakSaveOperationKind.update) {
           final persisted = delegated.record;
-          final identity = persisted == null
-              ? null
-              : model.primaryKeyOf(persisted);
+          final identity = switch (delegated.persistedId) {
+            final Object stored => _storedIdentity(model, stored),
+            null => persisted == null ? null : model.primaryKeyOf(persisted),
+          };
           if (identity == null ||
-              (op.kind == BeakSaveOperationKind.update && identity != id)) {
+              (op.kind == BeakSaveOperationKind.update &&
+                  '$identity' != '$id')) {
             throw const BeakInternalException(
               'A delegated save must return its persisted target record.',
             );
           }
           resolvedId = identity;
-          record = await service.getOne(
-            identity,
-            scope: _scope(model.table, principal),
-          );
+          try {
+            record = await service.getOne(
+              identity,
+              scope: _scope(model.table, principal),
+            );
+          } on BeakNotFoundException {
+            if (delegated.persistedId == null) rethrow;
+            throw const BeakInternalException(
+              'A delegated save named a record that is not stored.',
+            );
+          }
           if (op.kind == BeakSaveOperationKind.update &&
               model.columnByKey(model.updatedAtColumnKey)
                   is BeakDateTimeColumn) {
@@ -1753,6 +1846,14 @@ final class BeakGraphCommitService {
       );
     }
   }
+
+  // The key a domain write named, in the form the model stores it: text for a
+  // string key (a `UuidValue` prints as its canonical text), a number for an
+  // integer key.
+  static Object _storedIdentity(BeakModel model, Object id) =>
+      model.primaryKey is BeakIntColumn
+      ? (id is int ? id : int.tryParse('$id') ?? id)
+      : id.toString();
 
   static const String _noConditionalWrites =
       'This provider does not support conditional graph writes.';

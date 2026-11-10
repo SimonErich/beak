@@ -121,38 +121,35 @@ void main() {
     },
   );
 
-  test(
-    'persisted suggestions follow their source but retain explicit values and nulls',
-    () {
-      final behavior = _behavior();
-      final initial = behavior.apply(
-        BeakRecord.fromRow({'quantity': 3, 'price': 5}),
-      );
-      expect(
-        _suggestion.readFrom(
-          behavior.apply(_quantity.writeTo(initial, 4), initial: initial),
+  test('persisted suggestions follow their source but retain explicit values and nulls', () {
+    final behavior = _behavior();
+    final initial = behavior.apply(
+      BeakRecord.fromRow({'quantity': 3, 'price': 5}),
+    );
+    expect(
+      _suggestion.readFrom(
+        behavior.apply(_quantity.writeTo(initial, 4), initial: initial),
+      ),
+      4,
+    );
+    final override = _suggestion.writeTo(initial, 8);
+    expect(
+      _suggestion.readFrom(
+        behavior.apply(_quantity.writeTo(override, 4), initial: override),
+      ),
+      8,
+    );
+    final nullableOverride = _suggestion.writeTo(initial, null);
+    expect(
+      _suggestion.readFrom(
+        behavior.apply(
+          _quantity.writeTo(nullableOverride, 4),
+          initial: nullableOverride,
         ),
-        4,
-      );
-      final override = _suggestion.writeTo(initial, 8);
-      expect(
-        _suggestion.readFrom(
-          behavior.apply(_quantity.writeTo(override, 4), initial: override),
-        ),
-        8,
-      );
-      final nullableOverride = _suggestion.writeTo(initial, null);
-      expect(
-        _suggestion.readFrom(
-          behavior.apply(
-            _quantity.writeTo(nullableOverride, 4),
-            initial: nullableOverride,
-          ),
-        ),
-        isNull,
-      );
-    },
-  );
+      ),
+      isNull,
+    );
+  });
 
   test(
     'named transition freezes snapshot and ordinary state edits are rejected',
@@ -309,113 +306,107 @@ void main() {
     expect(plain.runs(_issue), isFalse);
     expect(plain.runsAny([_issue, other]), isFalse);
   });
-  test(
-    'initialization, original values and command-aware edit validation preserve explicit input',
-    () {
-      final behavior = _behavior();
-      const empty = BeakRecord(values: {});
-      final initial = behavior.initialize(empty);
-      expect(_state.readFrom(initial), 'draft');
-      expect(
-        behavior.initialize(_state.writeTo(initial, null))['state']?.raw,
-        isNull,
-      );
-      behavior.validateEdits(empty);
-      behavior.validateEdits(
-        _state.writeTo(initial, 'issued'),
-        initial: initial,
-        actionName: 'issue',
-      );
-      behavior.validateEdits(
-        BeakRecord.fromRow({'state': 'draft', 'snapshot': null, 'price': 1}),
+  test('initialization, original values and command-aware edit validation preserve explicit input', () {
+    final behavior = _behavior();
+    const empty = BeakRecord(values: {});
+    final initial = behavior.initialize(empty);
+    expect(_state.readFrom(initial), 'draft');
+    expect(
+      behavior.initialize(_state.writeTo(initial, null))['state']?.raw,
+      isNull,
+    );
+    behavior.validateEdits(empty);
+    behavior.validateEdits(
+      _state.writeTo(initial, 'issued'),
+      initial: initial,
+      actionName: 'issue',
+    );
+    behavior.validateEdits(
+      BeakRecord.fromRow({'state': 'draft', 'snapshot': null, 'price': 1}),
+      initial: initial,
+      isCreate: true,
+    );
+    expect(
+      () => behavior.validateEdits(
+        BeakRecord.fromRow({'state': 'draft', 'snapshot': 5}),
         initial: initial,
         isCreate: true,
-      );
-      expect(
-        () => behavior.validateEdits(
-          BeakRecord.fromRow({'state': 'draft', 'snapshot': 5}),
-          initial: initial,
-          isCreate: true,
-        ),
-        throwsA(isA<BeakValidationException>()),
-      );
-      expect(const BeakValueContext(record: empty).original(_price), isNull);
-      expect(
-        BeakValueContext(
-          record: empty,
-          initial: _price.writeTo(empty, 4),
-        ).original(_price),
-        4,
-      );
-      expect(
-        () => behavior.action('missing'),
-        throwsA(isA<BeakConfigurationException>()),
-      );
-    },
-  );
+      ),
+      throwsA(isA<BeakValidationException>()),
+    );
+    expect(const BeakValueContext(record: empty).original(_price), isNull);
+    expect(
+      BeakValueContext(
+        record: empty,
+        initial: _price.writeTo(empty, 4),
+      ).original(_price),
+      4,
+    );
+    expect(
+      () => behavior.action('missing'),
+      throwsA(isA<BeakConfigurationException>()),
+    );
+  });
 
-  test(
-    'configuration diagnostics reject mismatched behavior and dependency models',
-    () {
-      const wrong = BeakScalarField<int>(
-        model: _model,
-        column: BeakIntColumn(key: 'missing', label: 'Missing'),
-      );
-      expect(
-        () => BeakModelBehavior(
-          values: [
-            BeakValueBehavior<int>.derived(field: wrong, resolve: (_) => 1),
-          ],
-        ).validate(_model),
-        throwsA(isA<BeakConfigurationException>()),
-      );
-      const other = _Other();
-      const dependency = BeakScalarField<int>(
-        model: other,
-        column: BeakIntColumn(key: 'price', label: 'Price'),
-      );
-      expect(
-        () => BeakModelBehavior(
-          values: [
-            BeakValueBehavior<int>.derived(
-              field: _total,
-              dependencies: [dependency],
-              resolve: (_) => 1,
-            ),
-          ],
-        ).validate(_model),
-        throwsA(isA<BeakConfigurationException>()),
-      );
-      expect(
-        () => const BeakModelBehavior(
-          actions: [BeakModelAction(name: '', label: 'Invalid')],
-        ).validate(_model),
-        throwsA(isA<BeakConfigurationException>()),
-      );
-      const relation = BeakBelongsTo(
-        key: 'item',
-        label: 'Item',
-        relatedTable: 'other',
-        displayColumnKey: 'price',
-        foreignKey: 'item_id',
-      );
-      const path = BeakScalarField<int>(
-        model: _model,
-        column: BeakIntColumn(key: 'price', label: 'Price'),
-        path: [relation],
-      );
-      final behavior = BeakModelBehavior(
+  test('configuration diagnostics reject mismatched behavior and dependency models', () {
+    const wrong = BeakScalarField<int>(
+      model: _model,
+      column: BeakIntColumn(key: 'missing', label: 'Missing'),
+    );
+    expect(
+      () => BeakModelBehavior(
+        values: [
+          BeakValueBehavior<int>.derived(field: wrong, resolve: (_) => 1),
+        ],
+      ).validate(_model),
+      throwsA(isA<BeakConfigurationException>()),
+    );
+    const other = _Other();
+    const dependency = BeakScalarField<int>(
+      model: other,
+      column: BeakIntColumn(key: 'price', label: 'Price'),
+    );
+    expect(
+      () => BeakModelBehavior(
         values: [
           BeakValueBehavior<int>.derived(
             field: _total,
-            dependencies: [path],
+            dependencies: [dependency],
             resolve: (_) => 1,
           ),
         ],
-      );
-      expect(behavior.relationLoads.single.relationKey, 'item');
-    },
-  );
+      ).validate(_model),
+      throwsA(isA<BeakConfigurationException>()),
+    );
+    expect(
+      () => const BeakModelBehavior(
+        actions: [BeakModelAction(name: '', label: 'Invalid')],
+      ).validate(_model),
+      throwsA(isA<BeakConfigurationException>()),
+    );
+    const relation = BeakBelongsTo(
+      key: 'item',
+      label: 'Item',
+      relatedTable: 'other',
+      displayColumnKey: 'price',
+      foreignKey: 'item_id',
+    );
+    const path = BeakScalarField<int>(
+      model: _model,
+      column: BeakIntColumn(key: 'price', label: 'Price'),
+      path: [relation],
+    );
+    final behavior = BeakModelBehavior(
+      values: [
+        BeakValueBehavior<int>.derived(
+          field: _total,
+          dependencies: [path],
+          resolve: (_) => 1,
+        ),
+      ],
+    );
+    expect(behavior.relationLoads.single.relationKey, 'item');
+  });
   test('commands require a named nonempty operation graph before dispatch', () {
     final registry = BeakModelRegistry()..register(_model);
     const root = BeakRecordRef.existing('orders', 1);
@@ -467,41 +458,72 @@ void main() {
 
   // --8<-- [start:builtInRowsTests]
   group('builtInRows', () {
-    const builtIn = BeakBoolColumn(key: 'is_system', label: 'System');
-
-    BeakRecord row(Object? flag) =>
-        BeakRecord.fromRow({'id': 'r', 'is_system': flag});
+    BeakRecord row(Object? flag, {String name = 'Admin'}) =>
+        BeakRecord.fromRow({'id': 'r', 'name': name, 'is_system': flag});
 
     test('refuses to delete a built-in row and allows any other', () {
-      final behavior = BeakModelBehavior.builtInRows(builtIn);
+      final behavior = BeakModelBehavior.builtInRows(_isSystem);
       expect(behavior.deletableWhen?.call(row(true)), isFalse);
       expect(behavior.deletableWhen?.call(row(false)), isTrue);
       expect(behavior.deletableWhen?.call(row(null)), isTrue);
     });
 
     test('leaves edits open unless lockEdits is set', () {
-      expect(BeakModelBehavior.builtInRows(builtIn).editableWhen, isNull);
-      final locked = BeakModelBehavior.builtInRows(builtIn, lockEdits: true);
+      expect(BeakModelBehavior.builtInRows(_isSystem).editableWhen, isNull);
+      final locked = BeakModelBehavior.builtInRows(_isSystem, lockEdits: true);
       expect(locked.editableWhen?.call(row(true)), isFalse);
       expect(locked.editableWhen?.call(row(false)), isTrue);
     });
 
     test('reads the flag the way a SQLite-backed row holds it', () {
-      final behavior = BeakModelBehavior.builtInRows(builtIn);
+      final behavior = BeakModelBehavior.builtInRows(_isSystem);
       expect(behavior.deletableWhen?.call(row(1)), isFalse);
       expect(behavior.deletableWhen?.call(row(0)), isTrue);
     });
 
     test('is a real behavior: it needs graph preparation and validates', () {
-      final behavior = BeakModelBehavior.builtInRows(builtIn, lockEdits: true);
+      final behavior = BeakModelBehavior.builtInRows(
+        _isSystem,
+        lockEdits: true,
+      );
       expect(behavior.isEmpty, isFalse);
-      behavior.validate(const _Model());
+      behavior.validate(const _Lookup());
     });
 
-    test('a column that is not boolean is a configuration error', () {
+    test('derives the flag from the stored row, never from the client', () {
+      final behavior = BeakModelBehavior.builtInRows(_isSystem);
+
+      final forged = behavior.apply(
+        row(true, name: 'Custom'),
+        initial: row(false),
+      );
+      final demoted = behavior.apply(row(false), initial: row(true));
+      final created = behavior.apply(
+        BeakRecord.fromRow({'name': 'New', 'is_system': true}),
+      );
+
+      expect(_isSystem.readFrom(forged), isFalse);
+      expect(_isSystem.readFrom(demoted), isTrue);
+      expect(_isSystem.readFrom(created), isFalse);
+    });
+
+    test('does not let the flag be authored while the row is edited', () {
+      final behavior = BeakModelBehavior.builtInRows(_isSystem);
+
+      expect(
+        behavior.canEdit('is_system', row(false), isCreate: true),
+        isFalse,
+      );
+      expect(behavior.canEdit('name', row(false)), isTrue);
+    });
+
+    test('a field that is not a boolean column is a configuration error', () {
       expect(
         () => BeakModelBehavior.builtInRows(
-          const BeakStringColumn(key: 'kind', label: 'Kind'),
+          const BeakScalarField<bool>(
+            model: _Lookup(),
+            column: BeakStringColumn(key: 'kind', label: 'Kind'),
+          ),
         ),
         throwsA(
           isA<BeakConfigurationException>().having(
@@ -514,6 +536,25 @@ void main() {
     });
   });
   // --8<-- [end:builtInRowsTests]
+}
+
+const _isSystem = BeakScalarField<bool>(
+  model: _Lookup(),
+  column: BeakBoolColumn(key: 'is_system', label: 'System'),
+);
+
+final class _Lookup extends BeakModel {
+  const _Lookup();
+  @override
+  String get table => 'lookups';
+  @override
+  String get displayColumnKey => 'name';
+  @override
+  List<BeakColumn> get columns => const [
+    BeakStringColumn(key: 'id', label: 'Id'),
+    BeakStringColumn(key: 'name', label: 'Name'),
+    BeakBoolColumn(key: 'is_system', label: 'System'),
+  ];
 }
 
 final class _Other extends BeakModel {

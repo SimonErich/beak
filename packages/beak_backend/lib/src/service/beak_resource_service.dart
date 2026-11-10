@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:beak_core/beak_core.dart';
 
 import '../common/uuid_v4.dart';
+import 'beak_restore.dart';
 import 'beak_revision_timestamp.dart';
 import 'beak_scope_match.dart';
 import 'validation_service.dart';
@@ -237,6 +238,11 @@ final class BeakResourceService {
   /// A [scope] the new record does not satisfy is refused with a
   /// [BeakAuthorizationException], before validation: a caller cannot plant a
   /// row in a slice of the table it may not touch.
+  ///
+  /// A model with a [BeakAdmission.restoreKey] does not insert a second row
+  /// for a key it already holds in the trash: the soft-deleted row is restored
+  /// and takes the new values, keeping its identity and creation time. A live
+  /// row with the same key is a field error on the last key column.
   // --8<-- [start:create]
   Future<BeakRecord> create(
     BeakRecord input, {
@@ -246,7 +252,13 @@ final class BeakResourceService {
     final prepared = prepareCreate(input);
     _requireWithinScope(prepared, scope);
     await validateCandidate(prepared, validationQuery: validationQuery);
-    return dataSource.create(model.table, prepared);
+    return await beakRestoreSoftDeleted(
+          model,
+          dataSource,
+          prepared,
+          now: _now,
+        ) ??
+        await dataSource.create(model.table, prepared);
   }
   // --8<-- [end:create]
 
