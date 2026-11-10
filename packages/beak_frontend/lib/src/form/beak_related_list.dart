@@ -193,6 +193,26 @@ extension BeakRelationRowDefaults on BeakToManyField {
   }
 }
 
+/// The record a row shows as a link to its own page.
+extension BeakModelRecordLink on BeakModel {
+  /// A form node that renders this record's display column, or [title], as
+  /// a link to its detail page: an order in an invoice's order rows, say.
+  BeakFormWidget recordLink({BeakValueBinding<String>? title}) {
+    final display = columnByKey(displayColumnKey);
+    if (display == null) {
+      throw BeakConfigurationException(
+        'The model "$table" has no display column to link.',
+      );
+    }
+    return _recordLink(
+      table: table,
+      id: BeakScalarField<Object>(model: this, column: primaryKey),
+      value: BeakScalarField<Object>(model: this, column: display),
+      title: title,
+    );
+  }
+}
+
 /// The relation's own display value as a link to the related record.
 extension BeakToOneLink on BeakToOneField {
   /// A form node that renders the related record's display column as a link to
@@ -216,22 +236,38 @@ extension BeakToOneLink on BeakToOneField {
       path: [...path, relation],
     );
     final id = BeakScalarField<Object>(model: model, column: foreign);
-    return BeakFormWidget(
-      builder: (context, draft) {
-        final recordId = draft.read(id);
-        final raw = draft.read<Object>(value);
-        final text = title?.read(draft) ?? (raw == null ? '—' : '$raw');
-        if (recordId == null) return OiLabel.body(label ?? text);
-        return OiTappable(
-          semanticLabel: text,
-          onTap: () => context.go(BeakRoutes.show(target.table, recordId)),
-          child: OiLabel.body(
-            text,
-            color: context.colors.primary.base,
-            style: const TextStyle(fontWeight: FontWeight.w500),
-          ),
-        );
-      },
+    return _recordLink(
+      table: target.table,
+      id: id,
+      value: value,
+      title: title,
+      label: label,
     );
   }
 }
+
+/// The display value of a record, as a link to its page once it has an id.
+/// [label] stands in while there is no record to link.
+BeakFormWidget _recordLink({
+  required String table,
+  required BeakScalarField<Object> id,
+  required BeakScalarField<Object> value,
+  BeakValueBinding<String>? title,
+  String? label,
+}) => BeakFormWidget(
+  builder: (context, draft) {
+    final recordId = draft.read(id);
+    final raw = draft.read<Object>(value);
+    final text = title?.read(draft) ?? (raw == null ? '—' : '$raw');
+    if (recordId == null) return OiLabel.body(label ?? text);
+    return OiTappable(
+      semanticLabel: text,
+      onTap: () => context.go(BeakRoutes.show(table, recordId)),
+      child: OiLabel.body(
+        text,
+        color: context.colors.primary.base,
+        style: const TextStyle(fontWeight: FontWeight.w500),
+      ),
+    );
+  },
+);
