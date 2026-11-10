@@ -2,6 +2,7 @@ import 'package:beak_core/beak_core.dart';
 import 'package:beak_frontend/beak_frontend.dart';
 import 'package:beak_test/beak_test.dart';
 import 'package:beak_test_flutter/beak_test_flutter.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../beak_test/test/support/contract_models.dart';
@@ -36,6 +37,29 @@ void main() {
     expect(visited, contains('375:/products'));
     expect(visited, contains('375:/products/p1'));
     expect(visited, contains('1280:/products'));
+  });
+
+  testWidgets('a localized sweep builds the config in its context', (
+    tester,
+  ) async {
+    final titles = <String>[];
+    final visited = await beakLocalizedRouteSweep(
+      tester,
+      (context) {
+        titles.add(Localizations.localeOf(context).languageCode);
+        return const BeakPanelConfig(
+          title: 'Sweep',
+          resources: [BeakResource(model: ProductModel(), title: 'Produkte')],
+        );
+      },
+      locale: const Locale('de'),
+      supportedLocales: const [Locale('de'), Locale('en')],
+      identity: const BeakAuthIdentity(id: 'admin'),
+    );
+
+    expect(titles, everyElement('de'));
+    expect(visited, contains('375:/products'));
+    expect(visited, contains('1280:/products/create'));
   });
 
   testWidgets('stops when the identity sees no route', (tester) async {

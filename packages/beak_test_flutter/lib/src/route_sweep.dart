@@ -39,21 +39,105 @@ Future<List<String>> beakRouteSweep(
   BeakDataSource? dataSource,
   List<Size> sizes = const [Size(375, 800), Size(1280, 900)],
   BeakAuthIdentity? identity,
+}) => _sweep(
+  tester,
+  config: config,
+  dataSource: dataSource,
+  sizes: sizes,
+  identity: identity,
+  panel: (key, auth, source) => BeakPanel(
+    key: key,
+    config: auth == null ? config : config.copyWith(auth: auth),
+    dataSource: source,
+  ),
+);
+
+/// [beakRouteSweep] for a panel whose configuration is built in a localized
+/// context, as `runServerpodBeakAdmin` and [BeakLocalizedPanel] build it.
+///
+/// [config] is called with a context holding [localizationsDelegates] for
+/// [locale], the same way the running panel calls it, so the sweep also
+/// proves the app's copy resolves:
+///
+/// ```dart
+/// await beakLocalizedRouteSweep(
+///   tester,
+///   (context) => shopConfig(context),
+///   locale: const Locale('de'),
+///   localizationsDelegates: AppLocalizations.localizationsDelegates,
+/// );
+/// ```
+Future<List<String>> beakLocalizedRouteSweep(
+  WidgetTester tester,
+  BeakPanelConfigBuilder config, {
+  Locale locale = const Locale('en'),
+  List<Locale>? supportedLocales,
+  Iterable<LocalizationsDelegate<Object?>> localizationsDelegates = const [],
+  BeakDataSource? dataSource,
+  List<Size> sizes = const [Size(375, 800), Size(1280, 900)],
+  BeakAuthIdentity? identity,
+}) async {
+  final locales = supportedLocales ?? [locale];
+  // The routes come from the built configuration, so build it once in the
+  // context the panel will give it.
+  late BeakPanelConfig built;
+  await tester.pumpWidget(
+    Localizations(
+      locale: locale,
+      delegates: [
+        ...localizationsDelegates,
+        BeakLocalizations.delegate,
+        DefaultWidgetsLocalizations.delegate,
+      ],
+      child: Builder(
+        builder: (context) {
+          BeakLabels.language = locale.languageCode;
+          built = config(context);
+          return const SizedBox.shrink();
+        },
+      ),
+    ),
+  );
+  return _sweep(
+    tester,
+    config: built,
+    dataSource: dataSource,
+    sizes: sizes,
+    identity: identity,
+    panel: (key, auth, source) => BeakLocalizedPanel(
+      key: key,
+      locale: locale,
+      supportedLocales: locales,
+      localizationsDelegates: localizationsDelegates,
+      config: (context) {
+        final panel = config(context);
+        return auth == null ? panel : panel.copyWith(auth: auth);
+      },
+      dataSource: source,
+    ),
+  );
+}
+
+Future<List<String>> _sweep(
+  WidgetTester tester, {
+  required BeakPanelConfig config,
+  required BeakDataSource? dataSource,
+  required List<Size> sizes,
+  required BeakAuthIdentity? identity,
+  required Widget Function(Key key, BeakAuthConfig? auth, BeakDataSource source)
+  panel,
 }) async {
   final access = BeakPanelAccess.fixed(identity?.principal);
-  final adapter = identity == null ? null : _SweepAuthAdapter(identity);
+  final auth = identity == null
+      ? null
+      : BeakAuthConfig(adapter: _SweepAuthAdapter(identity));
   final source =
       dataSource ?? InMemoryBeakDataSource(registry: config.buildRegistry());
   final visited = <String>[];
   for (final size in sizes) {
     await tester.binding.setSurfaceSize(size);
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    final swept = identity == null
-        ? config
-        : config.copyWith(auth: BeakAuthConfig(adapter: adapter));
-    await tester.pumpWidget(
-      BeakPanel(key: ValueKey(size), config: swept, dataSource: source),
-    );
+    await tester.pumpWidget(panel(ValueKey(size), auth, source));
     await tester.pumpAndSettle();
     if (find.byType(OiAppShell).evaluate().isEmpty) return visited;
     final router = GoRouter.of(tester.element(find.byType(OiAppShell)));
