@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:yaml/yaml.dart';
 
 import '../agents/beak_skill_installer.dart';
+import '../serverpod/generate_settings.dart';
 import 'beak_discovery.dart';
 import 'beak_emitters.dart' show BeakEmitters;
 import 'beak_theme_preset.dart';
@@ -183,6 +184,8 @@ final class BeakProjectConfig {
     this.sidebarCollapsible = true,
     this.sidebarStartCollapsed = false,
     this.themePreset = BeakThemePreset.standard,
+    this.serverpod,
+    this.generate,
   });
 
   /// The defaults applied when a project has no `beak.yaml` at all.
@@ -215,6 +218,8 @@ final class BeakProjectConfig {
       'agents',
       'theme',
       'resources',
+      'serverpod',
+      'generate',
     }, '');
 
     final YamlMap? api = _optionalMap(root['api'], 'api');
@@ -249,6 +254,9 @@ final class BeakProjectConfig {
       }, 'theme.sidebar.');
     }
     // --8<-- [end:beakYamlKeys]
+    final BeakServerpodSettings? serverpodSettings = parseServerpodSettings(
+      root['serverpod'],
+    );
 
     final resources = <String, BeakResourceOverride>{};
     final YamlMap? declared = _optionalMap(root['resources'], 'resources');
@@ -315,6 +323,11 @@ final class BeakProjectConfig {
           ) ??
           false,
       themePreset: _themePresetOf(theme?['preset']),
+      serverpod: serverpodSettings,
+      generate: parseGenerateSettings(
+        root['generate'],
+        hasServerpod: serverpodSettings != null,
+      ),
     );
   }
 
@@ -359,6 +372,14 @@ final class BeakProjectConfig {
 
   /// The built-in look the panel uses (`theme.preset`).
   final BeakThemePreset themePreset;
+
+  /// Where the Serverpod models are (`serverpod:`), or `null` when the project
+  /// does not import a Serverpod server.
+  final BeakServerpodSettings? serverpod;
+
+  /// What `beak generate` writes (`generate:`), or `null` when the project
+  /// has no generated schema package.
+  final BeakGenerateSettings? generate;
 
   /// [yamlSource] as a YAML document.
   ///
