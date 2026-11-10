@@ -205,7 +205,6 @@ const BeakPanelConfig({
   this.shellActions,
   this.mapException,
   this.defaults = const BeakListDefaults(),
-  this.definitions,
 });
 ```
 

@@ -292,18 +292,14 @@ Future<Response> query(Request request) async {
 ```dart title="examples/serverpod/bookshop_server/lib/src/beak/bookshop_beak_engine.dart"
 /// The bookshop's Beak engine: one per process, shared by every request.
 ///
-/// It serves Beak's stock API for the generated bookshop models on the
+/// It serves Beak's stock API for the bookshop's definition classes on the
 /// request's own Serverpod session, so every statement runs on Serverpod's
-/// database with its transactions and logging.
+/// database with its transactions and logging. No bookshop model runs custom
+/// code, so the generated handlers take no arguments.
 final BeakServerpodEngine bookshopBeak = BeakServerpodEngine.admitted(
   models: bookshopModels,
-  definitions: bookshopDefinitions,
+  handlers: const BookshopHandlers(),
   principal: BeakServerpodPrincipal.fromScopes,
-  writes: BeakWriteBindings<BookshopWrite>(
-    (binding) => switch (binding) {
-      BookshopWrite.configuration => const BeakWriteHandler.stock(),
-    },
-  ),
 );
 ```
 

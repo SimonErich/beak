@@ -47,8 +47,7 @@ migration table at the end collects the common ones.
   `beak doctor` resolve them the same way and write every language onto the
   generated models. A key that names nothing fails with the nearest real key;
   a key missing in one language fails; `require: shown` fails on a shown field
-  without a label. `@Resource(labelKey:)` and the inventory's `labelKey` file a
-  model under another key.
+  without a label. `@Resource(labelKey:)` files a model under another key.
 - `BeakColumn.translations` and `.hints`, `BeakRelationship.translations`,
   `BeakEnumColumn.valueTranslations` and `BeakModel.labels`
   (`BeakModelLabels`) with `singularLabel`, `pluralLabel`, `actionLabelOf` and
@@ -150,19 +149,32 @@ migration table at the end collects the common ones.
 - `sqlite3 ^3` in `worm_sqlite` and `beak_cli`, which Serverpod needs. The pinned
   Serverpod 4.0.4 CLI wrapper lives in `tool/serverpod_cli_4`.
 
-<<<<<<< HEAD
 #### beak generate
 
 - `beak generate` reads a Serverpod server's `*.spy.yaml` models, the newest
-  `definition_project.json` migration and the reviewed inventory, and writes a
-  self-contained schema package (`lib/` owned by the command, imports only
-  `beak_core` and its own files).
-- `beak.yaml` gains strict `serverpod:` and `generate:` sections (models,
-  migrations, output, inventory, prefix, roles, areas, writes, conventions).
-- The generated models declare `capabilities`, `permissions` and `admission`
-  from the inventory, resolve behavior and rules through `BeakDefinitions`, and
-  the barrel emits `<prefix>Models`, `create<Prefix>Registry` and
-  `enum <Prefix>Write`.
+  `definition_project.json` migration and the definition classes of the
+  admin's pure-Dart definitions package, one `@Resource` + `@ServerpodModel`
+  class per exposed model, whose fields are the allowlist. It writes a
+  `*.beak.dart` part next to each class and `lib/src/generated/models.dart`
+  (`<prefix>Models`, `create<Prefix>Registry()`), `enums.dart` and
+  `writes.dart` (`enum <Prefix>Write`, one value per writable model).
+- `package:beak_serverpod/schema.dart`: `@ServerpodModel(area:, list:,
+  create:, update:, delete:, commands:, access:, reason:, restoreKey:)`,
+  `@ServerpodModel.editable()`, `@CommandInput`, `@ReadOnly`,
+  `@Hidden(defaultValue:)` and `BeakHandling` (`off`, `stock`, `derived`,
+  `custom`). Every write is `off` until opened; a custom `list` narrows the
+  rows a list, a count, an export and opening a record reach.
+- Every declared field is checked against Serverpod: it exists, is stored and
+  not a secret, has Serverpod's type and `?`, and a relation has Serverpod's
+  kind and an exposed target. A stock create must fill every required field,
+  and a library needs its `part` directive and the `generated/writes.dart`
+  import. Keys, timestamps and soft-delete fields are always exposed.
+- With `generate.handlers`, the server gets one abstract handler class per
+  model that runs custom code (`OrderHandler`, with typed `OrderWrite` and
+  `OrderValues` extension types and one method per custom operation and
+  command) and the `<Prefix>Handlers` aggregate, which requires each of them.
+- `beak.yaml` gains strict `serverpod:` and `generate:` sections
+  (`definitions`, `handlers`, `prefix`, `roles`, `areas`, `conventions`).
 - `--check`, orphan deletion (refusing files without the generated header), an
   inputs stamp, `beak prepare` integration and a `beak doctor` check.
 
@@ -173,9 +185,8 @@ migration table at the end collects the common ones.
   refreshes every dependent widget when the roles change.
 - `BeakResource.standard(model, title, columns:, form:, tabs:, filters:,
   header:, readOnly:)` declares the conventional list, detail page and forms.
-- `BeakPanelConfig.defaults` (`BeakListDefaults`), `labels` (`BeakLabels`) and
-  `definitions` give the whole panel one list shape, one label mapping and the
-  generated models' authored definitions.
+- `BeakPanelConfig.defaults` (`BeakListDefaults`) gives the whole panel one
+  list shape.
 - `BeakLabels` localizes enum values, column labels and model commands in every
   table cell, filter, form input, export and confirmation.
 - A detail page shows the model's metadata aside by default
@@ -200,6 +211,12 @@ migration table at the end collects the common ones.
   `BeakSaveOperationContext.merged` / `requireCommandOnly()` support commands.
 - Soft-deleted rows with an `admission.restoreKey` are restored by a stock
   create instead of duplicated.
+- `BeakServerpodEngine.admitted(models:, handlers:, principal:, ...)` takes
+  the generated `BeakServerpodHandlers`: their write bindings and row scopes.
+  A handler receives a `BeakServerpodWrite` (`session`, `transaction`, `kind`,
+  `principal`, `id`, `uuid`, `values`, `changes`, `existing`, `arguments`,
+  `runs`); `BeakServerpodValues.uuid`, `beakServerpodCommands` and
+  `beakServerpodRefused` back the generated code.
 - `BeakTreeRule` keeps a small tree a tree: cycles, delete-with-children or
   references, repeated sibling values and over-deep moves are refused inside
   the save transaction, after locking the tree's rows in a deadlock-free order.
@@ -947,6 +964,21 @@ migration table at the end collects the common ones.
 
 ### Removed
 
+- **Breaking, Serverpod admin.** The YAML inventory and the generated schema
+  package: `generate.output`, `generate.inventory` and `generate.writes` are
+  refused with a pointer to the definition classes, which replace them. Write
+  one `@Resource` + `@ServerpodModel` class per inventory entry in the
+  definitions package; each writable model has its own write binding instead
+  of a shared one.
+- **Breaking.** `BeakDefinitions`, `BeakModelDefinition`,
+  `BeakModelRegistry.of(models, definitions:)` and `BeakPanelConfig.definitions`.
+  A definition class declares `static get behavior` and
+  `static get validationRules`, and its generated part forwards to them.
+- **Breaking.** `BeakServerpodEngine.admitted(definitions:, writes:)`: pass
+  `handlers:` (the generated `<Prefix>Handlers`). A hand-written
+  `BeakWriteBindings` switch over the write enum becomes the generated
+  aggregate and one handler class per model that runs custom code.
+
 - `BeakLabels.current` and the `BeakLabels` `field`, `enumValue` and `action`
   callbacks, and `BeakPanelConfig.labels`. Labels come from the model's
   translations instead; `BeakLabels.language` is the panel's language.
@@ -1469,6 +1501,9 @@ From the pre-0.9 line, the renames people meet first:
 | `MinioS3ObjectClient(minio: ...)`, `dependency_overrides: xml` | `HttpS3ObjectClient(httpClient: ...)`, no override |
 | A `switch` over `BeakException` | Add arms for `BeakInternalException`, `BeakPayloadTooLargeException` and `BeakTransportException` |
 | `beak make:resource --fields price:decimal` (a `double`) | `price:double` for a `double`; `price:decimal` is a `BeakDecimal` now |
+| `generate: {output:, inventory:, writes:}` and `definitions/resources/*.yaml` | `generate: {definitions:, handlers:}` and one `@Resource` + `@ServerpodModel` class per model, see [Generating the admin from definition classes](docs/serverpod/admin-app/generate.md) |
+| `BeakModelDefinition(model, behavior:, rules:)` in a `BeakDefinitions` list | `static get behavior` and `static get validationRules` on the definition class |
+| `BeakServerpodEngine.admitted(definitions:, writes: BeakWriteBindings(...))` | `admitted(handlers: ShopHandlers(order: OrderAdminHandler()))` |
 
 #### Migrating from beak_serverpod 0.0.x
 

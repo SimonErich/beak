@@ -40,10 +40,10 @@ dependencies:
     path: ../../../packages/beak
   beak_serverpod_flutter:
     path: ../../../packages/beak_serverpod_flutter
-  bookshop_definitions:
-    path: definitions
   bookshop_client:
     path: ../bookshop_client
+  bookshop_definitions:
+    path: definitions
   flutter:
     sdk: flutter
   serverpod_auth_core_flutter: 4.0.4

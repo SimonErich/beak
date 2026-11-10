@@ -31,9 +31,9 @@ The rows are the questions that decide a project. "Admin app" means the [admin a
 | | Admin app | Bridge | Beak server beside Serverpod |
 | --- | --- | --- | --- |
 | Where Beak's code runs | Inside the Serverpod server, behind `BeakAdminEndpoint.dispatch` | Nowhere new: the panel calls your generated client | Its own Shelf process (`beak_backend`) |
-| Who owns the database | Serverpod (`.spy.yaml`, `serverpod create-migration`); Beak schema classes say `managesSchema: false` | Serverpod; Beak never sees a table | Beak, on a database of its own |
+| Who owns the database | Serverpod (`.spy.yaml`, `serverpod create-migration`); a definition class per model only says what the admin exposes | Serverpod; Beak never sees a table | Beak, on a database of its own |
 | Server changes | One endpoint, one policy, one engine, one receipts model and its migration | None | None |
-| What you write | A `<name>_beak` schema class per table, a policy, a panel | A resource per endpoint set, generated or by hand | Schema classes and resources, as in any Beak app |
+| What you write | A definition class per exposed model, handlers for custom writes, a panel | A resource per endpoint set, generated or by hand | Schema classes and resources, as in any Beak app |
 | Typed refs such as `BookModel.title.inputText()` | Yes | No: generated `Fields` descriptors and default screens | Yes |
 | Relations loaded with the rows | Yes | No: a query with relation loads is refused | Yes |
 | Form save | Graph commit on one Serverpod transaction, with a receipt | Staged: one create or update call per operation, atomic only if your endpoint is | Graph commit |

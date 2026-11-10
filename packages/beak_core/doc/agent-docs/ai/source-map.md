@@ -29,7 +29,6 @@ For coding agents. Humans: see [Libraries](../reference/libraries.md). Use this 
 | `BeakModelBehavior`, `BeakModelAction`, `BeakValueBehavior` | `package:beak/beak.dart` | `packages/beak_core/lib/src/behavior/beak_model_behavior.dart` | `packages/beak_core/test/src/behavior/beak_model_behavior_test.dart` |
 | `BeakPermissions`, `BeakOperation` | `package:beak/beak.dart` | `packages/beak_core/lib/src/model/beak_permissions.dart` | `packages/beak_core/test/src/model/beak_permissions_test.dart` |
 | `BeakAccess`, `BeakPrincipal` | `package:beak/beak.dart`, `package:beak/server.dart` | `packages/beak_core/lib/src/auth/beak_access.dart` | `packages/beak_core/test/src/auth/beak_access_test.dart` |
-| `BeakDefinitions`, `BeakModelDefinition` | `package:beak/beak.dart` | `packages/beak_core/lib/src/model/beak_definitions.dart` | `packages/beak_core/test/src/model/beak_definitions_test.dart` |
 | `BeakAdmission`, `BeakTranslationSpec` | `package:beak/beak.dart` | `packages/beak_core/lib/src/model/beak_admission.dart` | `packages/beak_core/test/src/model/beak_admission_test.dart` |
 | `BeakAttributeDefinition` | `package:beak/beak.dart` | `packages/beak_core/lib/src/model/beak_attribute_definition.dart` | `packages/beak_core/test/src/model/beak_attribute_definition_test.dart` |
 | `BeakVariantMatrix` | `package:beak/beak.dart` | `packages/beak_core/lib/src/model/beak_variant_matrix.dart` | `packages/beak_core/test/src/model/beak_variant_matrix_test.dart` |
@@ -163,7 +162,10 @@ The CLI is an executable, so there is no import. Run it as `beak <command>`.
 | Symbol or area | Import | Source | Test |
 | --- | --- | --- | --- |
 | `ServerpodResource` (bridge) | `package:beak_serverpod/beak_serverpod.dart` | `packages/beak_serverpod/lib/src/resource.dart` | `packages/beak_serverpod/test/src/resource_test.dart` |
-| `ServerpodModel` | `package:beak_serverpod/beak_serverpod.dart` | `packages/beak_serverpod/lib/src/model.dart` | `packages/beak_serverpod/test/src/query_test.dart` |
+| `ServerpodModel` (bridge model) | `package:beak_serverpod/beak_serverpod.dart` | `packages/beak_serverpod/lib/src/model.dart` | `packages/beak_serverpod/test/src/query_test.dart` |
+| `@ServerpodModel`, `@CommandInput`, `@ReadOnly`, `@Hidden`, `BeakHandling` (definition classes) | `package:beak_serverpod/schema.dart` | `packages/beak_serverpod/lib/src/schema_annotations.dart` | `packages/beak_cli/test/src/serverpod/generate_ir_test.dart` |
+| `BeakServerpodWrite`, `BeakServerpodValues`, `BeakServerpodHandlers`, `beakServerpodCommands`, `beakServerpodRefused` | `package:beak_serverpod_server/beak_serverpod_server.dart` | `packages/beak_serverpod_server/lib/src/beak_serverpod_write.dart` | `packages/beak_serverpod_server/test/beak_serverpod_write_test.dart` |
+| `beak generate`: definition classes, parts, handler bases | none, `beak` | `packages/beak_cli/lib/src/serverpod/generator.dart` | `packages/beak_cli/test/src/serverpod/generate_sync_test.dart` |
 | `ServerpodField` | `package:beak_serverpod/beak_serverpod.dart` | `packages/beak_serverpod/lib/src/field.dart` | `packages/beak_serverpod/test/src/field_test.dart` |
 | The tunnel envelope, `BeakWireRequest` | `package:beak_serverpod/wire.dart` | `packages/beak_serverpod/lib/src/wire.dart` | `packages/beak_serverpod/test/wire_test.dart` |
 | `BeakServerpodEngine` | `package:beak_serverpod_server/beak_serverpod_server.dart` | `packages/beak_serverpod_server/lib/src/beak_serverpod_engine.dart` | `packages/beak_serverpod_server/test/beak_serverpod_engine_test.dart` |

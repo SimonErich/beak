@@ -101,7 +101,7 @@ The vocabulary both halves speak. It depends on neither Flutter nor `dart:io`, s
 | Group | Notable names |
 | --- | --- |
 | Models | `BeakModel`, `BeakModelRegistry`, `BeakFieldRef`, `BeakAttributeDefinition`, `BeakVariantMatrix` |
-| Definitions and admission | `BeakDefinitions`, `BeakModelDefinition`, `BeakAdmission`, `BeakTranslationSpec` |
+| Admission | `BeakAdmission`, `BeakTranslationSpec` |
 | Access | `BeakPermissions`, `BeakOperation`, `BeakAccess`, `BeakPrincipal` |
 | Columns | `BeakColumn` and its leaves (`BeakStringColumn`, `BeakTextColumn`, `BeakIntColumn`, `BeakDecimalColumn`, `BeakBoolColumn`, `BeakDateTimeColumn`, `BeakEnumColumn`, `BeakImageColumn`, `BeakFileColumn`, `BeakJsonColumn`, `BeakCustomColumn`), `BeakSemantic`, semantic values such as `BeakDecimal` and `BeakDate` |
 | Relationships | `BeakRelationship`, `BeakBelongsTo`, `BeakHasOne`, `BeakHasMany`, `BeakBelongsToMany`, `BeakOnDelete` |
@@ -232,10 +232,11 @@ These are the imports that do not go through `package:beak`. An app rarely needs
 | `package:beak_theme_gabel/beak_theme_gabel.dart` | `beak_theme_gabel` | Flutter, `obers_ui` | `GabelTheme`, `GabelLight`, `GabelDark`, `gabelNumericBodyStyle` and its siblings, `gabelIconSources`, the `gabelSansFamily` and `gabelMonoFamily` constants |
 | `package:beak_theme_gabel/testing.dart` | `beak_theme_gabel` | Flutter | `loadGabelFonts` |
 | `package:beak_serverpod/beak_serverpod.dart` | `beak_serverpod` | pure Dart | `ServerpodResource`, `ServerpodModel`, `ServerpodField`, `ServerpodDataSource`, the codecs and exception mapper |
+| `package:beak_serverpod/schema.dart` | `beak_serverpod` | pure Dart | `package:beak_core/schema.dart` plus the definition-class annotations `ServerpodModel`, `CommandInput`, `ReadOnly`, `Hidden` and `BeakHandling` |
 | `package:beak_serverpod/wire.dart` | `beak_serverpod` | pure Dart | `BeakWireRequest`, `BeakWireResponse`, `BeakTunnelHttpClient`, `BeakTunnelDispatch`, the tunnel fault types |
 | `package:beak_serverpod_flutter/beak_serverpod_flutter.dart` | `beak_serverpod_flutter` | Flutter, `serverpod_client` | `ServerpodAuthAdapter`, `serverpodBeakDataSource`, `ServerpodAuthExceptionMapper`, and everything in `tunnel.dart` |
 | `package:beak_serverpod_flutter/tunnel.dart` | `beak_serverpod_flutter` | `serverpod_client`, no Flutter | `wire.dart` plus `ServerpodBeakHttpClient`, for Dart VM tools and tests |
-| `package:beak_serverpod_server/beak_serverpod_server.dart` | `beak_serverpod_server` | `serverpod` `>=4.0.3 <5.0.0`, Dart ^3.12.2 | `BeakServerpodEngine`, `BeakAdminGate`, `BeakServerpod`, `ServerpodSessionAdapter`, `beakServerpodFrameworkTables` |
+| `package:beak_serverpod_server/beak_serverpod_server.dart` | `beak_serverpod_server` | `serverpod` `>=4.0.3 <5.0.0`, Dart ^3.12.2 | `BeakServerpodEngine`, `BeakAdminGate`, `BeakServerpod`, `ServerpodSessionAdapter`, `beakServerpodFrameworkTables`, `BeakServerpodWrite`, `BeakServerpodValues`, `BeakServerpodHandlers`, `beakServerpodCommands`, `beakServerpodRefused` |
 | `package:beak_serverpod_generator/beak_serverpod_generator.dart` | `beak_serverpod_generator` | `analyzer` | `generateServerpodCompanions`; the `bin/generate.dart` executable wraps it |
 | `package:beak_cli/beak_cli.dart` | `beak_cli` | Dart VM | `createBeakRunner`, `BeakCliEnvironment`, `BeakPortProbe`, `BeakProcessRunner`; the `beak` executable is `bin/beak.dart` |
 

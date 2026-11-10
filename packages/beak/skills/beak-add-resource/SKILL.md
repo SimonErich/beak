@@ -6,7 +6,7 @@ description: Add a table and its panel screens to a Beak-owned project (no exter
 # Add a resource
 
 Use this when Beak owns the database (a standalone or embedded Beak app). A
-Serverpod project adds models by inventory and `beak generate` instead.
+Serverpod project adds models by definition class and `beak generate` instead.
 
 ## 1. Declare the model
 

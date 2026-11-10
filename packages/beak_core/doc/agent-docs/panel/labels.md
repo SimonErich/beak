@@ -24,7 +24,7 @@ Every label is read when it is shown, in the panel's language:
 | 1 | Where the field is placed | `ProductModel.sku.inputText(label: 'Item no.')` |
 | 2 | Label file, exact key | `"product.sku": "Artikelnummer"` |
 | 3 | Label file, shared key | `"*.sortOrder": "Reihenfolge"` |
-| 4 | The schema | `@Column(label: 'SKU')`, or the inventory's `fields.<name>.label` |
+| 4 | The schema | `@Column(label: 'SKU')` on the schema or definition class |
 | 5 | The field name made readable | `sortOrder` reads `Sort Order` |
 
 A single-language panel can stop at row 4. A panel in more than one language
@@ -68,8 +68,8 @@ Keys are paths of Dart names in lowerCamelCase, never table or column keys:
 | `orderStatus.pending` | An enum value, by enum type |
 | `*.sortOrder` | Every field, relationship or enum value of that name without an exact key |
 
-`@Resource(labelKey: 'order')`, or `labelKey: order` in a Serverpod
-inventory, files a model's labels under another key. A foreign key without
+`@Resource(labelKey: 'order')`, on a schema or a Serverpod definition class,
+files a model's labels under another key. A foreign key without
 a label takes its relationship's, and a related field that shows the related
 record's display column reads as the relationship (`order.customer.name`
 reads `Customer`).
@@ -152,5 +152,5 @@ Beak words its own titles: `BeakTab.general`, `BeakTab.details` and
   standard resource and list these labels appear in.
 - [Formatting and localization](../theming/formatting-and-localization.md):
   numbers, money, dates and Beak's own controls in each language.
-- [Generating the admin schema](../serverpod/admin-app/generate.md): the
-  inventory a Serverpod admin's label files sit next to.
+- [Generating the admin from definition classes](../serverpod/admin-app/generate.md):
+  the definition classes a Serverpod admin's label files name.

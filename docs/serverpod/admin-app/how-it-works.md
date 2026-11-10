@@ -53,11 +53,11 @@ and transaction.
 
 ## The engine
 
-`BeakServerpodEngine.admitted` registers the generated models, binds the
-authored definitions, derives `BeakPolicies.admitted` from each model's
-permissions and admission, validates the write bindings and composes the tree
-rules. Stock persistence, a server stamp and a use-case write all run inside the
-same save transaction.
+`BeakServerpodEngine.admitted` registers the generated models, derives
+`BeakPolicies.admitted` from each model's permissions and admission and the
+handlers' row scopes, validates the handlers' write bindings and composes the
+tree rules. Stock persistence, a derived stamp and a handler's use-case call
+all run inside the same save transaction.
 
 ## What it means for you
 
@@ -65,7 +65,7 @@ The panel's access checks come from data, but the server re-checks every request
 
 ## Why it is shaped this way
 
-The generated package has no Flutter dependency, so the server can import the same definitions; the panel stays a thin transport over the tunnel.
+The definitions package has no Flutter dependency, so the server imports the same classes as the panel; the panel stays a thin transport over the tunnel.
 
 ## What the panel is allowed to know
 
@@ -77,5 +77,5 @@ server checks all of it again.
 ## Continue reading
 
 - [Setting up the admin app](setup.md): the steps with real files.
-- [Generating the schema package](generate.md): where the models come from.
+- [Generating the admin from definition classes](generate.md): where the models come from.
 - [Writes, commands and trees](write-bindings.md): how a save reaches a use case.

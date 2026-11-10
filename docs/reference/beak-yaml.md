@@ -209,36 +209,43 @@ serverpod:
 
 ## `generate`
 
-What `beak generate` writes, and the review rules it applies.
+What `beak generate` reads and where it writes, for an admin whose models are
+Serverpod's.
 
 ```yaml
 generate:
-  output: generated
-  inventory: definitions/resources
+  definitions: definitions
+  handlers: ../../server/lib/src/admin/generated
   prefix: Shop
   roles: Permission
   areas:
     catalog: {read: readCatalog, write: writeCatalog}
-  writes: [configuration, translation, catalog]
   conventions:
     dateOnly: ['*Date', periodStart]
     money: {fields: ['*Cents'], currency: EUR}
     detailOnly: [version, isImported]
 ```
 
-- `output` is the pure-Dart package. Required. Its `lib/` belongs to the
-  generator.
-- `inventory` is the folder of reviewed `*.yaml` admission files.
-- `prefix` names the generated classes; it defaults to the output package's
-  name without `_generated`, camel-cased.
+- `definitions` is the pure-Dart package of definition classes, one
+  `@Resource` + `@ServerpodModel` class per exposed model (default
+  `definitions`). `beak generate` writes a `*.beak.dart` part next to each
+  class and the support libraries into its `lib/src/generated/`.
+- `handlers` is the folder in the Serverpod server the handler base classes
+  and the `<Prefix>Handlers` aggregate go into. Required as soon as one
+  definition opens custom or derived code, a custom list or a command.
+- `prefix` names the generated classes (`ShopWrite`, `ShopHandlers`,
+  `createShopRegistry`); it defaults to the definitions package's name without
+  `_definitions`, camel-cased.
 - `roles` names the Serverpod enum every area and access role is checked
   against.
 - `areas` map an area to the roles that may read and write it.
-- `writes` is the set of write bindings, emitted as `enum <Prefix>Write`.
 - `conventions` set date-only columns, money columns and detail-only columns.
 
-Inventory files are the single source of truth for what may be written; see
-[Writes, commands and trees](../serverpod/admin-app/write-bindings.md).
+`output`, `inventory` and `writes` are gone: the definition classes say what
+is exposed and how each operation runs, and each writable model gets its own
+write binding. See
+[Generating the admin from definition classes](../serverpod/admin-app/generate.md)
+and [Writes, commands and trees](../serverpod/admin-app/write-bindings.md).
 
 ## `labels`
 

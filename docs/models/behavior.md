@@ -199,26 +199,36 @@ A command can ask for typed input with an `inputModel`, an ordinary `BeakModel` 
 
 The dialog and the API validate the same columns, so the rules are written once. A value behavior of the command reads the input with `state.argument(field)`, and a graph preparer reads it from `plan.arguments`: Foodio's preparer turns the note into a row of its own. Input models take belongs-to constraints only, and a relationship in the input must arrive as a selected identity.
 
-## Behavior on a generated model
+## Behavior on a Serverpod model
 
-A generated model carries only facts a generator can know, and it imports no authored code. Its `behavior` and `validationRules` read from `BeakDefinitions`, a set of `BeakModelDefinition`s keyed by table, each holding the model, its `BeakModelBehavior` and its record rules:
+A Serverpod admin declares each exposed model as a definition class (see
+[Generating the admin from definition classes](../serverpod/admin-app/generate.md)),
+and its behavior and rules live on that class exactly as on a Beak-owned
+schema: a `static get behavior` and a `static get validationRules`. The part
+`beak generate` writes next to the class forwards to them, so the panel and
+the server read one declaration:
 
-```dart title="packages/beak_core/test/src/model/beak_definitions_test.dart"
---8<-- "packages/beak_core/test/src/model/beak_definitions_test.dart:definitionsSet"
+```dart
+@Resource()
+@ServerpodModel(area: 'sales', commands: ['cancelOrder'])
+final class PlacedOrder extends BeakSchema {
+  /// Cancel, with its availability and the status it derives.
+  static BeakModelBehavior get behavior =>
+      BeakModelBehavior(actions: [OrderActions.cancel]);
+
+  /// Rules every save must pass, in the panel and on the server.
+  static List<BeakRecordRule> get validationRules => [
+    BeakAfterField(PlacedOrderModel.deliveredAt, PlacedOrderModel.placedAt),
+  ];
+
+  @Display()
+  late final String customerName;
+}
 ```
 
-`BeakModelRegistry.of(models, definitions: d)` binds the set once for the isolate and then registers the models, so registration already sees the bound behavior. A table with no definition gets the empty behavior and no rules:
-
-```dart title="packages/beak_core/test/src/model/beak_definitions_test.dart"
---8<-- "packages/beak_core/test/src/model/beak_definitions_test.dart:registryOf"
-```
-
-Lookups are strict, because a model that silently ran without its guards would be worse than one that fails to start:
-
-- Before anything is bound, `BeakDefinitions.behaviorOf` and `rulesOf` throw a `BeakConfigurationException` that names the model and how to bind.
-- Binding the same set again changes nothing. Binding a different one throws, so build the definitions once, in a top-level `final`, and pass that instance everywhere. A behavior built at run time (a closure over a local) is a different value each time.
-- A definition for a table outside the model set is rejected, and so are two definitions for one table.
-- Tests unbind with `BeakDefinitions.unbindForTesting()`, or bind for the length of a body with `BeakDefinitions.withDefinitions(d, body)` (`withDefinitionsAsync` when the body awaits).
+A class that declares neither gets the empty behavior and no rules. A command
+listed in `commands:` is run by the model's server handler; the engine refuses
+to start when the handler names a command the behavior does not declare.
 
 ## What the server does with a save
 
@@ -308,7 +318,7 @@ For your own model, the pattern in `shop_api_test.dart` is the one to copy: star
 | `BeakValueContext` | `record`, `initial`, `arguments`; `read`, `original`, `argument` | [Behavior and actions](../reference/behavior-and-actions.md#value-behavior) |
 | `BeakModelAction` | `name`, `label`, `description`, `availableWhen`, `inputModel`, `allowOnCreate`, `values` | [Behavior and actions](../reference/behavior-and-actions.md#beakmodelaction) |
 | `BeakModelBehavior.builtInRows` | Refuses deleting (and optionally editing) rows flagged as built in | [Behavior and actions](../reference/behavior-and-actions.md#beakmodelbehavior) |
-| `BeakDefinitions`, `BeakModelDefinition` | The authored behavior and rules of generated models, bound once | [Generated code](generated-code.md) |
+| `static get behavior`, `static get validationRules` on a Serverpod definition class | The behavior and rules of a generated Serverpod model, forwarded by its part | [Generating the admin from definition classes](../serverpod/admin-app/generate.md) |
 | `BeakActionPolicy` | Server-side gate for who may run a command | [Auth and policies](../backend/auth-and-policies.md) |
 
 ## Continue reading

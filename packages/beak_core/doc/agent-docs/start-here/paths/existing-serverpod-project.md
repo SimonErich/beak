@@ -37,14 +37,14 @@ Answer them in order and stop at the first row that applies.
 
 ## Take the admin app
 
-You add two packages to the pub workspace: a pure Dart `<name>_beak` package with one Beak schema class per table (marked `managesSchema: false`, because Serverpod owns the schema), and a Flutter web `<name>_admin` app with a `BeakPanel`. On the server you add one gated endpoint, a deny-by-default policy and a receipts model.
+You add two packages to the pub workspace: a pure Dart definitions package with one definition class per exposed Serverpod model (`@Resource` + `@ServerpodModel`; Serverpod stays the schema owner, and `beak generate` checks every class against it), and a Flutter web `<name>_admin` app with a `BeakPanel`. On the server you add one gated endpoint, the engine with its generated handlers, and a receipts model.
 
 Versions are strict: Serverpod exactly `4.0.4`, Dart `3.12.2` or newer, Flutter `3.44.4` or newer, and one Beak ref on every Beak package. Beak is not on pub.dev, so each package is a git or path dependency. Until `v0.9.0` is tagged the ref is a branch or a path; [Installation](../installation.md#the-release-is-not-tagged-yet) explains why.
 
 Read in this order:
 
 1. [Admin app in your workspace](../../serverpod/admin-app/index.md) for what the workspace looks like afterwards.
-2. [Setting up the admin app](../../serverpod/admin-app/setup.md), a tutorial from an empty schema package to a signed-in panel.
+2. [Setting up the admin app](../../serverpod/admin-app/setup.md), the steps from a first definition class to a signed-in panel.
 3. [Limits and next steps](../../serverpod/admin-app/limits-and-next-steps.md), before you plan on it. The path is a proof on one example workspace, not a product.
 
 The working reference is `examples/serverpod`, a Serverpod 4.0.4 workspace with an admin for `Author` and `Book`.

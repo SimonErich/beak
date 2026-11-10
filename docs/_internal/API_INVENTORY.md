@@ -119,11 +119,7 @@ Pure Dart. No Flutter, no worm. The shared vocabulary both sides speak.
   `columns`; overridable `relationships`, `softDeletes`, `primaryKey`; methods
   `primaryKeyOf`, `columnsFor`, `columnByKey`, `relationshipByKey`.
 - `BeakModelRegistry`: `register`, `byTable`, `byTableOrThrow`, `all`, and
-  `BeakModelRegistry.of(models, {definitions})`, which binds the definitions and
-  then registers.
-- `BeakDefinitions`, `BeakModelDefinition` (`src/model/beak_definitions.dart`):
-  the authored behavior and rules of generated models, bound once per isolate;
-  `bind`, `behaviorOf`, `rulesOf`, `unbindForTesting`, `withDefinitions`.
+  `BeakModelRegistry.of(models)`, which registers every model.
 - `BeakAdmission`, `BeakTranslationSpec` (`src/model/beak_admission.dart`): the
   constant facts a generator records on `BeakModel.admission`.
 - `BeakPermissions` (`src/model/beak_permissions.dart`): a `BeakAccess` per

@@ -1,6 +1,6 @@
 ---
 title: Setting up the admin app
-description: Add the Beak admin to a Serverpod 4 workspace, from the reviewed inventory and generated schema package to the gated endpoint and the signed-in panel.
+description: Add the Beak admin to a Serverpod 4 workspace, from the definition classes and their generated models to the gated endpoint and the signed-in panel.
 type: guide
 audience: [expert]
 status: stable
@@ -9,74 +9,88 @@ status: stable
 # Setting up the admin app
 
 After this page you have a Serverpod server that serves Beak's API behind one
-gated endpoint and a Flutter admin whose models were generated from a reviewed
-inventory. The reference workspace is `examples/serverpod`.
+gated endpoint and a Flutter admin whose models are generated from one
+definition class per exposed Serverpod model. The reference workspace is
+`examples/serverpod`.
 
 ## At a glance
 
 | Step | What you do |
 | --- | --- |
-| 1 | Add `apps/<name>_admin` with `beak.yaml` and `definitions/` |
-| 2 | Review the inventory and run `beak generate` |
+| 1 | Add `apps/<name>_admin` with `beak.yaml` and the `definitions` package |
+| 2 | Write a definition class per exposed model and run `beak generate` |
 | 3 | Mount `BeakAdminEndpoint` with `BeakServerpodEngine.admitted` |
 | 4 | Boot `runServerpodBeakAdmin` and sign in |
 
 ## The panel package
 
-```yaml
+```yaml title="examples/serverpod/bookshop_admin/beak.yaml"
 serverpod:
-  server: ../../server
+  server: ../bookshop_server
   models: [lib/src]
   migrations: migrations
+
 generate:
-  output: generated
-  inventory: definitions/resources
-  prefix: Shop
+  definitions: definitions
+  handlers: ../bookshop_server/lib/src/beak/generated
+  prefix: Bookshop
   areas:
-    catalog: {read: readCatalog, write: writeCatalog}
-  writes: [configuration, catalog]
+    catalog: {read: bookshop.staff, write: bookshop.staff}
 ```
 
-`generated/` is a pure-Dart package whose `lib/` only `beak generate` writes;
-`definitions/` holds the inventory and the authored behavior. Both are workspace
-members.
+`definitions/` is a pure-Dart package (`beak_core`, `beak_serverpod`) that both
+the panel and the server depend on; it is a workspace member. `handlers` is a
+folder inside the server.
 
-## The reviewed inventory
+## The definition classes
 
-```yaml
-area: catalog
-resources:
-  Book:
-    display: title
-    operations: [read, create, update]
-    write: configuration
-    writeFields: [title, isbn, authorId]
+```dart title="examples/serverpod/bookshop_admin/definitions/lib/src/catalog/author.dart"
+/// Someone whose books the shop sells.
+@Resource()
+@ServerpodModel(
+  area: 'catalog',
+  create: BeakHandling.stock,
+  update: BeakHandling.stock,
+)
+final class Author extends BeakSchema {
+  /// The name printed on the cover.
+  @Display()
+  late final String name;
+
+  /// A short biography for the author page.
+  late final String? bio;
+
+  /// The author's own website.
+  late final String? website;
+}
 ```
 
-A write names a `write` binding and the columns it may change. A read-only model
-names a `reason:`. The generator refuses a mismatch before writing anything.
+The package barrel exports what `beak generate` writes:
+
+```dart title="examples/serverpod/bookshop_admin/definitions/lib/bookshop_definitions.dart"
+export 'src/generated/models.dart';
+```
+
+A write opens its operation on the class; a read-only model names a `reason:`.
+The generator refuses a mismatch with Serverpod before writing anything
+([Generating the admin from definition classes](generate.md)).
 
 ## The server side
 
-```dart title="server/lib/src/beak/shop_beak_engine.dart"
-final shopBeak = BeakServerpodEngine.admitted(
-  models: shopModels,
-  definitions: shopDefinitions,
+```dart title="examples/serverpod/bookshop_server/lib/src/beak/bookshop_beak_engine.dart"
+final BeakServerpodEngine bookshopBeak = BeakServerpodEngine.admitted(
+  models: bookshopModels,
+  handlers: const BookshopHandlers(),
   principal: BeakServerpodPrincipal.fromScopes,
-  writes: BeakWriteBindings<ShopWrite>(
-    (binding) => switch (binding) {
-      ShopWrite.configuration => const BeakWriteHandler.stock(),
-    },
-  ),
 );
 ```
 
-`models` and `ShopWrite` come from the generated package; `shopDefinitions`
-comes from the definitions package. The endpoint keeps its own sign-in and
-scope gate and returns `shopBeak.dispatch(session, request)`.
-
-A write that belongs to a use case uses `BeakWriteHandler.commands`; see
-[Writes, commands and trees](write-bindings.md).
+`bookshopModels` comes from the definitions package and `BookshopHandlers` from
+the generated handler folder. No bookshop model runs custom code, so the
+handlers take no arguments; a model that opens custom code adds a required
+argument ([Writes, commands and trees](write-bindings.md)). The endpoint keeps
+its own sign-in and scope gate and returns
+`bookshopBeak.dispatch(session, request)`.
 
 ## The panel
 
@@ -105,21 +119,22 @@ read from `context`; model and field names come from the label files
 
 ## Rules and limits
 
-- Generated code is never edited. Change the model, the migration or the
-  inventory and run `beak generate`.
+- Generated code is never edited. Change the Serverpod model, the migration or
+  the definition class and run `beak generate`.
 - The server enforces permissions; the panel only decides what to offer.
-- Every write is stock persistence, a trusted stamp, or an existing use case.
-  A model whose use cases own every change uses `otherwise: BeakUnmatched.refuse`.
+- Every write is stock persistence, a derived stamp, or the model's handler
+  calling an existing use case.
 
 ## Verify it
 
 - `beak generate --check` passes.
-- `dart analyze` is clean in the generated package, the definitions and the server.
-- The panel signs in, lists the model, and one write reaches its use case.
+- `dart analyze` is clean in the definitions package and the server.
+- The panel signs in, lists the model, and one write reaches its stock path or
+  its handler.
 
 ## Reference
 
-- [Generating the schema package](generate.md): the inputs and the review rules.
+- [Generating the admin from definition classes](generate.md): the classes and the checks.
 - [How the admin app works](how-it-works.md): the request path.
 - `examples/serverpod/bookshop_admin`: the reference workspace.
 
