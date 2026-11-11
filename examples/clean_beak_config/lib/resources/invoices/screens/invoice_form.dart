@@ -16,7 +16,7 @@ BeakFormSections invoiceSections() => BeakFormSections(
       title: 'Customer & document',
       description: 'Choose who to bill and set the invoice dates.',
       children: [
-        BeakColumns(
+        BeakRow(
           children: [
             BeakCard(
               title: 'Invoice details',
@@ -96,7 +96,7 @@ BeakFormSections invoiceSections() => BeakFormSections(
               ],
               advancedForm: BeakFormLayout(
                 children: [
-                  BeakColumns(
+                  BeakRow(
                     children: [
                       BeakCard(
                         title: 'Description and adjustments',
@@ -180,7 +180,7 @@ List<BeakFormNode> invoiceReview() => [
     description:
         'Line discounts → ordered vouchers → exclusive tax, rounded per line.',
     children: [
-      BeakColumns(
+      BeakRow(
         children: [
           BeakCalculated(
             label: 'Subtotal after line discounts',

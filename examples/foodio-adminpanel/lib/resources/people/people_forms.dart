@@ -7,7 +7,7 @@ import '../../domain/foodio_payment.dart';
 /// Contact details and dietary preferences shared by resources and inline creation.
 BeakFormLayout customerForm() => BeakFormLayout(
   children: [
-    BeakColumns(
+    BeakRow(
       children: [
         BeakCard(
           title: 'Contact details',
@@ -46,7 +46,7 @@ BeakFormLayout deliveryProfileForm() => BeakFormLayout(
         BeakTab(
           title: 'Profile',
           children: [
-            BeakColumns(
+            BeakRow(
               children: [
                 BeakCard(
                   title: 'Customer & company',
@@ -78,7 +78,7 @@ BeakFormLayout deliveryProfileForm() => BeakFormLayout(
         BeakTab(
           title: 'Payment & budget',
           children: [
-            BeakColumns(
+            BeakRow(
               children: [
                 BeakCard(
                   title: 'Billing preferences',

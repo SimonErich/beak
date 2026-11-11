@@ -213,7 +213,7 @@ Pure Dart. No Flutter, no worm. The shared vocabulary both sides speak.
 ### Configured resource forms
 - `BeakResourceScreen`, `BeakScreenRole`, `BeakFormScreen`, `BeakWizardScreen`,
   `BeakTableScreen`, `BeakCustomResourceScreen` (`src/panel/beak_resource_screen.dart`).
-- `BeakFormNode`, `BeakFormLayout`, `BeakCard`, `BeakColumns`, `BeakWizardStep`,
+- `BeakFormNode`, `BeakFormLayout`, `BeakCard`, `BeakRow`, `BeakWizardStep`,
   `BeakInput`, `BeakRelationInput`, `BeakRelationTable`, `BeakCalculated`,
   `BeakFormWidget`, `BeakRemoveBehavior` (`src/form/beak_form_layout.dart`).
 - `BeakConfiguredForm`, `BeakFormSession`, `BeakDraftRecord`, `BeakFormReader`:
@@ -296,7 +296,7 @@ one `BeakBlockHost` renderer. ~48 variants:
 - `BeakRelationManager` manages persisted to-many relationships on detail pages.
 - `BeakFormScreen`, `BeakWizardScreen` and `BeakScreenRole` assign read,
   create and edit screens to resources.
-- `BeakFormLayout`, `BeakFormSections`, `BeakSection`, `BeakCard`, `BeakColumns`,
+- `BeakFormLayout`, `BeakFormSections`, `BeakSection`, `BeakCard`, `BeakRow`,
   `BeakTabs`, `BeakTab`, `BeakWizardStep` describe the configured layout.
 - Typed scalar references expose input helpers; to-many references expose
   `tableForm`, with nested rows, advanced forms and summaries.
@@ -376,7 +376,7 @@ Shelf server. The only package that imports worm.
   `DoctorCommand`.
 - `BeakFieldSpec` (`{name, kind}`, `parse`, `parseList`, `camelName`),
   `BeakFieldKind` {string,text,integer,decimal,boolean,dateTime} (`parse`).
-- Templates: `generateWormModel`, `generateBeakColumns`, `generateMigration`,
+- Templates: `generateWormModel`, `generateBeakRow`, `generateMigration`,
   `snakeCaseOf`, `tableNameOf`, `camelCaseOf`.
 
 ---

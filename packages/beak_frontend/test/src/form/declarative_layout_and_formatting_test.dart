@@ -391,8 +391,8 @@ void main() {
     },
   );
 
-  testWidgets('columns collapse with their available width', (tester) async {
-    final layout = BeakColumns(
+  testWidgets('a row collapses with its available width', (tester) async {
+    final layout = BeakRow(
       children: [_title.inputText(), _description.inputText()],
     );
     await pump(
@@ -435,7 +435,7 @@ void main() {
                 BeakTab(
                   title: 'Overview',
                   children: [
-                    BeakColumns(
+                    BeakRow(
                       children: [
                         BeakCard(
                           title: 'First card',

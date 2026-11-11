@@ -9,7 +9,7 @@ BeakFormLayout fulfillmentPolicyForm() => BeakFormLayout(
         BeakTab(
           title: 'Service',
           children: [
-            BeakColumns(
+            BeakRow(
               children: [
                 // --8<-- [start:fulfillmentIdentityCard]
                 BeakCard(
@@ -63,7 +63,7 @@ BeakFormLayout fulfillmentPolicyForm() => BeakFormLayout(
           title: 'Pricing and timing',
           children: [
             // --8<-- [start:fulfillmentPricingColumns]
-            BeakColumns(
+            BeakRow(
               children: [
                 BeakCard(
                   title: 'Delivery charges',
@@ -101,7 +101,7 @@ BeakFormLayout fulfillmentPolicyForm() => BeakFormLayout(
               title: 'Promotional validity',
               description: 'Use a start and end date for time-limited offers.',
               children: [
-                BeakColumns(
+                BeakRow(
                   children: [
                     FulfillmentPolicyModel.promotionStartsAt.input(),
                     FulfillmentPolicyModel.promotionEndsAt.input(),
@@ -115,7 +115,7 @@ BeakFormLayout fulfillmentPolicyForm() => BeakFormLayout(
           title: 'Origin and integration',
           children: [
             // --8<-- [start:fulfillmentOriginColumns]
-            BeakColumns(
+            BeakRow(
               children: [
                 BeakCard(
                   title: 'Dispatch address',

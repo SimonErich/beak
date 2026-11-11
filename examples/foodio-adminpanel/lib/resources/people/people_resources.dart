@@ -59,7 +59,7 @@ List<BeakResource> peopleResources() => [
             BeakTab(
               title: 'Company & billing',
               children: [
-                BeakColumns(
+                BeakRow(
                   children: [
                     BeakCard(
                       title: 'Company',
@@ -90,7 +90,7 @@ List<BeakResource> peopleResources() => [
             BeakTab(
               title: 'Budget & approval',
               children: [
-                BeakColumns(
+                BeakRow(
                   children: [
                     BeakCard(
                       title: 'Spending policy',
@@ -206,7 +206,7 @@ List<BeakResource> peopleResources() => [
         ],
       ),
       supportingForm([
-        BeakColumns(
+        BeakRow(
           children: [
             BeakCard(
               title: 'Delivery address',

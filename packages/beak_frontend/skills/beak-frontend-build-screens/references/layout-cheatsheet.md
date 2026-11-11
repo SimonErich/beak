@@ -22,7 +22,7 @@ BeakFormLayout orderForm() => BeakFormLayout(
         BeakTab(
           title: 'Overview',
           children: [
-            BeakColumns(
+            BeakRow(
               children: [
                 BeakCard(
                   title: 'Order',

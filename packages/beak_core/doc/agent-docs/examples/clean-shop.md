@@ -263,7 +263,7 @@ OrderModel.items.tableForm(
   ],
   advancedForm: BeakFormLayout(
     children: [
-      BeakColumns(
+      BeakRow(
         children: [
           BeakCard(
             title: 'Description',

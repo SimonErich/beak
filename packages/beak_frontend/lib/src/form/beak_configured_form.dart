@@ -1370,7 +1370,7 @@ class _FormNodeView extends HookWidget {
         draft: draft,
         readOnly: readOnly,
       ),
-      final BeakColumns columns => Padding(
+      final BeakRow columns => Padding(
         padding: columns.padding,
         child: LayoutBuilder(
           builder: (context, constraints) {

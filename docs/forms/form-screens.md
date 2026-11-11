@@ -60,7 +60,7 @@ Containers group, inputs edit, and everything sits over one draft. The ones you 
 
 | Node | Use it for |
 | --- | --- |
-| `BeakColumns` | Side-by-side groups that stack on narrow screens |
+| `BeakRow` | Side-by-side groups that stack on narrow screens |
 | `BeakCard` | A titled surface, optionally collapsible |
 | `BeakSection` | A heading with a description and no border |
 | `BeakTabs` and `BeakTab` | Tabbed groups; every tab is validated and saved together |
@@ -189,7 +189,7 @@ The second command ends with `All tests passed!`. To see a form rather than test
 | Symbol | Where it is documented |
 | --- | --- |
 | `BeakFormScreen`, `BeakWizardScreen`, `BeakScreenRole` | [Screens and form layouts](../reference/screens-and-layouts.md#screens) |
-| `BeakFormLayout`, `BeakCard`, `BeakSection`, `BeakColumns`, `BeakTabs`, `BeakFormSections` | [Screens and form layouts](../reference/screens-and-layouts.md#layout-containers) |
+| `BeakFormLayout`, `BeakCard`, `BeakSection`, `BeakRow`, `BeakTabs`, `BeakFormSections` | [Screens and form layouts](../reference/screens-and-layouts.md#layout-containers) |
 | `BeakCalculated`, `BeakFormWidget`, `BeakFormReader`, `BeakDraftScope` | [Screens and form layouts](../reference/screens-and-layouts.md#draft-access) |
 | `inputText`, `inputCombobox`, `tableForm` and every other builder | [Input builders](../reference/input-builders.md) |
 | `BeakConfiguredForm`, `BeakFormSession` | `packages/beak_frontend/lib/src/form/beak_configured_form.dart`, `packages/beak_frontend/lib/src/form/beak_form_session.dart` |

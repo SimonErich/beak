@@ -17,7 +17,7 @@ BeakFormLayout productForm() => BeakFormLayout(
         BeakTab(
           title: 'Overview',
           children: [
-            BeakColumns(
+            BeakRow(
               children: [
                 // --8<-- [start:ProductDetailsCard]
                 BeakCard(

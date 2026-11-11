@@ -42,7 +42,7 @@ A screen is attached to a resource through `BeakResource.screens`. Each screen c
 | `BeakFormLayout` | `BeakFormNode` | Ordered children with vertical spacing; the root of every form |
 | `BeakCard` | `BeakFormLayout` | Titled surface, optionally collapsible |
 | `BeakSection` | `BeakFormLayout` | Heading with optional description and divider, no border |
-| `BeakColumns` | `BeakFormLayout` | Responsive side-by-side columns |
+| `BeakRow` | `BeakFormLayout` | Responsive side-by-side columns |
 | `BeakTabs`, `BeakTab` | `BeakFormLayout` | Tabbed groups over one draft |
 | `BeakWizardStep` | `BeakFormLayout` | One validated page of a wizard |
 | `BeakReviewSection` | `BeakFormLayout` | Review row with an Edit link back to a step |
@@ -423,10 +423,10 @@ const BeakSection({
 | `visibleIf` | `BeakVisibility?` | none | Predicate over the live draft; false hides the node and its descendants |
 | `enabledIf` | `BeakVisibility?` | none | Predicate over the live draft; false disables the node and its descendants |
 
-### BeakColumns
+### BeakRow
 
 ```dart title="packages/beak_frontend/lib/src/form/beak_form_layout.dart"
-const BeakColumns({
+const BeakRow({
   required super.children,
   this.columns = 2,
   this.minColumnWidthInPixels = 280,
@@ -1211,7 +1211,7 @@ const BeakRecordScope({
 | Inline commands | Each `BeakFormActionInput` needs a command with an input model, command names must be unique in the form, and `submitWithForm` must share the argument model of the inline command; otherwise a `BeakConfigurationException` when the session is created |
 | Calculated values | `BeakCalculated`, `BeakFormSummary`, `BeakFormMetrics` and `BeakFormCapacity` display values. None of them is submitted or validated |
 | Hidden by permission | A node whose field the account cannot read is hidden even when its `visibleIf` is true |
-| Asserts | `BeakColumns` needs `columns` and `minColumnWidthInPixels` above 0, `BeakSection` needs non-negative gaps, `BeakTabs` a non-negative `initialIndex`, `BeakFormMetric` a `flex` above 0, `BeakFormMetrics` a `minColumnWidthInPixels` above 0, and `BeakFormProgress` not both `states` and `steps`. These fail in debug builds |
+| Asserts | `BeakRow` needs `columns` and `minColumnWidthInPixels` above 0, `BeakSection` needs non-negative gaps, `BeakTabs` a non-negative `initialIndex`, `BeakFormMetric` a `flex` above 0, `BeakFormMetrics` a `minColumnWidthInPixels` above 0, and `BeakFormProgress` not both `states` and `steps`. These fail in debug builds |
 | Sections projection | `BeakFormSections.steps` drops the styling, `trailing` and divider of a section, as listed under that class |
 
 ## Source

@@ -262,7 +262,7 @@ BeakWizardStep deliveryStep() => BeakWizardStep(
                       label: 'Street and house number',
                       validate: const [BeakRequired()],
                     ),
-                    BeakColumns(
+                    BeakRow(
                       children: [
                         OrderModel.postalCode.inputText(
                           label: 'Postal code',

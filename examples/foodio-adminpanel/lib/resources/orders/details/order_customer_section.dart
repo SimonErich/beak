@@ -349,7 +349,7 @@ BeakRelationAdd _addDish({bool search = false}) => BeakRelationAdd(
 // --8<-- [end:addDishAction]
 
 /// Add-item controls and a tax-aware order total under the items relation.
-BeakColumns orderDetailItemsFooter() => BeakColumns(
+BeakRow orderDetailItemsFooter() => BeakRow(
   minColumnWidthInPixels: 220,
   gapInPixels: 24,
   columnWidths: const [null, 248],

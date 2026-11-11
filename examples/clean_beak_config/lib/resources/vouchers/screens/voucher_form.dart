@@ -6,7 +6,7 @@ const _hundredPercent = BeakDecimal(10000);
 /// Voucher value, scheduling and eligibility without custom form state.
 BeakFormLayout voucherForm() => BeakFormLayout(
   children: [
-    BeakColumns(
+    BeakRow(
       children: [
         BeakCard(
           title: 'Discount',

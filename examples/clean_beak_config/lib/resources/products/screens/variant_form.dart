@@ -6,7 +6,7 @@ import '../models/variant_attribute.dart';
 BeakFormLayout variantForm({bool includeProduct = true}) => BeakFormLayout(
   children: [
     if (includeProduct) ProductVariantModel.product.inputCombobox(),
-    BeakColumns(
+    BeakRow(
       children: [
         BeakCard(
           title: 'Variant identity',

@@ -126,7 +126,7 @@ Add the resource to `resources: [...]` in an authored `lib/main.dart`; a generat
 | You want... | Declare | Page |
 | --- | --- | --- |
 | One form for read, create and edit | `BeakFormScreen(roles: {read, create, edit}, layout: ...)` | [Screens and form layouts](screens-and-layouts.md) |
-| Layout | `BeakFormLayout`, `BeakCard`, `BeakSection`, `BeakColumns`, `BeakTabs` | [Screens and form layouts](screens-and-layouts.md) |
+| Layout | `BeakFormLayout`, `BeakCard`, `BeakSection`, `BeakRow`, `BeakTabs` | [Screens and form layouts](screens-and-layouts.md) |
 | Sections shown as a form, tabs or steps | `BeakFormSections` projections | [Screens and form layouts](screens-and-layouts.md) |
 | A wizard | `BeakWizardScreen` with `BeakWizardStep` | [Multi-step forms](../forms/multi-step-forms.md) |
 | An input for a field | `X.name.inputText()`, `X.price.inputCurrency()`, `X.active.inputToggle()`, `X.due.inputDate()` | [Input builders](input-builders.md) |

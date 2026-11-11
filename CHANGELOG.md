@@ -724,6 +724,8 @@ migration table at the end collects the common ones.
 
 ### Changed
 
+- Breaking: the form layout `BeakColumns` is `BeakRow`, named after the axis
+  it lays out. It still wraps to one column when the width is too narrow.
 - Breaking: the definition annotation `ServerpodModel` is
   `ServerpodAdminModel`, leaving the bridge model `ServerpodModel` as the only
   type with that name. `ServerpodAdminModel.editable()` replaces

@@ -18,7 +18,7 @@ BeakCard orderDeliveryCard() => BeakCard(
     BeakModeLayout(
       read: BeakFormLayout(
         children: [
-          BeakColumns(
+          BeakRow(
             children: [
               BeakCalculated(
                 label: 'Date',
@@ -54,7 +54,7 @@ BeakCard orderDeliveryCard() => BeakCard(
                 ? state.asOrder.handover!
                 : 'Delivery instructions follow the selected location.',
           ),
-          BeakColumns(
+          BeakRow(
             children: [
               BeakCalculated(
                 label: 'Location',
@@ -81,7 +81,7 @@ BeakCard orderDeliveryCard() => BeakCard(
               ),
             ],
           ),
-          BeakColumns(
+          BeakRow(
             children: [
               BeakCalculated(
                 label: 'Delivery note',
@@ -102,7 +102,7 @@ BeakCard orderDeliveryCard() => BeakCard(
       ),
       edit: BeakFormLayout(
         children: [
-          BeakColumns(
+          BeakRow(
             children: [
               BeakModeLayout(
                 read: const BeakFormLayout(children: []),
@@ -189,7 +189,7 @@ BeakCard orderDeliveryCard() => BeakCard(
               ),
             ],
           ),
-          BeakColumns(
+          BeakRow(
             children: [
               BeakRelationInput(
                 field: OrderModel.location,
@@ -219,7 +219,7 @@ BeakCard orderDeliveryCard() => BeakCard(
               ),
             ],
           ),
-          BeakColumns(
+          BeakRow(
             children: [
               OrderModel.deliveryNote.inputText(
                 label: 'Delivery note (optional)',

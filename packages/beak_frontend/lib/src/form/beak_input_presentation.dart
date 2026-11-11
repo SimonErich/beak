@@ -232,7 +232,7 @@ extension BeakRangeInputs<T extends Object> on BeakScalarField<T> {
     title: label ?? this.label,
     visibleIf: visibleIf,
     children: [
-      BeakColumns(
+      BeakRow(
         children: [
           input(label: 'From'),
           end.input(

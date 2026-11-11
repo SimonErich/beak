@@ -312,9 +312,9 @@ final class BeakFormLock extends BeakFormNode {
 }
 
 /// Responsive side-by-side form content.
-class BeakColumns extends BeakFormLayout {
+class BeakRow extends BeakFormLayout {
   /// Places child sections side by side.
-  const BeakColumns({
+  const BeakRow({
     required super.children,
     this.columns = 2,
     this.minColumnWidthInPixels = 280,
