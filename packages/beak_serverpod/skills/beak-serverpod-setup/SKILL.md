@@ -8,13 +8,13 @@ description: Set up the Beak admin for a Serverpod 4 workspace, and add a model 
 Beak's API runs inside the Serverpod server behind one gated endpoint, on
 Serverpod's database, sessions and transactions. Each exposed model is one
 definition class in a pure-Dart package; `beak generate` checks it against
-Serverpod and writes the typed model next to it.
+Serverpod and writes the typed model under its `generated/models/` folder.
 
 | Package | What it is | You edit |
 | --- | --- | --- |
 | `server` | `.spy.yaml` models, migrations, the Beak endpoint and use cases | yes |
 | `server/.../generated` | handler base classes written by `beak generate` | never; extend them |
-| `apps/<name>_admin` | Flutter panel: `beak.yaml`, `labels/`, `lib/` | yes |
+| `apps/<name>_admin` | Flutter panel: `beak.yaml`, `lib/l10n/models/`, `lib/l10n/app/`, `lib/` | yes |
 | `apps/<name>_admin/definitions` | one definition class per model, behavior and rules | the classes, yes |
 
 Never edit a `*.beak.dart` part, `definitions/lib/src/generated/`, the
