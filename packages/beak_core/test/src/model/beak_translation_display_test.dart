@@ -58,6 +58,30 @@ void main() {
     );
   });
 
+  test('a relation loads the translation rows for its label', () {
+    const field = BeakToOneField(
+      model: _DisplayModel(),
+      relation: BeakBelongsTo(
+        key: 'category',
+        label: 'Category',
+        relatedTable: 'display_model',
+        displayColumnKey: 'createdAt',
+        foreignKey: 'categoryId',
+        displayTranslation: BeakTranslationDisplay(
+          relationKey: 'translations',
+          columnKey: 'name',
+        ),
+      ),
+      target: _DisplayModel(),
+    );
+
+    expect(field.relationLoad.nested.single.relationKey, 'translations');
+    expect(
+      field.options().query.relationLoads.single.relationKey,
+      'translations',
+    );
+  });
+
   test('is empty without loaded translations', () {
     const display = BeakTranslationDisplay(
       relationKey: 'translations',

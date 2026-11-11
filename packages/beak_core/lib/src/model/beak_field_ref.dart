@@ -17,6 +17,7 @@ import '../query/beak_value.dart';
 import '../relations/beak_relationship.dart';
 import 'beak_field_value.dart';
 import 'beak_model.dart';
+import 'beak_translation_display.dart';
 
 /// A model-owned field reference shared by queries, forms, and detail views.
 ///
@@ -373,7 +374,14 @@ class BeakToOneField extends BeakFieldRef<BeakRecord> {
   /// The eager load that brings this related record along with its root
   /// record, including every relationship on the [path] leading to it.
   BeakRelationLoad get relationLoad {
-    var load = BeakRelationLoad(key);
+    var load = BeakRelationLoad(
+      key,
+      nested: [
+        if (relation.displayTranslation
+            case final BeakTranslationDisplay display)
+          BeakRelationLoad(display.relationKey),
+      ],
+    );
     for (final step in path.reversed) {
       load = BeakRelationLoad(step.key, nested: [load]);
     }
@@ -446,6 +454,11 @@ class BeakToOneField extends BeakFieldRef<BeakRecord> {
         query: target.query(
           filter: filter,
           search: BeakSearch(search, relation.effectiveSearchColumnKeys),
+          relationLoads: [
+            if (relation.displayTranslation
+                case final BeakTranslationDisplay display)
+              BeakRelationLoad(display.relationKey),
+          ],
         ),
       );
 }
