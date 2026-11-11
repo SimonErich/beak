@@ -58,7 +58,7 @@ how-it-works, generate and write-bindings pages. Folder missing? Run
 
    /// A sellable product.
    @Resource()
-   @ServerpodModel.editable(area: 'catalog')
+   @ServerpodAdminModel.editable(area: 'catalog')
    final class Product extends BeakSchema {
      /// Unique stock keeping unit.
      @Display()
