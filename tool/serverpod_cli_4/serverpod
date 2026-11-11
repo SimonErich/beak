@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Serverpod 4.0.3 CLI, pinned. Runs in the CURRENT directory, e.g.
+# Serverpod 4.0.4 CLI, pinned. Runs in the CURRENT directory, e.g.
 #   (cd examples/serverpod/bookshop_server && ../../../tool/serverpod_cli_4/serverpod generate)
 # Never touches a globally activated `serverpod`, which may be another release.
 # Resolve once with: (cd tool/serverpod_cli_4 && dart pub get)

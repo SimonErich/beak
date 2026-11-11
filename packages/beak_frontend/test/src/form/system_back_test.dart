@@ -61,6 +61,27 @@ void main() {
     expect(find.text('Leave this form?'), findsNothing);
   });
 
+  testWidgets(
+    'leaving a dirty create form by route asks once, then settles on the target',
+    (tester) async {
+      await openDirtyCreateForm(tester);
+      final router = GoRouter.of(tester.element(find.byType(OiAppShell)));
+
+      router.go('/notes/n1');
+      await tester.pumpAndSettle();
+      expect(find.text('Leave this form?'), findsWidgets);
+
+      await tester.tap(find.text('Discard changes').last);
+      await tester.pumpAndSettle();
+
+      // The show page is a form too; what matters is that the create draft is
+      // gone and the target path was reached.
+      expect(find.text('Unsaved'), findsNothing);
+      expect(find.text('Leave this form?'), findsNothing);
+      expect(router.routeInformationProvider.value.uri.path, '/notes/n1');
+    },
+  );
+
   testWidgets('a clean form goes back without a question', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1300, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));

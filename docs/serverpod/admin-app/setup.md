@@ -1,314 +1,144 @@
 ---
 title: Setting up the admin app
-description: Add a Beak admin app to a Serverpod 4 workspace, register the gated endpoint on the server, declare two resources and sign in to a running panel.
-type: tutorial
-audience: [beginner, expert]
+description: Add the Beak admin to a Serverpod 4 workspace, from the definition classes and their generated models to the gated endpoint and the signed-in panel.
+type: guide
+audience: [expert]
 status: stable
 ---
 
 # Setting up the admin app
 
-You have a Serverpod 4 workspace with a couple of tables and no admin. After this page you have a `<name>_admin` app in that workspace, signed in with a Serverpod account, listing and editing rows of two tables through Beak. Every file below is the example's own (`examples/serverpod`, project name `bookshop`); rename `bookshop` to your project.
+After this page you have a Serverpod server that serves Beak's API behind one
+gated endpoint and a Flutter admin whose models are generated from one
+definition class per exposed Serverpod model. The reference workspace is
+`examples/serverpod`.
 
-## What you'll build
+## At a glance
 
-Two new packages and a handful of server files:
-
-- `bookshop_beak`, a pure Dart package with one Beak schema class per table.
-- `lib/src/beak/` in `bookshop_server`: a receipts model, the scopes, a policy, an engine and one endpoint.
-- `bookshop_admin`, a Flutter web app with a `BeakPanel` and one `BeakResource` per table.
-- A grant script, so a Serverpod account can be let into the panel.
-
-Serverpod stays the owner of the tables, the migrations and the sign-in. You will not write a Beak migration or give Beak a database URL.
-
-## Before you start
-
-- A Serverpod project on exactly 4.0.3, created with `serverpod create`, as a pub workspace. Dart 3.12.2 or newer and Flutter 3.44.4 or newer (Serverpod 4.0.3's own floor).
-- The `serverpod` CLI at 4.0.3. A globally activated CLI may be another release; the example ships a pinned one in `tool/serverpod_cli_4`.
-- The `beak` CLI ([Installation](../../start-here/installation.md)).
-- Beak's packages. Beak is not on pub.dev yet, so every Beak package comes from one git ref or one path. The example lives in the Beak repository and uses `path:`. Your workspace uses a git dependency, with the same `ref` on every Beak package:
-
-  ```yaml
-  # Illustrative: one entry like this per Beak package you depend on.
-  beak_backend:
-    git:
-      url: https://github.com/SimonErich/beak.git
-      ref: v0.9.0
-      path: packages/beak_backend
-  ```
-
-  `v0.9.0` is not tagged yet, so that `ref` does not resolve today: use a branch name or a commit until the release. The panel also needs a working obers_ui checkout until Beak's pinned commit catches up. [Installation](../../start-here/installation.md#link-obers_ui-until-the-pin-moves) has both workarounds.
-
-- Two tables to show. The example has `author` and `book` (see `examples/serverpod/bookshop_server/lib/src/catalog/`). A workspace with Serverpod's template greeting only has no table to mirror yet.
-
-## Build it
-
-### 1. The schema package
-
-Create a pure Dart package next to the server and add it to the root `pubspec.yaml` under `workspace:`. The example's root lists all five packages, two of them new:
-
-```yaml title="examples/serverpod/pubspec.yaml"
---8<-- "examples/serverpod/pubspec.yaml"
-```
-
-The new package depends on `beak_core` only, so the server can import it without dragging Flutter in.
-
-```yaml title="examples/serverpod/bookshop_beak/pubspec.yaml"
---8<-- "examples/serverpod/bookshop_beak/pubspec.yaml"
-```
-
-Now mirror each table. Here is the Serverpod model and its Beak schema class side by side.
-
-```yaml title="examples/serverpod/bookshop_server/lib/src/catalog/book.spy.yaml"
---8<-- "examples/serverpod/bookshop_server/lib/src/catalog/book.spy.yaml"
-```
-
-```dart title="examples/serverpod/bookshop_beak/lib/models/book.dart"
---8<-- "examples/serverpod/bookshop_beak/lib/models/book.dart"
-```
-
-The mapping the example follows:
-
-| In the `.spy.yaml` model | In the Beak schema class |
+| Step | What you do |
 | --- | --- |
-| `class: Book`, `table: book` | `@Resource(table: 'book', managesSchema: false)`: Serverpod owns the schema, so Beak never migrates it |
-| The serial `id`, which Serverpod adds itself | Declare `late final int? id;` yourself so Beak uses the integer key |
-| `title: String` | `late final String title;` (not nullable means required) |
-| `bio: String?` | `late final BeakText? bio;` for long text, `String?` for short |
-| `priceInCents: int` | `@Column(columnName: 'priceInCents')`: Serverpod's physical columns keep their camelCase, Beak's default is snake_case |
-| `format: BookFormat` | A Dart enum with the same value names in its own file (below) |
-| `author: Author?, relation(...)` | `@BelongsTo(foreignKey: 'authorId', ...)` on the child, `@HasMany(foreignKey: 'authorId')` on the parent |
-| `isbn: String, unique` | `@Column(unique: true)` |
-| `stock: int, default=0` | `@Column(defaultValue: 0)` |
-| `supplierCostInCents: int?, scope=serverOnly` | Nothing. A column the schema class does not declare never leaves the server through Beak |
+| 1 | Add `apps/<name>_admin` with `beak.yaml` and the `definitions` package |
+| 2 | Write a definition class per exposed model and run `beak generate` |
+| 3 | Mount `BeakAdminEndpoint` with `BeakServerpodEngine.admitted` |
+| 4 | Boot `runServerpodBeakAdmin` and sign in |
 
-The enum must list the same names as the Serverpod one. The `.spy.yaml` states `serialized: byName` (the 4.0.3 default), and Beak's enum column stores the value name, so an enum serialized by index would not match its integer column.
+## The panel package
 
-```dart title="examples/serverpod/bookshop_beak/lib/models/book_format.dart"
---8<-- "examples/serverpod/bookshop_beak/lib/models/book_format.dart"
+```yaml title="examples/serverpod/bookshop_admin/beak.yaml"
+serverpod:
+  server: ../bookshop_server
+  models: [lib/src]
+  migrations: migrations
+
+generate:
+  definitions: definitions
+  handlers: ../bookshop_server/lib/src/beak/generated
+  prefix: Bookshop
+  areas:
+    catalog: {read: bookshop.staff, write: bookshop.staff}
 ```
 
-The barrel hides `Author` and `Book`, because those are also the names of the Serverpod protocol classes, and code that needs both imports the protocol with a prefix. Everyone else uses the generated `AuthorModel`, `BookModel` and `buildBeakRegistry()`.
+`definitions/` is a pure-Dart package (`beak_core`, `beak_serverpod`) that both
+the panel and the server depend on; it is a workspace member. `handlers` is a
+folder inside the server.
 
-```dart title="examples/serverpod/bookshop_beak/lib/bookshop_beak.dart"
---8<-- "examples/serverpod/bookshop_beak/lib/bookshop_beak.dart"
-```
+## The definition classes
 
-Resolve the workspace with `dart pub get` at the root, then generate the parts from inside the package:
+```dart title="examples/serverpod/bookshop_admin/definitions/lib/src/catalog/author.dart"
+/// Someone whose books the shop sells.
+@Resource()
+@ServerpodAdminModel(
+  area: 'catalog',
+  create: BeakHandling.stock,
+  update: BeakHandling.stock,
+)
+final class Author extends BeakSchema {
+  /// The name printed on the cover.
+  @Display()
+  late final String name;
 
-```console
-$ beak prepare
-  2 models · models-only package
-  generated  3 of 3 files
-  agents     skipped: models-only package (beak_core without an app): no Beak app here, nothing to do
-```
+  /// A short biography for the author page.
+  late final String? bio;
 
-In a package that depends on `beak_core` alone, `beak prepare` writes the `*.beak.dart` parts and `lib/beak/registry.g.dart` and nothing else. If it also creates `bin/` or `lib/beak/app.g.dart`, your CLI is older than this release.
-
-### 2. The server
-
-Add the dependencies to `bookshop_server/pubspec.yaml`. The Beak packages come from the same ref, the `serverpod*` packages keep the exact version the project already pins.
-
-```yaml title="examples/serverpod/bookshop_server/pubspec.yaml"
-dependencies:
-  beak_backend:
-    path: ../../../packages/beak_backend
-  beak_serverpod_server:
-    path: ../../../packages/beak_serverpod_server
-  bookshop_beak:
-    path: ../bookshop_beak
-  serverpod: 4.0.3
-  serverpod_auth_idp_server: 4.0.3
-  serverpod_cloud_storage: 4.0.3
-```
-
-For the tests, `dev_dependencies` add `beak_core`, `beak_serverpod`, `beak_test`, `worm` and `worm_postgres` the same way.
-
-Beak's graph commits keep receipts, and Serverpod's migrations must own the receipts table. Copy Beak's model file verbatim and do not edit it:
-
-```yaml title="examples/serverpod/bookshop_server/lib/src/beak/models/beak_commit_receipt.spy.yaml"
---8<-- "examples/serverpod/bookshop_server/lib/src/beak/models/beak_commit_receipt.spy.yaml"
-```
-
-Then four small files. The scopes first: `beak.admin` opens the tunnel, `bookshop.staff` is what your policy reads.
-
-```dart title="examples/serverpod/bookshop_server/lib/src/beak/bookshop_scopes.dart"
---8<-- "examples/serverpod/bookshop_server/lib/src/beak/bookshop_scopes.dart:BookshopScopes"
-```
-
-The policy names every model and every operation it allows. Anything it does not name is closed.
-
-```dart title="examples/serverpod/bookshop_server/lib/src/beak/bookshop_policy.dart"
---8<-- "examples/serverpod/bookshop_server/lib/src/beak/bookshop_policy.dart:bookshopPolicy"
-```
-
-The engine, one per process, and the endpoint, one method:
-
-```dart title="examples/serverpod/bookshop_server/lib/src/beak/bookshop_beak_engine.dart"
---8<-- "examples/serverpod/bookshop_server/lib/src/beak/bookshop_beak_engine.dart:bookshopBeak"
-```
-
-```dart title="examples/serverpod/bookshop_server/lib/src/beak/beak_admin_endpoint.dart"
---8<-- "examples/serverpod/bookshop_server/lib/src/beak/beak_admin_endpoint.dart:BeakAdminEndpoint"
-```
-
-The grant script is `bin/beak_admin.dart`. Copy it from the example and rename the imports; [Authentication and scopes](../authentication.md) explains what it does. It shares the sign-in setup with the server, so move the template's `pod.initializeAuthServices(...)` call from `run` into a top-level function that both call:
-
-```dart title="examples/serverpod/bookshop_server/lib/server.dart"
-void initializeBookshopAuth(Serverpod pod) {
-  pod.initializeAuthServices(
-    tokenManagerBuilders: [
-      // Use JWT for authentication keys towards the server.
-      JwtConfigFromPasswords(),
-    ],
-```
-
-Generate the client and write the migration, from inside `bookshop_server`:
-
-```console
-$ serverpod generate
-$ serverpod create-migration --tag bookshop
-```
-
-`serverpod generate` adds `client.beakAdmin.dispatch` to `bookshop_client`. `serverpod create-migration` writes the SQL for the receipts table, next to any table you changed:
-
-```sql title="examples/serverpod/bookshop_server/migrations/20260929023756894-bookshop/migration.sql"
-CREATE TABLE "beak_commit_receipt" (
-    "id" bigserial PRIMARY KEY,
-    "receiptKey" text NOT NULL,
-    "requestHash" text NOT NULL,
-    "requestJson" text NOT NULL,
-    "resultJson" text NOT NULL,
-    "createdAt" timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-### 3. The admin app
-
-Create a Flutter web app inside the workspace and add it to the root `workspace:` list. Add `resolution: workspace` to its pubspec, which `flutter create` does not.
-
-```console
-$ flutter create --platforms=web --empty --no-pub bookshop_admin
-```
-
-The pubspec is short. The `serverpod_*` lines carry the exact version the workspace already pins.
-
-```yaml title="examples/serverpod/bookshop_admin/pubspec.yaml"
---8<-- "examples/serverpod/bookshop_admin/pubspec.yaml"
-```
-
-`main` builds the Serverpod client, gives it the session manager, wraps both in `ServerpodAuthAdapter` and hands the generated `dispatch` to the panel. The client gets a 60 second `connectionTimeout` because the CSV export travels through the same call.
-
-```dart title="examples/serverpod/bookshop_admin/lib/main.dart"
---8<-- "examples/serverpod/bookshop_admin/lib/main.dart:main"
-```
-
-The panel takes Beak's login screens, the resources and one data source:
-
-```dart title="examples/serverpod/bookshop_admin/lib/src/bookshop_admin.dart"
---8<-- "examples/serverpod/bookshop_admin/lib/src/bookshop_admin.dart:bookshopAdminPanel"
-```
-
-`dataSource:` is the tunnel. It is not a test seam here: with an external authentication adapter the panel registers no HTTP client of its own, so it needs this. The identity resolver keeps a signed-in customer without the scope on the sign-in screen, instead of in an empty shell of 403s:
-
-```dart title="examples/serverpod/bookshop_admin/lib/src/bookshop_admin.dart"
---8<-- "examples/serverpod/bookshop_admin/lib/src/bookshop_admin.dart:bookshopAdminIdentity"
-```
-
-A resource is what any Beak resource is: typed references from the generated model, no string field names.
-
-```dart title="examples/serverpod/bookshop_admin/lib/resources/author_resource.dart"
-final class AuthorResource extends BeakResource {
-  /// Creates the Authors section.
-  AuthorResource()
-    : super(
-        model: const AuthorModel(),
-        title: 'Authors',
-        filters: [AuthorModel.name.textFilter()],
-        screens: [
-          BeakTableScreen(fields: [AuthorModel.name, AuthorModel.website]),
-          BeakFormScreen(
-            roles: const {
-              BeakScreenRole.read,
-              BeakScreenRole.create,
-              BeakScreenRole.edit,
-            },
-            layout: BeakFormLayout(
-              children: [
-                AuthorModel.name.inputText(),
-                AuthorModel.website.inputText(),
-                AuthorModel.bio.inputText(maxLines: 6),
-              ],
-            ),
-          ),
-        ],
-      );
+  /// The author's own website.
+  late final String? website;
 }
 ```
 
-`BookResource` in the same folder adds a relation filter and a combobox for the author. Both are listed in `bookshopResources()`.
+The package barrel exports what `beak generate` writes:
 
-## Run it
-
-The example needs no Docker: `dart run bin/main.dart --apply-migrations` starts an embedded Postgres. Use `dart run`, not `dart bin/main.dart`, because only `dart run` builds the Argon2 native asset the email sign-in needs.
-
-```console
-# 1. In examples/serverpod: resolve the whole workspace.
-dart pub get
-
-# 2. Local secrets (git-ignored).
-cp bookshop_server/config/passwords.example.yaml bookshop_server/config/passwords.yaml
-
-# 3. Terminal 1: the server, on an embedded Postgres.
-cd bookshop_server && dart run bin/main.dart --apply-migrations
-
-# 4. Terminal 2: the admin.
-cd bookshop_admin && flutter run -d chrome --web-port 8095
+```dart title="examples/serverpod/bookshop_admin/definitions/lib/bookshop_definitions.dart"
+export 'src/generated/models.dart';
 ```
 
-Step 2 is for a checkout of the example. A workspace made by `serverpod create` already has its own `config/passwords.yaml`.
+A write opens its operation on the class; a read-only model names a `reason:`.
+The generator refuses a mismatch with Serverpod before writing anything
+([Generating the admin from definition classes](generate.md)).
 
-In the admin, choose "Create account". In development the server log doubles as the mail server: it prints the verification code between angle brackets (`Registration code for you@example.com: <a1b2c3d4>`), so paste it from there. The new account can sign in and still cannot open the panel. Let it in from a third terminal, then sign in again:
+## The server side
 
-```console
-cd bookshop_server && dart run bin/beak_admin.dart grant you@example.com
+```dart title="examples/serverpod/bookshop_server/lib/src/beak/bookshop_beak_engine.dart"
+final BeakServerpodEngine bookshopBeak = BeakServerpodEngine.admitted(
+  models: bookshopModels,
+  handlers: const BookshopHandlers(book: BookAdminHandler()),
+  principal: BeakServerpodPrincipal.fromScopes,
+);
 ```
 
-Scopes are copied into a token when it is issued, so the sign-in after the grant is not optional.
+`bookshopModels` comes from the definitions package and `BookshopHandlers` from
+the generated handler folder. Book's restock command runs through
+`BookAdminHandler`; a model that opens custom code adds a required
+argument ([Writes, commands and trees](write-bindings.md)). The endpoint keeps
+its own sign-in and scope gate and returns
+`bookshopBeak.dispatch(session, request)`.
 
-!!! note "What just happened"
-    - The grant added `beak.admin` (opens the tunnel) and `bookshop.staff` (your policy's role) to the account's Serverpod scopes.
-    - Every list, form and filter in the panel is now a `client.beakAdmin.dispatch` call: one string in, one string out, gated by Serverpod before any Beak code runs.
-    - A form save is a graph commit on one Serverpod transaction. Its receipt is a row in `beak_commit_receipt`.
+## The panel
 
-!!! question "What this skipped"
-    - Why the request path is safe: [How the admin app works](how-it-works.md).
-    - What a revoke does and when it bites: [Authentication and scopes](../authentication.md).
-    - The gaps: [Limits and next steps](limits-and-next-steps.md).
-
-## Checkpoint
-
-You are done when all of these hold:
-
-- The sidebar shows Books and Authors, and the Books table lists each book with its author's name.
-- Filtering by author, format and price narrows the table. Creating a book from the form saves it. (Replaying a commit with the same save id, as a retry after a lost response does, inserts nothing twice; the server test does exactly that.)
-- An account without `beak.admin` stays on the sign-in screen after a correct password, and an account with only `beak.admin` gets 403 from every table.
-- Deleting a book is refused with a 403 by the server. `BeakResource.canDelete` defaults to true and the example leaves it, so nothing in the panel hides the action; add `canDelete: false` for that.
-
-The example proves these with tests, and you can run them without starting anything:
-
-```console
-cd bookshop_server && dart test     # embedded Postgres, no Docker
-cd bookshop_admin && flutter test   # widget tests against a fake dispatch
+```dart
+Future<void> main() => runServerpodBeakAdmin<Client>(
+  apiUrl: getServerUrl,
+  client: (url) => Client(url),
+  initialize: (client) => client.auth.initialize(),
+  dispatch: (client) => client.beakAdmin.dispatch,
+  roles: (client) async =>
+      client.authSessionManager.authInfo?.scopeNames ?? const <String>{},
+  panelRole: 'beak.admin',
+  config: (context, auth) => BeakPanelConfig(
+    title: 'Shop',
+    resources: [BeakResource.standard(const BookModel())],
+    auth: BeakAuthConfig(adapter: auth),
+  ),
+);
 ```
 
-Both suites pass on the example. The server suite drives the real endpoint, gate, policy and database. The widget tests run Beak's real handlers over an in-memory database behind a fake `dispatch`.
+`runServerpodBeakAdmin` installs path-based URLs, restores the session, resolves
+the roles and builds the tunnel data source. It calls `config` in a context
+that holds `localizationsDelegates` for `locale`, so the panel's own copy is
+read from `context`; model and field names come from the label files
+([Labels in every language](../../panel/labels.md)).
 
-!!! tip "Coding agents"
-    Run `beak agents` in `bookshop_admin`. It writes an `AGENTS.md` block for a Serverpod admin (the layout, the loop after a model change, what never to edit), copies these docs to `.dart_tool/beak/docs` and installs the workflow skills, including `beak-serverpod-setup`, which walks an agent through the steps on this page.
+## Rules and limits
+
+- Generated code is never edited. Change the Serverpod model, the migration or
+  the definition class and run `beak generate`.
+- The server enforces permissions; the panel only decides what to offer.
+- Every write is stock persistence, a derived stamp, or the model's handler
+  calling an existing use case.
+
+## Verify it
+
+- `beak generate --check` passes.
+- `dart analyze` is clean in the definitions package and the server.
+- The panel signs in, lists the model, and one write reaches its stock path or
+  its handler.
+
+## Reference
+
+- [Generating the admin from definition classes](generate.md): the classes and the checks.
+- [How the admin app works](how-it-works.md): the request path.
+- `examples/serverpod/bookshop_admin`: the reference workspace.
 
 ## Continue reading
 
-- [How the admin app works](how-it-works.md): the request path behind what you just built.
-- [Authentication and scopes](../authentication.md): grants, revokes, token lifetimes and the sign-in flows.
-- [Limits and next steps](limits-and-next-steps.md): what to fix before you plan on this for more than two tables.
+- [Writes, commands and trees](write-bindings.md): connect a write to a use case.
+- [Limits and next steps](limits-and-next-steps.md): what the path does not cover.

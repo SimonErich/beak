@@ -1,3 +1,4 @@
+import 'package:beak_core/beak_core.dart';
 import 'package:shelf/shelf.dart';
 
 import '../../auth/beak_auth_guard.dart';

@@ -48,6 +48,14 @@ A block is `const` configuration. It carries no widget code and no callbacks, ex
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_block_host.dart"
   Widget build(BuildContext context) => switch (block) {
+    final BeakVisibilityBlock visibility => SignalBuilder(
+      builder: (context) {
+        final access = BeakPanelAccess.of(context);
+        return visibility.visibleWhen(access)
+            ? BeakBlockHost(block: visibility.child)
+            : const SizedBox.shrink();
+      },
+    ),
     final BeakColumnBlock column => _column(context, column),
     final BeakRowBlock row => _row(context, row),
     final BeakGridBlock grid => _grid(context, grid),
@@ -150,7 +158,7 @@ The builder runs under the panel's scopes, so it can call `beakDependencies(cont
 
 ### Forms are a different tree
 
-A form has needs a block does not: a shared draft, live validation, visibility that depends on other fields, save and review. It is therefore a separate typed tree of `BeakFormNode`s (`BeakSection`, `BeakColumns`, `BeakTabs`, `BeakWizardStep`, `BeakInput`, relation editors, calculated values, `BeakFormWidget` and more), rendered by the configured form.
+A form has needs a block does not: a shared draft, live validation, visibility that depends on other fields, save and review. It is therefore a separate typed tree of `BeakFormNode`s (`BeakSection`, `BeakRow`, `BeakTabs`, `BeakWizardStep`, `BeakInput`, relation editors, calculated values, `BeakFormWidget` and more), rendered by the configured form.
 
 One layout serves the read, create and edit roles of a `BeakFormScreen`, and the renderer picks values or inputs from the current mode. `BeakFormSections` projects the same sections three ways, which is why a form can become tabs or a wizard without restating a field:
 

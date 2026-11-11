@@ -9,9 +9,11 @@ import 'commands/create_command.dart';
 import 'commands/dev_command.dart';
 import 'commands/docs_command.dart';
 import 'commands/doctor_command.dart';
+import 'commands/generate_command.dart';
 import 'commands/eject_command.dart';
 import 'commands/init_command.dart';
 import 'commands/introspect_command.dart';
+import 'commands/make_definition_command.dart';
 import 'commands/prepare_command.dart';
 import 'field_spec.dart';
 import 'introspect/beak_live_schema.dart';
@@ -211,6 +213,7 @@ CommandRunner<int> createBeakRunner(BeakCliEnvironment environment) =>
     _BeakCommandRunner(environment)
       ..addCommand(CreateCommand(environment))
       ..addCommand(PrepareCommand(environment))
+      ..addCommand(GenerateCommand(environment))
       ..addCommand(DevCommand(environment))
       ..addCommand(IntrospectCommand(environment))
       ..addCommand(
@@ -226,6 +229,7 @@ CommandRunner<int> createBeakRunner(BeakCliEnvironment environment) =>
       ..addCommand(MigrateCommand(environment))
       ..addCommand(SeedCommand(environment))
       ..addCommand(MakeResourceCommand(environment))
+      ..addCommand(MakeDefinitionCommand(environment))
       ..addCommand(MakeMigrationCommand(environment))
       ..addCommand(DoctorCommand(environment));
 

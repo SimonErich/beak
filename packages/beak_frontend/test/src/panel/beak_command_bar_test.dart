@@ -30,7 +30,12 @@ void main() {
         ],
       );
       final source = FakeDataSource();
-      final result = await beakSearchResourcePage(panel, source, 'private');
+      final result = await beakSearchResourcePage(
+        panel,
+        source,
+        'private',
+        access: BeakPanelAccess.anonymous,
+      );
       expect(result.items, isEmpty);
       expect(result.errors.values.single, isA<BeakConfigurationException>());
       expect(source.queryCalls, isEmpty);
@@ -66,11 +71,12 @@ void main() {
     openBeakCommandBar(tester.element(find.byType(OiAppShell)), config);
     await tester.pumpAndSettle();
 
-    expect(find.text('Insights'), findsOneWidget);
+    expect(find.text('INSIGHTS'), findsOneWidget);
+    expect(find.text('NAVIGATE'), findsNothing);
     expect(find.text('Navigate'), findsNothing);
   });
 
-  testWidgets('the highlighted result is announced without its marker', (
+  testWidgets('the highlighted result is announced without a visual marker', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(1280, 900));
@@ -82,22 +88,11 @@ void main() {
     openBeakCommandBar(tester.element(find.byType(OiAppShell)), config);
     await tester.pumpAndSettle();
 
-    final labels = [
-      for (final button in tester.widgetList<OiButton>(
-        find.descendant(
-          of: find.byType(BeakSearchPalette),
-          matching: find.byType(OiButton),
-        ),
-      ))
-        button.semanticLabel,
-    ];
-
-    expect(labels, contains('Notes · Resources'));
-    expect(
-      labels.whereType<String>().where((label) => label.contains('›')),
-      isEmpty,
-    );
-    expect(find.textContaining('› Notes'), findsOneWidget);
+    expect(find.text('Notes'), findsWidgets);
+    expect(find.textContaining('›'), findsNothing);
+    final semantics = tester.getSemantics(find.text('Notes').first);
+    expect(semantics.label, contains('Notes'));
+    expect(semantics.label, isNot(contains('›')));
   });
 
   testWidgets(
@@ -141,7 +136,12 @@ void main() {
         title: 'Search',
         resources: [BeakResource(model: model)],
       );
-      final numeric = await beakSearchResourcePage(panel, source, '42');
+      final numeric = await beakSearchResourcePage(
+        panel,
+        source,
+        '42',
+        access: BeakPanelAccess.anonymous,
+      );
       expect(numeric.items.single.title, 'Coffee');
       expect(source.queryCalls.last.search, isNull);
       final predicates = switch (source.queryCalls.last.filter) {
@@ -156,9 +156,19 @@ void main() {
               .having((f) => f.value, 'value', const BeakIntValue(42)),
         ),
       );
-      final boolean = await beakSearchResourcePage(panel, source, 'false');
+      final boolean = await beakSearchResourcePage(
+        panel,
+        source,
+        'false',
+        access: BeakPanelAccess.anonymous,
+      );
       expect(boolean.items.single.title, 'Coffee');
-      await beakSearchResourcePage(panel, source, '2026-09-26');
+      await beakSearchResourcePage(
+        panel,
+        source,
+        '2026-09-26',
+        access: BeakPanelAccess.anonymous,
+      );
       final dates = switch (source.queryCalls.last.filter) {
         BeakOrFilter(:final filters) =>
           filters.whereType<BeakAndFilter>().single.filters,
@@ -208,7 +218,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 250));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Original · Notes'), findsOneWidget);
+      expect(find.bySemanticsLabel('Original · Notes'), findsOneWidget);
       await source.update(
         'notes',
         'n1',
@@ -218,7 +228,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 250));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Original updated · Notes'), findsOneWidget);
+      expect(find.bySemanticsLabel('Original updated · Notes'), findsOneWidget);
       expect(
         tester.widget<EditableText>(find.byType(EditableText)).controller.text,
         'Original',
@@ -275,8 +285,8 @@ void main() {
       await tester.pumpAndSettle();
       source.finish(0, 'First');
       await tester.pumpAndSettle();
-      expect(find.textContaining('Second · Notes'), findsOneWidget);
-      expect(find.textContaining('First · Notes'), findsNothing);
+      expect(find.bySemanticsLabel('Second · Notes'), findsOneWidget);
+      expect(find.bySemanticsLabel('First · Notes'), findsNothing);
       await tester.enterText(find.byType(EditableText), 'Disposed');
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 250));
@@ -321,7 +331,12 @@ void main() {
         ],
         apiBaseUrl: 'http://localhost',
       );
-      final results = await beakSearchResources(panel, source, 'Coffee');
+      final results = await beakSearchResources(
+        panel,
+        source,
+        'Coffee',
+        access: BeakPanelAccess.anonymous,
+      );
       expect(results.map((result) => result.title), ['Beans']);
       expect(results.single.id, '/articles/a1');
       expect(source.queryCalls.single.search?.columnKeys, ['category.name']);
@@ -330,7 +345,11 @@ void main() {
 
   test('navigation commands cover the resources and pages', () {
     final routes = <String>[];
-    final commands = beakNavigationCommands(config, routes.add);
+    final commands = beakNavigationCommands(
+      config,
+      routes.add,
+      access: BeakPanelAccess.anonymous,
+    );
 
     final labels = [for (final c in commands) c.label];
     expect(labels, containsAll(<String>['Notes', 'Reports']));
@@ -359,7 +378,12 @@ void main() {
       ],
     );
     final labels = [
-      for (final c in beakNavigationCommands(withHome, (_) {})) c.label,
+      for (final c in beakNavigationCommands(
+        withHome,
+        (_) {},
+        access: BeakPanelAccess.anonymous,
+      ))
+        c.label,
     ];
     expect(labels, contains('Home'));
   });
@@ -375,7 +399,10 @@ void main() {
         ),
       ],
     );
-    expect(beakNavigationCommands(hidden, (_) {}), isEmpty);
+    expect(
+      beakNavigationCommands(hidden, (_) {}, access: BeakPanelAccess.anonymous),
+      isEmpty,
+    );
   });
 }
 
@@ -392,8 +419,7 @@ final class _PrivateNoteModel extends BeakModel {
     BeakStringColumn(key: 'title', label: 'Title', searchable: true),
   ];
   @override
-  BeakPermissions get permissions =>
-      BeakPermissions({BeakOperation.read: () => false});
+  BeakPermissions get permissions => const BeakPermissions();
 }
 
 final class _SearchModel extends BeakModel {

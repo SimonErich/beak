@@ -100,7 +100,7 @@ late final DateTime? promotionEndsAt;
 And the tab that places them:
 
 ```dart title="examples/clean_beak_config/lib/resources/fulfillment/screens/fulfillment_policy_form.dart"
-BeakColumns(
+BeakRow(
   children: [
     BeakCard(
       title: 'Delivery charges',
@@ -343,7 +343,7 @@ late final BeakJson? providerOptions;
 ```
 
 ```dart title="examples/clean_beak_config/lib/resources/fulfillment/screens/fulfillment_policy_form.dart"
-BeakColumns(
+BeakRow(
   children: [
     BeakCard(
       title: 'Dispatch address',

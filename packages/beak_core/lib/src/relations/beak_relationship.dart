@@ -1,8 +1,10 @@
 import 'package:meta/meta.dart';
 
 import '../columns/beak_render_config.dart';
+import '../localization/beak_labels.dart';
 import '../context/beak_context.dart';
 import '../context/beak_render_intent.dart';
+import '../model/beak_translation_display.dart';
 import '../query/beak_record.dart';
 import 'beak_on_delete.dart';
 
@@ -32,17 +34,25 @@ sealed class BeakRelationship {
   /// Creates a relationship named [key] pointing at [relatedTable].
   const BeakRelationship({
     required this.key,
-    required this.label,
+    required String label,
+    this.translations = const {},
     required this.relatedTable,
     required this.displayColumnKey,
     this.searchColumnKeys = const [],
-  });
+    this.displayTranslation,
+  }) : _label = label;
 
   /// Relation name; matches the relation name on the backing ORM model.
   final String key;
 
-  /// Human-readable label shown in tables, forms, and detail views.
-  final String label;
+  final String _label;
+
+  /// Human-readable label shown in tables, forms, and detail views, in the
+  /// panel's [BeakLabels.language] when [translations] has it.
+  String get label => BeakLabels.pick(translations, _label);
+
+  /// The label by language code, written from the project's label files.
+  final Map<String, String> translations;
 
   /// Physical table/collection name of the related model.
   final String relatedTable;
@@ -54,6 +64,10 @@ sealed class BeakRelationship {
   /// Keys of related-model columns searched when picking a record.
   final List<String> searchColumnKeys;
 
+  /// Where the related record's display text comes from, when it is a
+  /// translation row rather than a column on the related model.
+  final BeakTranslationDisplay? displayTranslation;
+
   /// The keys pickers actually search: [searchColumnKeys], falling back to
   /// the display column when none are declared.
   List<String> get effectiveSearchColumnKeys =>
@@ -62,7 +76,9 @@ sealed class BeakRelationship {
   /// The display label of a related [record] (its display column's value,
   /// empty when absent).
   String displayLabelOf(BeakRecord record) =>
-      record[displayColumnKey]?.raw?.toString() ?? '';
+      displayTranslation?.labelOf(record) ??
+      record[displayColumnKey]?.raw?.toString() ??
+      '';
 
   /// The per-context render configuration of this relationship.
   BeakRenderConfig get renderConfig;

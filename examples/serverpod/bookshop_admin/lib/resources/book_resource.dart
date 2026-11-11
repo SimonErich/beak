@@ -1,5 +1,5 @@
 import 'package:beak/panel.dart';
-import 'package:bookshop_beak/bookshop_beak.dart';
+import 'package:bookshop_definitions/bookshop_definitions.dart';
 
 // --8<-- [start:BookResource]
 /// The Books section, in Beak's golden-path style.
@@ -11,12 +11,11 @@ final class BookResource extends BeakResource {
   BookResource()
     : super(
         model: const BookModel(),
-        title: 'Books',
         filters: [
           BookModel.title.textFilter(),
           BookModel.author.relationFilter(),
           BookModel.format.selectFilter(),
-          BookModel.priceInCents.numberRangeFilter(label: 'Price'),
+          BookModel.priceInCents.numberRangeFilter(),
         ],
         screens: [
           BeakTableScreen(

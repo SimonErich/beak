@@ -35,7 +35,7 @@ A screen is attached to a resource through `BeakResource.screens`. Each screen c
 | `BeakFormLayout` | `BeakFormNode` | Ordered children with vertical spacing; the root of every form |
 | `BeakCard` | `BeakFormLayout` | Titled surface, optionally collapsible |
 | `BeakSection` | `BeakFormLayout` | Heading with optional description and divider, no border |
-| `BeakColumns` | `BeakFormLayout` | Responsive side-by-side columns |
+| `BeakRow` | `BeakFormLayout` | Responsive side-by-side columns |
 | `BeakTabs`, `BeakTab` | `BeakFormLayout` | Tabbed groups over one draft |
 | `BeakWizardStep` | `BeakFormLayout` | One validated page of a wizard |
 | `BeakReviewSection` | `BeakFormLayout` | Review row with an Edit link back to a step |
@@ -57,7 +57,7 @@ A screen is attached to a resource through `BeakResource.screens`. Each screen c
 | `BeakFormProgress`, `BeakProgressStep` | Read-only progress through an enum field |
 | `BeakFormTimeline` | A to-many relationship as a chronological timeline |
 | `BeakFormLinks`, `BeakFormLink` | External actions computed from the draft |
-| `BeakFormActions` | Model commands placed in the layout |
+| `BeakFormActions` | Model commands placed in the layout or page heading (`page: true`) |
 | `BeakFormActionInput` | A command's argument form, inline |
 | `BeakFormLock` | Disabled action with the reason it is unavailable |
 | `BeakCalculated` | Reactive display value, never submitted |
@@ -121,7 +121,7 @@ const BeakResourceScreen({required this.roles});
 
 ### BeakFormScreen
 
-```dart title="packages/beak_frontend/lib/src/panel/beak_resource_screen.dart"
+```dart
 const BeakFormScreen({
   this.layout,
   this.steps = const [],
@@ -205,7 +205,7 @@ Regions and the body are one draft. A region is added to the form's root layout,
 
 ### BeakWizardScreen
 
-```dart title="packages/beak_frontend/lib/src/panel/beak_resource_screen.dart"
+```dart
 const BeakWizardScreen({
   required super.steps,
   super.drafts,
@@ -282,6 +282,7 @@ const BeakScreen({
   this.navigationGroup,
   this.showInNav = true,
   this.framed = true,
+  this.canAccess,
 });
 ```
 
@@ -294,6 +295,7 @@ const BeakScreen({
 | `navigationTitle` | `String?` | none | Sidebar title override; defaults to `title` |
 | `navigationGroup` | `String?` | none | Optional sidebar group heading this screen is filed under |
 | `showInNav` | `bool` | `true` | Whether the screen appears in the sidebar. Set false for detail pages reached only by navigation (e.g. an invoice document). |
+| `canAccess` | `bool Function()?` | none | Live access guard for navigation, routes, search and rendering; null allows access. Server policies still authorize data. |
 | `framed` | `bool` | `true` | Whether to provide the standard page header, gutters and scrolling. The frame does not add a card or background behind the body: card, chart and table blocks own their surfaces. Wrap the body in a `BeakCardBlock` to deliberately place it on one shared surface. Set false for full-bleed screens like a calendar or kanban board. |
 
 ## Layout containers
@@ -351,8 +353,11 @@ const BeakCard({
   super.spacingInPixels,
   super.visibleIf,
   super.enabledIf,
-});
+}) : _standardTitle = null;
 ```
+
+`BeakCard.general(children: ...)` is a card headed "General" in the panel's
+language.
 
 | Parameter | Type | Default | Meaning |
 | --- | --- | --- | --- |
@@ -411,10 +416,10 @@ const BeakSection({
 | `visibleIf` | `BeakVisibility?` | none | Predicate over the live draft; false hides the node and its descendants |
 | `enabledIf` | `BeakVisibility?` | none | Predicate over the live draft; false disables the node and its descendants |
 
-### BeakColumns
+### BeakRow
 
 ```dart title="packages/beak_frontend/lib/src/form/beak_form_layout.dart"
-const BeakColumns({
+const BeakRow({
   required super.children,
   this.columns = 2,
   this.minColumnWidthInPixels = 280,
@@ -471,8 +476,11 @@ const BeakTab({
   this.showValidationBadge = true,
   super.visibleIf,
   super.enabledIf,
-});
+}) : _standardTitle = null;
 ```
+
+`BeakTab.general` and `BeakTab.details` take the same parameters except
+`title`, which Beak words in the panel's language ("General", "Details").
 
 | Parameter | Type | Default | Meaning |
 | --- | --- | --- | --- |
@@ -990,14 +998,20 @@ Only safe schemes can launch. A link whose destination is unavailable or unreada
 ### BeakFormActions and BeakFormActionInput
 
 ```dart title="packages/beak_frontend/lib/src/form/beak_form_layout.dart"
-const BeakFormActions({this.actions, super.visibleIf, super.enabledIf});
+const BeakFormActions({
+  this.actions,
+  this.page = false,
+  super.visibleIf,
+  super.enabledIf,
+});
 ```
 
-`actions` null shows every currently available model command; a list shows exactly those commands, in order.
+`actions` null shows every currently available model command; a list shows exactly those commands, in order. With `page: true`, the commands appear in the page heading actions (or the form footer when there is no page frame) instead of inline in the layout, so localized presentation labels still apply.
 
 | Parameter | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `actions` | `List<BeakModelAction>?` | none | Explicit commands, in display order |
+| `page` | `bool` | `false` | Places commands in the page heading instead of the layout body |
 | `visibleIf` | `BeakVisibility?` | none | Predicate over the live draft; false hides the node and its descendants |
 | `enabledIf` | `BeakVisibility?` | none | Predicate over the live draft; false disables the node and its descendants |
 
@@ -1190,7 +1204,7 @@ const BeakRecordScope({
 | Inline commands | Each `BeakFormActionInput` needs a command with an input model, command names must be unique in the form, and `submitWithForm` must share the argument model of the inline command; otherwise a `BeakConfigurationException` when the session is created |
 | Calculated values | `BeakCalculated`, `BeakFormSummary`, `BeakFormMetrics` and `BeakFormCapacity` display values. None of them is submitted or validated |
 | Hidden by permission | A node whose field the account cannot read is hidden even when its `visibleIf` is true |
-| Asserts | `BeakColumns` needs `columns` and `minColumnWidthInPixels` above 0, `BeakSection` needs non-negative gaps, `BeakTabs` a non-negative `initialIndex`, `BeakFormMetric` a `flex` above 0, `BeakFormMetrics` a `minColumnWidthInPixels` above 0, and `BeakFormProgress` not both `states` and `steps`. These fail in debug builds |
+| Asserts | `BeakRow` needs `columns` and `minColumnWidthInPixels` above 0, `BeakSection` needs non-negative gaps, `BeakTabs` a non-negative `initialIndex`, `BeakFormMetric` a `flex` above 0, `BeakFormMetrics` a `minColumnWidthInPixels` above 0, and `BeakFormProgress` not both `states` and `steps`. These fail in debug builds |
 | Sections projection | `BeakFormSections.steps` drops the styling, `trailing` and divider of a section, as listed under that class |
 
 ## Source

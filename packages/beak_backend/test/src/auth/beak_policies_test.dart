@@ -37,54 +37,6 @@ final class _Ticket extends BeakModel {
 }
 
 void main() {
-  group('BeakAccess', () {
-    test('a role admits exactly the principals carrying it', () {
-      expect(_staff.allows(_staffer), isTrue);
-      expect(_staff.allows(_guest), isFalse);
-      expect(_staff.allows(null), isFalse);
-    });
-
-    test('authenticated admits any signed-in principal, never anonymous', () {
-      expect(BeakAccess.authenticated.allows(_guest), isTrue);
-      expect(BeakAccess.authenticated.allows(_staffer), isTrue);
-      expect(BeakAccess.authenticated.allows(null), isFalse);
-    });
-
-    test('anyone admits an anonymous request too', () {
-      expect(BeakAccess.anyone.allows(null), isTrue);
-      expect(BeakAccess.anyone.allows(_guest), isTrue);
-    });
-
-    test('any admits when one member does', () {
-      const either = BeakAccess.any([_staff, _manager]);
-      expect(either.allows(_staffer), isTrue);
-      expect(
-        either.allows(const BeakPrincipal(id: 'm', roles: {'manager'})),
-        isTrue,
-      );
-      expect(either.allows(_guest), isFalse);
-    });
-
-    test('all admits only when every member does', () {
-      const both = BeakAccess.all([_staff, _manager]);
-      expect(both.allows(_boss), isTrue);
-      expect(both.allows(_staffer), isFalse);
-      expect(both.allows(null), isFalse);
-    });
-
-    test('an empty combinator grants nothing', () {
-      expect(const BeakAccess.any([]).allows(_boss), isFalse);
-      expect(const BeakAccess.all([]).allows(_boss), isFalse);
-    });
-
-    test('not inverts, so anonymous is admitted by not(authenticated)', () {
-      const anonymousOnly = BeakAccess.not(BeakAccess.authenticated);
-      expect(anonymousOnly.allows(null), isTrue);
-      expect(anonymousOnly.allows(_guest), isFalse);
-      expect(const BeakAccess.not(_staff).allows(_guest), isTrue);
-    });
-  });
-
   group('BeakModelRules', () {
     test('rejects a read-only field of another model', () {
       expect(

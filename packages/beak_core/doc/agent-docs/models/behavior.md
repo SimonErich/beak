@@ -173,7 +173,7 @@ final _publish = BeakModelAction(
 
 ## Guards
 
-`editableWhen` and `deletableWhen` take the stored record and answer yes or no. They describe the lifecycle of the record, which is a different thing from who may act, so they are separate from policies. The invoice is editable only as a draft and never deletable:
+`editableWhen` and `deletableWhen` take the stored record and answer yes or no. They describe the lifecycle of the record, which is a different thing from who may act, so they are separate from policies. Creation ignores the stored-record edit lock; derived, snapshot and action-controlled fields stay read-only. The invoice is editable only as a draft and never deletable:
 
 ```dart
 /// Named business transitions run through the same atomic save protocol.
@@ -201,6 +201,91 @@ On a create there is no stored record, so Beak evaluates the guard against the r
 A guard also protects the rows a record owns. Editing, attaching or detaching a child of a locked owner is refused with `The owning record is locked by its workflow.` (the package test `child direct edits and relationship writes respect locked owning workflow` asserts the rejection). Every message is in the [reference](../reference/behavior-and-actions.md#what-the-server-checks).
 
 A field that a `derived` value owns is treated more gently than one an action or snapshot owns. Submitting a model-level `derived` field is harmless: the server recomputes it and the sent value disappears. Submitting a field that a command's `values` or a `snapshot` owns is an error, because that field can only move through the command.
+
+### Built-in rows
+
+A system ships rows nobody should remove, such as the built-in roles of an account system. `BeakModelBehavior.builtInRows(column)` is the guard for them: a row whose flag column is `true` cannot be deleted, and with `lockEdits: true` it cannot be edited either. The column must be a `BeakBoolColumn` and server-owned, so leave it out of the writable columns. Rows without the flag stay ordinary:
+
+```dart title="packages/beak_core/test/src/behavior/beak_model_behavior_test.dart"
+group('builtInRows', () {
+  BeakRecord row(Object? flag, {String name = 'Admin'}) =>
+      BeakRecord.fromRow({'id': 'r', 'name': name, 'is_system': flag});
+
+  test('refuses to delete a built-in row and allows any other', () {
+    final behavior = BeakModelBehavior.builtInRows(_isSystem);
+    expect(behavior.deletableWhen?.call(row(true)), isFalse);
+    expect(behavior.deletableWhen?.call(row(false)), isTrue);
+    expect(behavior.deletableWhen?.call(row(null)), isTrue);
+  });
+
+  test('leaves edits open unless lockEdits is set', () {
+    expect(BeakModelBehavior.builtInRows(_isSystem).editableWhen, isNull);
+    final locked = BeakModelBehavior.builtInRows(_isSystem, lockEdits: true);
+    expect(locked.editableWhen?.call(row(true)), isFalse);
+    expect(locked.editableWhen?.call(row(false)), isTrue);
+  });
+
+  test('reads the flag the way a SQLite-backed row holds it', () {
+    final behavior = BeakModelBehavior.builtInRows(_isSystem);
+    expect(behavior.deletableWhen?.call(row(1)), isFalse);
+    expect(behavior.deletableWhen?.call(row(0)), isTrue);
+  });
+
+  test('is a real behavior: it needs graph preparation and validates', () {
+    final behavior = BeakModelBehavior.builtInRows(
+      _isSystem,
+      lockEdits: true,
+    );
+    expect(behavior.isEmpty, isFalse);
+    behavior.validate(const _Lookup());
+  });
+
+  test('derives the flag from the stored row, never from the client', () {
+    final behavior = BeakModelBehavior.builtInRows(_isSystem);
+
+    final forged = behavior.apply(
+      row(true, name: 'Custom'),
+      initial: row(false),
+    );
+    final demoted = behavior.apply(row(false), initial: row(true));
+    final created = behavior.apply(
+      BeakRecord.fromRow({'name': 'New', 'is_system': true}),
+    );
+
+    expect(_isSystem.readFrom(forged), isFalse);
+    expect(_isSystem.readFrom(demoted), isTrue);
+    expect(_isSystem.readFrom(created), isFalse);
+  });
+
+  test('does not let the flag be authored while the row is edited', () {
+    final behavior = BeakModelBehavior.builtInRows(_isSystem);
+
+    expect(
+      behavior.canEdit('is_system', row(false), isCreate: true),
+      isFalse,
+    );
+    expect(behavior.canEdit('name', row(false)), isTrue);
+  });
+
+  test('a field that is not a boolean column is a configuration error', () {
+    expect(
+      () => BeakModelBehavior.builtInRows(
+        const BeakScalarField<bool>(
+          model: _Lookup(),
+          column: BeakStringColumn(key: 'kind', label: 'Kind'),
+        ),
+      ),
+      throwsA(
+        isA<BeakConfigurationException>().having(
+          (error) => error.message,
+          'message',
+          contains('kind'),
+        ),
+      ),
+    );
+  });
+});
+```
 
 ## Commands
 
@@ -291,6 +376,37 @@ final class OrderNoteInputModel extends BeakModel {
 
 The dialog and the API validate the same columns, so the rules are written once. A value behavior of the command reads the input with `state.argument(field)`, and a graph preparer reads it from `plan.arguments`: Foodio's preparer turns the note into a row of its own. Input models take belongs-to constraints only, and a relationship in the input must arrive as a selected identity.
 
+## Behavior on a Serverpod model
+
+A Serverpod admin declares each exposed model as a definition class (see
+[Generating the admin from definition classes](../serverpod/admin-app/generate.md)),
+and its behavior and rules live on that class exactly as on a Beak-owned
+schema: a `static get behavior` and a `static get validationRules`. The part
+`beak generate` writes next to the class forwards to them, so the panel and
+the server read one declaration:
+
+```dart
+@Resource()
+@ServerpodAdminModel(area: 'sales', commands: [BeakCommand('cancelOrder')])
+final class PlacedOrder extends BeakSchema {
+  /// Cancel, with its availability and the status it derives.
+  static BeakModelBehavior get behavior =>
+      BeakModelBehavior(actions: [OrderActions.cancel]);
+
+  /// Rules every save must pass, in the panel and on the server.
+  static List<BeakRecordRule> get validationRules => [
+    BeakAfterField(PlacedOrderModel.deliveredAt, PlacedOrderModel.placedAt),
+  ];
+
+  @Display()
+  late final String customerName;
+}
+```
+
+A class that declares neither gets the empty behavior and no rules. A command
+listed in `commands:` is run by the model's server handler; the engine refuses
+to start when the handler names a command the behavior does not declare.
+
 ## What the server does with a save
 
 The preview in the form and the authority on the server run the same function, `BeakModelBehavior.apply`, over different records. The server does not trust the preview. In order:
@@ -304,6 +420,8 @@ The preview in the form and the authority on the server run the same function, `
 7. The operations are written, then the [validation rules](validation.md) run on the final graph. Any failure rolls the whole save back.
 
 The form is the mirror image. Editing an input marks a suggested field as overridden, and every change re-runs `apply` until nothing moves, up to 64 rounds before it reports `Cyclic derived field values in form.` Fields that a guard or a `derived` value owns are disabled and not sent. Related rows that suggested and derived values read are loaded with the record.
+
+Hidden model-derived fields remain readable in the draft. Their preview changes alone do not make the form dirty, including when a confirmed save recalculates a next-revision value. Editable suggestions, user edits and invalid input still count as unsaved changes.
 
 ## Sources that cannot do this
 
@@ -376,6 +494,8 @@ For your own model, the pattern in `shop_api_test.dart` is the one to copy: star
 | `BeakValueLifecycle` | `initial`, `suggested`, `derived`, `snapshot` | [Behavior and actions](../reference/behavior-and-actions.md#value-behavior) |
 | `BeakValueContext` | `record`, `initial`, `arguments`; `read`, `original`, `argument` | [Behavior and actions](../reference/behavior-and-actions.md#value-behavior) |
 | `BeakModelAction` | `name`, `label`, `description`, `availableWhen`, `inputModel`, `allowOnCreate`, `values` | [Behavior and actions](../reference/behavior-and-actions.md#beakmodelaction) |
+| `BeakModelBehavior.builtInRows` | Refuses deleting (and optionally editing) rows flagged as built in | [Behavior and actions](../reference/behavior-and-actions.md#beakmodelbehavior) |
+| `static get behavior`, `static get validationRules` on a Serverpod definition class | The behavior and rules of a generated Serverpod model, forwarded by its part | [Generating the admin from definition classes](../serverpod/admin-app/generate.md) |
 | `BeakActionPolicy` | Server-side gate for who may run a command | [Auth and policies](../backend/auth-and-policies.md) |
 
 ## Continue reading

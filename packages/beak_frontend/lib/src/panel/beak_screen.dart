@@ -2,6 +2,7 @@ import 'package:meta/meta.dart';
 
 import '../blocks/beak_block.dart';
 import 'beak_destination.dart';
+import 'beak_panel_access.dart';
 import 'beak_panel_config.dart';
 
 /// A custom, non-resource panel screen: a route, its navigation entry, and
@@ -35,6 +36,7 @@ class BeakScreen implements BeakDestination {
     this.navigationGroup,
     this.showInNav = true,
     this.framed = true,
+    this.canAccess,
   });
   // --8<-- [end:BeakScreen]
 
@@ -67,6 +69,25 @@ class BeakScreen implements BeakDestination {
   /// [BeakCardBlock] to deliberately place it on one shared surface.
   /// Set false for full-bleed screens like a calendar or kanban board.
   final bool framed;
+
+  /// Presentation permission, evaluated against the signed-in account for the
+  /// route, navigation and rendering, and again whenever its roles change.
+  /// The server must independently authorize the screen's data requests.
+  ///
+  /// ```dart
+  /// BeakScreen(
+  ///   path: '/finance',
+  ///   title: 'Finance',
+  ///   icon: const BeakIconToken(OiIcons.wallet),
+  ///   canAccess: (access) => access.has('finance'),
+  ///   body: const BeakTextBlock('Ledger'),
+  /// );
+  /// ```
+  final bool Function(BeakPanelAccess access)? canAccess;
+
+  /// Whether the account behind [access] may open this screen.
+  bool isAccessibleTo(BeakPanelAccess access) =>
+      canAccess?.call(access) ?? true;
 
   /// The title shown in navigation.
   String get effectiveNavigationTitle => navigationTitle ?? title;

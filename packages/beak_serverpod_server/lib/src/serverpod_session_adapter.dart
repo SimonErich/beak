@@ -9,7 +9,8 @@ import 'package:worm_postgres/worm_postgres.dart'
         parseAggregateAvg,
         parseAggregateCount,
         parseAggregateSum,
-        parseExplainJsonOutput;
+        parseExplainJsonOutput,
+        parseGroupedAggregateRows;
 
 import 'beak_serverpod.dart';
 import 'serverpod_database_bridge.dart';
@@ -168,10 +169,7 @@ final class ServerpodSessionAdapter extends DatabaseAdapter
     if (descriptor.groupBy == null) return super.aggregateGrouped(descriptor);
     final compiled = _compiler.compileGroupedAggregate(descriptor);
     final rows = await _rows(compiled.sql, compiled.parameters);
-    return {
-      for (final row in rows)
-        if (row['value'] case final num value) row['group']: value,
-    };
+    return parseGroupedAggregateRows(rows, descriptor);
   }
 
   @override

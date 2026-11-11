@@ -203,6 +203,9 @@ class BeakLocalizations {
   /// Adds a gallery picture.
   String get formAddImage => _de ? 'Bild hinzufügen' : 'Add image';
 
+  /// Adds a new row to the named related collection.
+  String formAddRow(String label) => _de ? '$label hinzufügen' : 'Add $label';
+
   /// Screen-reader name of the move-earlier button of picture [number].
   String formMoveImageEarlier(int number) =>
       _de ? 'Bild $number weiter nach vorn' : 'Move image $number earlier';
@@ -345,6 +348,9 @@ class BeakLocalizations {
   /// Save action label.
   String get save => _de ? 'Speichern' : 'Save';
 
+  /// Applies edits to the owning draft without saving the record.
+  String get apply => _de ? 'Übernehmen' : 'Apply';
+
   /// Pending save label.
   String get saving => _de ? 'Wird gespeichert…' : 'Saving…';
 
@@ -377,6 +383,24 @@ class BeakLocalizations {
   /// Record detail section label.
   String get details => _de ? 'Details' : 'Details';
 
+  /// Default first form tab.
+  String get general => _de ? 'Allgemein' : 'General';
+
+  /// Filter choice that disables the filter.
+  String get all => _de ? 'Alle' : 'All';
+
+  /// Detail-page metadata aside heading.
+  String get metadata => _de ? 'Metadaten' : 'Metadata';
+
+  /// Creation timestamp label.
+  String get createdAt => _de ? 'Erstellt am' : 'Created at';
+
+  /// Last-update timestamp label.
+  String get updatedAt => _de ? 'Geändert am' : 'Updated at';
+
+  /// Soft-delete timestamp label.
+  String get deletedAt => _de ? 'Gelöscht am' : 'Deleted at';
+
   /// Additional record fields section.
   String get more => _de ? 'Weitere Angaben' : 'More';
 
@@ -398,6 +422,9 @@ class BeakLocalizations {
   /// Generic records table label.
   String get records => _de ? 'Einträge' : 'Records';
 
+  /// The plural noun for records inside a sentence, as in "Show 3 records".
+  String get recordNoun => _de ? 'Einträge' : 'records';
+
   /// Empty records state.
   String get noRecords => _de ? 'Keine Einträge vorhanden' : 'No records yet';
 
@@ -406,6 +433,19 @@ class BeakLocalizations {
 
   /// Command palette accessibility label.
   String get commandBar => _de ? 'Befehlssuche' : 'Command bar';
+
+  /// Placeholder text in the command palette search field.
+  String get commandBarPlaceholder =>
+      _de ? 'Befehl eingeben…' : 'Type a command…';
+
+  /// Footer hint: arrow keys select a result.
+  String get commandBarSelect => _de ? 'Auswählen' : 'Select';
+
+  /// Footer hint: Enter opens the highlighted result.
+  String get commandBarOpen => _de ? 'Öffnen' : 'Open';
+
+  /// Footer hint: Escape closes the palette.
+  String get commandBarClose => _de ? 'Schließen' : 'Close';
 
   /// Navigation command group.
   String get navigate => _de ? 'Navigation' : 'Navigate';

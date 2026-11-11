@@ -11,8 +11,8 @@ issue_tracker: https://github.com/SimonErich/beak/issues
 topics: [admin-panel, serverpod, flutter]
 
 environment:
-  sdk: ^3.11.0
-  flutter: '>=3.41.0'
+  sdk: ^3.12.0
+  flutter: '>=3.44.0'
 
 dependencies:
   beak_core:
@@ -23,10 +23,12 @@ dependencies:
     path: ../beak_serverpod
   flutter:
     sdk: flutter
+  flutter_web_plugins:
+    sdk: flutter
   serverpod_auth_core_flutter: '>=4.0.3 <5.0.0'
   serverpod_auth_idp_client: '>=4.0.3 <5.0.0'
   serverpod_client: '>=4.0.3 <5.0.0'
-  signals: ^6.3.0
+  signals: ^7.1.0
 
 dev_dependencies:
   flutter_test:

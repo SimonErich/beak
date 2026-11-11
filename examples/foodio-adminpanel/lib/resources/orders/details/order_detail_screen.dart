@@ -1,10 +1,10 @@
 import 'package:beak/panel.dart';
 import 'package:beak/ui.dart';
+import 'package:beak_theme_gabel/beak_theme_gabel.dart';
 
 import '../../../domain/_order_note_input.dart';
 import '../../../domain/foodio_clock.dart';
 import '../../../domain/order_behavior.dart';
-import '../../../theme/gabel_theme.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../../models/models.dart';
@@ -422,7 +422,7 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
                 title: 'Dishes and options',
                 children: [
                   orderItems(allowEditing: false, compact: true),
-                  BeakColumns(
+                  BeakRow(
                     minColumnWidthInPixels: 220,
                     children: [
                       orderAllergyNotice(),

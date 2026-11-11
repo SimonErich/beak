@@ -317,8 +317,7 @@ final class _PrivateModel extends BeakModel {
   ];
 
   @override
-  BeakPermissions get permissions =>
-      BeakPermissions({BeakOperation.read: () => false});
+  BeakPermissions get permissions => const BeakPermissions();
 }
 
 /// The router of whichever top-level page is currently mounted.

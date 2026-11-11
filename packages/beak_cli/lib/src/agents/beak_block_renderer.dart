@@ -90,8 +90,8 @@ final class BeakBlockValues {
   /// The generated Serverpod client package.
   final String? clientPkg;
 
-  /// The package holding the Beak schema classes that mirror the server's
-  /// models.
+  /// The package holding the definition classes of the server's models
+  /// (`generate.definitions`).
   final String? schemaPkg;
 
   /// Whether `lib/main.dart` is Beak's own generated file.

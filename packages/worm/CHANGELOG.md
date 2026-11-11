@@ -15,6 +15,9 @@
   `ilike` pattern. The SQL compilers state it as `ESCAPE '<char>'` (SQLite has
   no default escape character; PostgreSQL and MySQL disagree on theirs), the
   in-memory evaluator and the Mongo compiler honour it.
+- Added `QueryDescriptor.lock`: `SELECT ... FOR UPDATE` on PostgreSQL and
+  MySQL, ignored by SQLite and the in-memory adapter. The SQL compilers refuse
+  it beside `DISTINCT`, `GROUP BY` and `HAVING`.
 - Added `CurrentReadCapable` for explicit current/locking reads. MySQL supplies
   parameterized `SELECT ... FOR UPDATE` on its pooled and transaction adapters.
 - Added `SchemaResetCapable`, an explicit transaction boundary for destructive

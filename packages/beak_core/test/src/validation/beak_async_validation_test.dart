@@ -84,6 +84,35 @@ final class _Target extends BeakModel {
 
 void main() {
   test(
+    'unchanged foreign keys do not require unrelated read permission',
+    () async {
+      final initial = BeakRecord.fromRow({'target_id': 'existing'});
+      var queries = 0;
+      Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
+        queries++;
+        return const BeakPage(items: [], total: 0, page: 1, perPage: 1);
+      }
+
+      final unchanged = await const BeakAsyncValidation().validate(
+        const _Related(),
+        initial,
+        initial: initial,
+        query: query,
+      );
+      expect(unchanged.valid, isTrue);
+      expect(queries, 0);
+      final changed = await const BeakAsyncValidation().validate(
+        const _Related(),
+        BeakRecord.fromRow({'target_id': 'unavailable'}),
+        initial: initial,
+        query: query,
+      );
+      expect(changed.valid, isFalse);
+      expect(queries, 1);
+    },
+  );
+
+  test(
     'belongs-to existence derives trusted metadata and custom identity keys',
     () async {
       final queries = <BeakQuerySpec>[];

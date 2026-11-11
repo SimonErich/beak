@@ -260,6 +260,10 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
   final Set<String> _unreadableKeys = {};
   final Map<String, String> _inputErrors = {};
   final Set<String> _invalidEdits = {};
+  late final Set<String> _derivedKeys = {
+    for (final value in model.behavior.values)
+      if (value.lifecycle == BeakValueLifecycle.derived) value.field.key,
+  };
 
   /// Parsing errors retained while an editor contains an incomplete value.
   Map<String, String> get inputErrors => Map.unmodifiable(_inputErrors);
@@ -281,7 +285,14 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
   }
 
   @override
-  bool get isDirty => _invalidEdits.isNotEmpty || super.isDirty;
+  // Derived previews may change again after rebasing a confirmed receipt (for
+  // example, the next revision). They are not unsaved user edits.
+  bool get isDirty =>
+      _invalidEdits.isNotEmpty ||
+      _keyBySlot.entries.any(
+        (entry) =>
+            !_derivedKeys.contains(entry.value) && isFieldDirty(entry.key),
+      );
 
   @override
   Future<bool> validate({
@@ -470,7 +481,15 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
     };
     final String primaryKeyKey = model.primaryKey.key;
 
-    for (final column in model.columnsFor(BeakContext.form)) {
+    // Model values also need draft storage when their columns are hidden from
+    // forms. Layout placements still decide which inputs are rendered/exported.
+    final columns = {
+      for (final column in model.columnsFor(BeakContext.form))
+        column.key: column,
+      for (final value in model.behavior.values)
+        value.field.key: value.field.column,
+    };
+    for (final column in columns.values) {
       if (column.key == primaryKeyKey) {
         continue;
       }
@@ -486,11 +505,12 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
       }
     }
 
-    if (sections == null) {
-      for (final MapEntry(:key, :value) in relationByForeignKey.entries) {
-        if (!_slotByKey.containsKey(key)) {
-          _registerForeignKey(value, rules: const [], section: null);
-        }
+    // A belongs-to picker stages its foreign key even when the key column is
+    // hidden from the form or sits outside a section: the relation input owns
+    // that value, so its slot must exist.
+    for (final MapEntry(:key, :value) in relationByForeignKey.entries) {
+      if (!_slotByKey.containsKey(key)) {
+        _registerForeignKey(value, rules: const [], section: null);
       }
     }
   }

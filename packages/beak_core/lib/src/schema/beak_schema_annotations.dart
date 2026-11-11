@@ -64,12 +64,19 @@ abstract base class BeakSchema {
 @immutable
 final class Resource {
   /// Declares the annotated class a resource.
+  // --8<-- [start:Resource]
   const Resource({
     this.table,
     this.softDeletes = false,
     this.timestamps = false,
     this.managesSchema = true,
+    this.createdAtColumnKey = 'created_at',
+    this.updatedAtColumnKey = 'updated_at',
+    this.deletedAtColumnKey = 'deleted_at',
+    this.isDeletedColumnKey,
+    this.labelKey,
   });
+  // --8<-- [end:Resource]
 
   /// Physical table name. Defaults to the pluralised, snake-cased class name.
   final String? table;
@@ -79,6 +86,24 @@ final class Resource {
 
   /// Whether to add `created_at` and `updated_at` columns.
   final bool timestamps;
+
+  /// Creation timestamp key used by generated metadata and persistence.
+  final String createdAtColumnKey;
+
+  /// Revision timestamp key used by generated metadata and conditional writes.
+  final String updatedAtColumnKey;
+
+  /// Nullable soft-delete timestamp key.
+  final String deletedAtColumnKey;
+
+  /// Optional boolean soft-delete flag; false is live and true is deleted.
+  final String? isDeletedColumnKey;
+
+  /// The key the resource's labels are found under in the project's label
+  /// files. Defaults to the lowerCamelCase class name, so `PlacedOrder` reads
+  /// `placedOrder` and its fields `placedOrder.email`; `labelKey: 'order'`
+  /// reads `order` and `order.email` instead.
+  final String? labelKey;
 
   /// Whether Beak owns this resource's schema.
   ///

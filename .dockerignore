@@ -33,3 +33,6 @@ _site/
 **/*.db-shm
 **/*.db-wal
 **/uploads/
+# The backend's upload implementation is source, not stored upload data.
+!packages/*/lib/**/uploads/
+!packages/*/lib/**/uploads/**

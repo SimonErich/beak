@@ -3,7 +3,9 @@ import 'package:flutter/widgets.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 import 'beak_chart_data.dart';
+import '../panel/beak_panel_access.dart';
 import '../panel/beak_panel_config.dart';
+import '../presentation/beak_record_template.dart';
 import '../table/beak_table_action.dart';
 
 part 'beak_accordion_block.dart';
@@ -48,6 +50,7 @@ part 'beak_text_block.dart';
 part 'beak_tile_map_block.dart';
 part 'beak_timeline_block.dart';
 part 'beak_video_block.dart';
+part 'beak_visibility_block.dart';
 part 'beak_carousel_block.dart';
 part 'beak_map_block.dart';
 part 'beak_radial_slider_block.dart';

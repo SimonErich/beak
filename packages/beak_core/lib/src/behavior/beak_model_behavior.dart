@@ -1,3 +1,4 @@
+import '../columns/beak_column.dart';
 import '../common/beak_exception.dart';
 import '../model/beak_field_ref.dart';
 import '../model/beak_model.dart';
@@ -146,7 +147,8 @@ final class BeakModelAction {
   /// Stable wire identity, independent of translated labels.
   final String name;
 
-  /// Human-readable command label.
+  /// Human-readable command label. A panel shows its model's translation
+  /// instead when there is one (`BeakModel.actionLabelOf`).
   final String label;
 
   /// Optional explanation used by confirmation and input surfaces.
@@ -177,6 +179,50 @@ final class BeakModelBehavior {
     this.editableWhen,
     this.deletableWhen,
   });
+
+  /// Protects the rows a system ships with, such as built-in roles or
+  /// dictionaries.
+  ///
+  /// A row whose [isBuiltIn] flag is `true` cannot be deleted. With
+  /// [lockEdits] it cannot be edited either; without it only the delete is
+  /// refused. Rows without the flag, or with it `false`, stay ordinary.
+  ///
+  /// The flag is server-owned: the behavior derives it from the stored row on
+  /// every save (and as `false` on a new row), so a value a client sends for
+  /// it is replaced and a custom row can never turn itself into a built-in
+  /// one, or the other way round. Keep the column out of the model's writable
+  /// columns as well, so a form does not offer it.
+  ///
+  /// ```dart
+  /// @override
+  /// BeakModelBehavior get behavior =>
+  ///     BeakModelBehavior.builtInRows(RoleModel.isSystem, lockEdits: true);
+  /// ```
+  ///
+  /// Throws a [BeakConfigurationException] when [isBuiltIn] is not a boolean
+  /// column.
+  factory BeakModelBehavior.builtInRows(
+    BeakScalarField<bool> isBuiltIn, {
+    bool lockEdits = false,
+  }) {
+    if (isBuiltIn.column is! BeakBoolColumn) {
+      throw BeakConfigurationException(
+        'builtInRows needs a boolean column, and "${isBuiltIn.key}" is '
+        '${isBuiltIn.column.valueType}.',
+      );
+    }
+    bool builtIn(BeakRecord record) => isBuiltIn.readFrom(record) == true;
+    return BeakModelBehavior(
+      values: [
+        BeakValueBehavior<bool>.derived(
+          field: isBuiltIn,
+          resolve: (state) => state.original(isBuiltIn) ?? false,
+        ),
+      ],
+      editableWhen: lockEdits ? (record) => !builtIn(record) : null,
+      deletableWhen: (record) => !builtIn(record),
+    );
+  }
 
   /// Default, suggested, calculated and historical fields.
   final List<BeakValueBehavior<Object>> values;
@@ -231,8 +277,9 @@ final class BeakModelBehavior {
   );
 
   /// Whether an ordinary editor may author this field.
-  bool canEdit(String key, BeakRecord record) =>
-      (editableWhen?.call(record) ?? true) &&
+  /// Record edit locks apply after creation; server-owned fields stay locked.
+  bool canEdit(String key, BeakRecord record, {bool isCreate = false}) =>
+      (isCreate || (editableWhen?.call(record) ?? true)) &&
       !values.any(
         (value) =>
             value.field.key == key &&

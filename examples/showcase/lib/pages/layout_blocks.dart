@@ -18,6 +18,7 @@ BeakScreen layoutBlocksPage() => BeakScreen(
       _tabsSection(),
       _accordionSection(),
       _masonrySection(),
+      _visibilitySection(),
       _escapeHatchSection(),
     ],
   ),
@@ -152,6 +153,17 @@ BeakBlock _masonrySection() => BeakSectionBlock(
   ),
 );
 // --8<-- [end:masonrySection]
+
+/// A live permission callback can omit an entire subtree before it fetches data.
+BeakBlock _visibilitySection() => BeakSectionBlock(
+  title: 'Visibility',
+  child: BeakVisibilityBlock(
+    visibleWhen: (_) => true,
+    child: const BeakTextBlock(
+      'The child mounts while its live callback allows it.',
+    ),
+  ),
+);
 
 /// The one block that takes a widget: for what no block expresses yet.
 // --8<-- [start:escapeHatchSection]

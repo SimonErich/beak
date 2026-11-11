@@ -27,7 +27,7 @@ import 'dart:io';
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_serverpod_flutter/beak_serverpod_flutter.dart'
     show BeakWireRequest, serverpodBeakDataSource;
-import 'package:bookshop_beak/bookshop_beak.dart';
+import 'package:bookshop_definitions/bookshop_definitions.dart';
 import 'package:bookshop_client/bookshop_client.dart' show Client;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:postgres/postgres.dart';

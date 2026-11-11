@@ -1,5 +1,13 @@
 import 'package:meta/meta.dart';
 
+final _uuidPattern = RegExp(
+  r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+);
+
+/// Whether [value] is a UUID in canonical hyphenated form.
+bool beakIsUuid(Object? value) =>
+    value is String && _uuidPattern.hasMatch(value);
+
 /// A calendar date without a time, offset, or timezone.
 @immutable
 final class BeakDate implements Comparable<BeakDate> {

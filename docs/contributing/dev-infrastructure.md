@@ -17,8 +17,8 @@ The repo-root `docker-compose.yml` starts both, plus a bucket and a database bro
 | Service | Image | Host port | Container port | Login |
 | --- | --- | --- | --- | --- |
 | `postgres` | `postgres:16-alpine` | `25432` | `5432` | `beak` / `beak`, database `beak` |
-| `minio` | `minio/minio:latest` | `29000` (S3 API), `29001` (console) | `9000`, `9001` | `beak` / `beaksecret` |
-| `createbuckets` | `minio/mc:latest` | none, one-shot | none | creates the bucket `beak-uploads` and allows anonymous downloads |
+| `minio` | `bitnamilegacy/minio:latest` | `29000` (S3 API), `29001` (console) | `9000`, `9001` | `beak` / `beaksecret` |
+| `createbuckets` | `bitnamilegacy/minio-client:latest` | none, one-shot | none | creates the bucket `beak-uploads` and allows anonymous downloads |
 | `pgweb` | `sosedoff/pgweb:latest` | `28081` | `8081` | none, connects as `beak` |
 
 ```bash

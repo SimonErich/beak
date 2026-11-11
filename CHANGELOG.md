@@ -10,25 +10,21 @@ Three things to know before you read on:
 
 - **Lockstep.** `beak`, `beak_core`, `beak_backend`, `beak_frontend`,
   `beak_cli`, `beak_test`, `beak_image`, `beak_storage_s3`, `beak_storage_ftp`,
-  `beak_serverpod`, `beak_serverpod_flutter`, `beak_serverpod_generator` and
-  `beak_serverpod_server` share one version, `0.9.0`, and are released
-  together. Each package's own `CHANGELOG.md` points back to this file. The
+  `beak_serverpod`, `beak_serverpod_flutter`, `beak_serverpod_generator`,
+  `beak_serverpod_server`, `beak_theme_gabel` and `beak_test_flutter` share one version, `0.9.0`, and
+  are released together. Each package's own `CHANGELOG.md` points back to this file. The
   vendored `worm*` packages keep their own `0.1.0` line and are not part of a
   Beak release.
-- **The obers_ui pin must be fetchable, and current.** `beak` and `beak_frontend`
-  depend on obers_ui by git commit (`c956d25634c93e23847ec5a4150c1d62fe3a7c90`, in
-  the `pubspec.yaml` of both). Any `melos bootstrap`, and any project that
-  resolves Beak from git, needs that commit to exist on
-  `github.com/SimonErich/obers_ui`. It does, but it lacks 175 classes,
-  parameters and theme fields in 14 files that `beak_frontend` calls
-  (`OiPageLayout`, `OiFilterChip`, `OiCapacityIndicator`, `OiFieldLabel`,
-  `OiIcon.raw` and more, listed under Known issues), so the pin resolves and the
-  panel then fails to compile. The obers_ui state that has them is not
-  published. The fix is to commit and push those obers_ui changes and move the
-  SHA in every pubspec that pins it (`test/obers_ui_pin_test.dart` keeps the
-  copies identical). Until then, work against a local checkout with
-  `melos run link-obers-ui`, and go back to the pin with
-  `melos run unlink-obers-ui`.
+- **The obers_ui pin must be fetchable, and current.** `beak`, `beak_frontend`,
+  `beak_theme_gabel` and `beak_test_flutter` depend on obers_ui by git commit
+  (`2cecec0f724cfc0b2cdd36aae46396960008f80e`). Any `melos bootstrap`, and any
+  project that resolves Beak from git, needs that commit to exist on
+  `github.com/SimonErich/obers_ui`. It does, and it contains the components the
+  panel uses (`OiPageLayout`, `OiFilterChip`, `OiCapacityIndicator`,
+  `OiFieldLabel`, `OiIcon.raw` and the compact sidebar). To work against a local
+  checkout instead, run `melos run link-obers-ui`, and go back to the pin with
+  `melos run unlink-obers-ui`; `test/obers_ui_pin_test.dart` keeps every copy
+  identical.
 - **Nothing is tagged yet.** A scaffold written by `beak create` pins
   `ref: v0.9.0`, so until that tag exists use
   `beak create --beak-path <repo root of a checkout>` (absolute; `packages/<name>`
@@ -43,7 +39,90 @@ migration table at the end collects the common ones.
 
 ### Added
 
+#### Labels
+
+- Label files: `labels:` in `beak.yaml` points at ARB files with path keys
+  (`placedOrder.email`, `*.sortOrder`, `orderStatus.pending`,
+  `placedOrder.actions.cancel`, `.hint`). `beak prepare`, `beak generate` and
+  `beak doctor` resolve them the same way and write every language onto the
+  generated models. A key that names nothing fails with the nearest real key;
+  a key missing in one language fails; `require: shown` fails on a shown field
+  without a label. `@Resource(labelKey:)` files a model under another key.
+- `BeakColumn.translations` and `.hints`, `BeakRelationship.translations`,
+  `BeakEnumColumn.valueTranslations` and `BeakModel.labels`
+  (`BeakModelLabels`) with `singularLabel`, `pluralLabel`, `actionLabelOf` and
+  `actionDescriptionOf`. Every label is read when shown, in the panel's
+  `BeakLabels.language`.
+- `BeakLocalizedPanel` builds the configuration in a context that holds the
+  app's localizations; `runServerpodBeakAdmin` takes `locale`,
+  `supportedLocales`, `localizationsDelegates` and passes `context` to
+  `config`.
+- `BeakTableScreen.standard`, `BeakCalculated.field`, `model.recordLink()`,
+  `translationsForm(presentation: BeakRelationTablePresentation.rows)`,
+  `BeakTab.general`, `BeakTab.details` and `BeakCard.general`.
+- `beakLocalizedRouteSweep` and `BeakSignedInAuthAdapter` in
+  `beak_test_flutter`.
+
 #### Serverpod
+
+- Existing application integration: `BeakServerpodEngine` accepts live `admit`,
+  identity generation and request/error logging callbacks. The stock scope
+  check and Session logging remain the defaults.
+- `BeakServerpodEngine.pruneReceipts(session, olderThan: cutoff)` exposes the
+  existing graph receipt retention service to host maintenance jobs.
+- `BeakScreen.canAccess` guards custom page navigation, command search, routes
+  and rendering. `BeakVisibilityBlock` conditionally mounts dashboard subtrees.
+  Both rendering guards track signal reads for live access revocation.
+- `BeakTableBlock.tableColumns` reuses the resource table's presentation columns,
+  including localized headings, templates and automatic relationship loads.
+- Relation-only input schemas with `@BelongsTo` are accepted by schema discovery.
+- `executeOperation` delegates an authorized graph write to an existing domain
+  use case in the save transaction. Handled writes skip ordinary SQL while
+  preserving validation, scopes, revision locks, dependent identities and
+  replay receipts.
+- `BeakSaveOperationWrite.withValues` lets a trusted server hook derive registered
+  scalar values before stock persistence. Input authorization still runs first;
+  the result is checked for valid columns, values, scope and immutable identity.
+- Creation forms ignore `editableWhen` until a record is saved, while derived,
+  snapshot and action-controlled fields remain locked. Unchanged stored foreign
+  keys no longer require read access to unrelated resources during an edit.
+- Draft controllers retain hidden model-derived columns while command inputs
+  remain limited to editable fields. Derived previews do not mark a pristine or
+  successfully saved form dirty, so save navigation still completes when a
+  server-owned revision is recalculated after a receipt. User edits, editable
+  suggestions and invalid input still participate in unsaved-edit tracking.
+- Owned-row background validation waits for loaded field permissions and omits
+  server-owned values. Read-only fields do not trigger write validation.
+- Long translated model-action labels fit narrow
+  forms and confirmation dialogs without painting beyond their button.
+- Owned-row and related-record editors use the native scrollable form dialog,
+  keeping actions visible when fields exceed the viewport.
+- Closing owned-row, related-record and option dialogs after their parent form
+  unmounts cannot restore a disposed draft.
+- Ordinary form controls wrap on narrow headers, including localized save and
+  cancel labels; wizard rail controls retain their distributed footer layout.
+- Nested relation creation buttons fit narrow cards and use the panel language.
+- Form command buttons and input surfaces preserve configured action labels and
+  descriptions. Registered model actions retain authority over permissions,
+  eligibility, typed input and execution.
+- Native form dialogs, exact-code inputs and inspector controls translate their
+  Apply/Close labels and default action confirmation through panel localization.
+- Composed-list URL acknowledgments preserve newer search edits and caret state.
+  Frame updates write the latest query; external navigation still restores
+  bookmarked views and cancels obsolete pending writes.
+- PostgreSQL grouped summaries preserve numeric string results such as
+  `SUM(bigint)` instead of silently omitting their groups. Malformed numeric
+  results raise a query error.
+- Semantic UUID search uses validated full-identifier equality, including
+  relationship paths; mixed text searches retain escaped substring matching.
+  This avoids applying PostgreSQL `ILIKE` to native UUID columns.
+- Explicit empty-string schema defaults infer `BeakRequired(allowEmpty: true)`;
+  null remains invalid and additional field rules still apply.
+- `@Resource` and `BeakModel` support configurable creation, update and deletion
+  timestamp keys plus an optional boolean deletion flag. Generated metadata,
+  form revision guards, queries, relations, summaries, delete and restore use
+  the same keys. JSON columns normalize database objects and arrays to the
+  existing document-text wire representation.
 
 - **Admin app in a Serverpod 4 workspace.** `beak_serverpod_server` runs Beak's
   stock Shelf API inside the Serverpod server, behind one gated endpoint method,
@@ -62,16 +141,104 @@ migration table at the end collects the common ones.
   `ServerpodDataSource` and generated-model codecs so a panel can read and write
   through an existing Serverpod client. `beak_serverpod_generator` generates the
   typed resources from a Serverpod client.
-- `examples/serverpod`: a Serverpod 4.0.3 workspace with an admin for `Author`
+- `examples/serverpod`: a Serverpod 4.0.4 workspace with an admin for `Author`
   and `Book` (see Examples below).
 - `beak_backend`: `BeakFrameworkTables`, so the receipts table can be owned by
   another migration system, and an allowlist so only declared columns are
   selected, returned or stored in receipts.
 - `sqlite3 ^3` in `worm_sqlite` and `beak_cli`, which Serverpod needs. The pinned
-  Serverpod 4.0.3 CLI wrapper lives in `tool/serverpod_cli_4`.
+  Serverpod 4.0.4 CLI wrapper lives in `tool/serverpod_cli_4`.
+
+#### beak generate
+
+- `beak make:definition <Model>` writes a read-only definition class from a
+  Serverpod model: typed fields, relations, read-only timestamps and version,
+  copied Serverpod docs and the `part` directive. Relations need their target
+  definition first; `--area` picks the folder when `beak.yaml` names more than
+  one.
+- `beak generate` reads a Serverpod server's `*.spy.yaml` models, the newest
+  `definition_project.json` migration and the definition classes of the
+  admin's pure-Dart definitions package, one `@Resource` + `@ServerpodModel`
+  class per exposed model, whose fields are the allowlist. It writes a
+  `*.beak.dart` part next to each class and `lib/src/generated/models.dart`
+  (`<prefix>Models`, `create<Prefix>Registry()`), `enums.dart` and
+  `writes.dart` (`enum <Prefix>Write`, one value per writable model).
+- `package:beak_serverpod/schema.dart`: `@ServerpodModel(area:, list:,
+  create:, update:, delete:, commands:, access:, reason:, restoreKey:)`,
+  `@ServerpodModel.editable()`, `@CommandInput`, `@ReadOnly`,
+  `@Hidden(defaultValue:)` and `BeakHandling` (`off`, `stock`, `derived`,
+  `custom`). Every write is `off` until opened; a custom `list` narrows the
+  rows a list, a count, an export and opening a record reach.
+- Every declared field is checked against Serverpod: it exists, is stored and
+  not a secret, has Serverpod's type and `?`, and a relation has Serverpod's
+  kind and an exposed target. A stock create must fill every required field,
+  and a library needs its `part` directive and the `generated/writes.dart`
+  import. Keys, timestamps and soft-delete fields are always exposed.
+- With `generate.handlers`, the server gets one abstract handler class per
+  model that runs custom code (`OrderHandler`, with typed `OrderWrite` and
+  `OrderValues` extension types and one method per custom operation and
+  command) and the `<Prefix>Handlers` aggregate, which requires each of them.
+- `beak.yaml` gains strict `serverpod:` and `generate:` sections
+  (`definitions`, `handlers`, `prefix`, `roles`, `areas`, `conventions`).
+- `--check`, orphan deletion (refusing files without the generated header), an
+  inputs stamp, `beak prepare` integration and a `beak doctor` check.
+
+#### Panel APIs
+
+- `BeakPanelAccess` replaces the principal bridge: `can`, `canRead`, `has` and
+  `canAction` answer from the signed-in principal, and a `BeakPanelAccessScope`
+  refreshes every dependent widget when the roles change.
+- `BeakResource.standard(model, title, columns:, form:, tabs:, filters:,
+  header:, readOnly:)` declares the conventional list, detail page and forms.
+- `BeakPanelConfig.defaults` (`BeakListDefaults`) gives the whole panel one
+  list shape.
+- `BeakLabels` localizes enum values, column labels and model commands in every
+  table cell, filter, form input, export and confirmation.
+- A detail page shows the model's metadata aside by default
+  (`showMetadataAside: false` opts out).
+- `BeakRelatedList`, `toMany.readOnlyRows`, `toMany.translationsForm` and
+  `toOne.link` cover the repeated relationship screens.
+- `BeakTableBlock.onRowTap` receives the row's context and opens the record by
+  default.
+- `runServerpodBeakAdmin` boots the whole Serverpod admin (path URLs, session,
+  roles, tunnel data source) in one call.
+- `beakRouteSweep` in `beak_test_flutter` mounts a panel at several widths and visits
+  every visible route.
+#### Server APIs
+
+- `BeakPolicies.admitted(registry, scopes:)` derives each rule from the model's
+  permissions, admission and capabilities; a model's capabilities are enforced
+  for every policy by the router and the graph commit service.
+- `BeakWriteBindings<W>` maps a generated write binding to a
+  `BeakWriteHandler`: stock persistence, a server-side stamp, or domain writes
+  with `otherwise: BeakUnmatched.refuse`. `BeakSaveOperationWrite.persisted(id)`
+  reads the row a use case wrote back in the same transaction, and
+  `BeakSaveOperationContext.merged` / `requireCommandOnly()` support commands.
+- Soft-deleted rows with an `admission.restoreKey` are restored by a stock
+  create instead of duplicated.
+- `BeakServerpodEngine.admitted(models:, handlers:, principal:, ...)` takes
+  the generated `BeakServerpodHandlers`: their write bindings and row scopes.
+  A handler receives a `BeakServerpodWrite` (`session`, `transaction`, `kind`,
+  `principal`, `id`, `uuid`, `values`, `changes`, `existing`, `arguments`,
+  `runs`); `BeakServerpodValues.uuid`, `beakServerpodCommands` and
+  `beakServerpodRefused` back the generated code.
+- `BeakTreeRule` keeps a small tree a tree: cycles, delete-with-children or
+  references, repeated sibling values and over-deep moves are refused inside
+  the save transaction, after locking the tree's rows in a deadlock-free order.
+- `BeakServerpodEngine.admitted(...)` composes the registry, policy, write
+  bindings and tree rules in one call; `mapException` maps host failures;
+  `pruneExpiredReceipts(session)` deletes commit receipts older than 30 days.
+- `BeakException.forCategory` and `BeakServerpod.uuidOf` are the mapping and
+  identity seams a host use case usually needs.
 
 #### Command line
 
+- `beak.yaml` takes `theme.preset` (`standard` or `gabel`). With `gabel`,
+  `beak prepare` writes `theme: GabelTheme()` and its import into
+  `lib/beak/panel.g.dart` and `beak eject main` keeps it. `beak prepare` and
+  `beak doctor` refuse it until the pubspec depends on `beak_theme_gabel`, and
+  when `lib/theme.dart` also sets the theme. `beak init` names the package a
+  preset in an existing `beak.yaml` needs.
 - `beak init` adds Beak to an existing Flutter app: the dependency, `beak.yaml`,
   an authored entrypoint and a `.gitignore` block. It is idempotent and keeps
   comments. `--entrypoint`, `--beak-ref`, `--beak-path`, `--example`,
@@ -211,7 +378,7 @@ migration table at the end collects the common ones.
   matrix tests switch exhaustively over the sealed hierarchies with no default
   branch, so a new block, column or relation kind fails to compile until the
   example shows it. Authored panel, SQLite, API on port 8082.
-- `examples/serverpod`: a real Serverpod 4.0.3 workspace with a Beak admin for
+- `examples/serverpod`: a real Serverpod 4.0.4 workspace with a Beak admin for
   `Author` and `Book`. The server runs Beak's API behind one endpoint that needs
   a login and the `beak.admin` scope, with a deny-by-default policy and a
   server-only column that never leaves the database. Tests cover worm's adapter
@@ -277,6 +444,19 @@ migration table at the end collects the common ones.
   `BeakSummaryMeasure.sumDecimal`, `BeakSummaryRow.decimalOf`,
   `BeakScalarField<BeakDecimal>.avg`, `.scale` and `.exactColumn`,
   `BeakDecimal.tryFromUnits` and `fromRoundedUnits`, and `BeakRounding`.
+- `BeakDefinitions` and `BeakModelDefinition` carry the authored behavior and
+  record rules of generated models, so a generated model reads them through
+  `BeakDefinitions.behaviorOf` and `rulesOf` and imports no authored code.
+  Bind a set once per isolate; binding an equal set again is a no-op, a
+  different one throws, and a lookup before binding throws too.
+  `BeakModelRegistry.of(models, definitions:)` binds, then registers, and
+  rejects a definition for a table outside the model set.
+- `BeakAdmission` and `BeakTranslationSpec`: the constant facts a generator
+  records on `BeakModel.admission` (writable and hidden columns, restore key,
+  translation columns, write binding, the reason a model is read only).
+- `BeakModelBehavior.builtInRows` refuses to delete (and with `lockEdits`, to
+  edit) rows flagged as built in. `BeakException.forCategory` and
+  `BeakErrorCategory` map a host's own failures onto the exception family.
 
 #### beak_backend
 
@@ -513,9 +693,78 @@ migration table at the end collects the common ones.
 - `architecture_guard_test.dart` in `beak_frontend` fails a `StatefulWidget`,
   `State` or `StatefulElement` subclass in the `lib/` of `beak_frontend` and
   `beak_serverpod_flutter`.
+- `BeakAuthIdentity.roles` and `BeakAuthIdentity.principal` carry the roles of
+  the signed-in account, and the built-in session store fills them from the
+  login response. A resource checks `BeakModel.permissions` against that
+  principal.
+- `BeakTheme({required light, required dark, licenses})` holds the panel's two
+  `OiThemeData` and the licences a look bundles, and `BeakTheme.standard()` is
+  the stock obers_ui look. The panel registers the licences with Flutter's
+  `LicenseRegistry` once, when it mounts, and a theme that reads its licence
+  texts from assets overrides `registerLicenses()`.
+
+#### beak_theme_gabel
+
+- New package `beak_theme_gabel`: the official Gabel design as `GabelTheme()`,
+  a `BeakTheme` with both modes preconfigured. It brings the `GabelLight` and
+  `GabelDark` color tokens, the Mona Sans type ramp (with a `fieldLabel` role
+  that captions and input labels share), component themes for the controls a
+  panel draws, a 64 px compact sidebar, `OiFieldDisplayThemeData`, the
+  `gabelNumeric*Style` amount styles and the `gabelIconSources` icon table.
+  Select it with `theme: GabelTheme()`, or `theme.preset: gabel` in `beak.yaml`.
+- The package bundles Mona Sans and JetBrains Mono, with their Extended cuts
+  and SIL Open Font License texts, in `lib/fonts/`. Every family is named
+  `packages/beak_theme_gabel/<family>`, so an app declares no fonts, and
+  `GabelTheme` adds the licences to the app's licence page once.
+  `package:beak_theme_gabel/testing.dart` exports `loadGabelFonts()` for
+  widget tests and goldens.
+- `beak` does not depend on it, so a panel that keeps the stock theme ships none
+  of the fonts (about 360 KB). The Foodio example uses the package in place of
+  its own copy of the theme.
 
 ### Changed
 
+- Breaking: the form layout `BeakColumns` is `BeakRow`, named after the axis
+  it lays out. It still wraps to one column when the width is too narrow.
+- Breaking: the definition annotation `ServerpodModel` is
+  `ServerpodAdminModel`, leaving the bridge model `ServerpodModel` as the only
+  type with that name. `ServerpodAdminModel.editable()` replaces
+  `ServerpodModel.editable()`.
+- `@Display()` on a translations `@HasMany` reads the target's `@Display` field
+  in the panel language. The generated relation carries the resolver, so a
+  category picker no longer shows `createdAt` for a row whose text lives in
+  `product_category_translation`.
+- Breaking: `@ServerpodAdminModel(commands:)` is a `List<BeakCommand>`, not a
+  `List<String>`. `BeakCommand('cancelOrder')` keeps a command without input;
+  `BeakCommand('addRole', input: AccountRoleCommand)` links a `@CommandInput`
+  and gives the generated handler a typed `AccountRoleCommandWrite` with
+  `write.input`.
+- Breaking: `BeakServerpodEngine.admitted` requires `handlers:`. It also refuses
+  an aggregate that returns no write bindings while a model admits writes,
+  instead of silently saving that model the stock way.
+- Breaking: `BeakResource.standard(model, title)` takes `title:` as an optional
+  named parameter; without it the title is the model's plural label. Its form
+  card and first tab are Beak's General, not the title.
+- Breaking: `runServerpodBeakAdmin(config:)` is
+  `BeakPanelConfig Function(BuildContext context, BeakAuthAdapter auth)`.
+- Breaking: `BeakModelAction.label` is the declared label only; the panel shows
+  `model.actionLabelOf(action)`.
+- `BeakTableColumn.field`, field filters and `BeakFormattedField` read their
+  field's label when shown instead of copying it, so they follow the panel's
+  language. `BeakGlobalAction.openList` and `BeakListDefinition.recordNoun`
+  default to the model's plural label; a choice filter's `allLabel` and the
+  filter sheet's record noun are Beak's own words.
+- A field reached through a relationship that shows the related record's
+  display column reads as the relationship (`role.displayName` reads "Role").
+
+- **Breaking, `beak_frontend`: one theme value.** `BeakPanelConfig.theme` and
+  `BeakPanel(theme:)` take a `BeakTheme` and replace the `theme` and `darkTheme`
+  pair, so a panel cannot get a dark mode that is not part of its look. Wrap the
+  two themes you had: `BeakTheme(light: lightTheme, dark: darkTheme)`. In a
+  generated panel, `lib/theme.dart` declares one `BeakTheme beakTheme()` in
+  place of `beakLightTheme()` and `beakDarkTheme()`, and `beak eject theme`
+  writes it. `beak prepare` and `beak doctor` refuse a `lib/theme.dart` that
+  still declares the old pair, and name the replacement.
 - **Breaking, `beak_frontend`: one way to configure a resource.** `BeakResource`
   loses `label`, `section`, `detail`, `viewModes`, `createFields`, `editFields`,
   `createBuilder`, `editBuilder`, `formValueMode`, `createModel`, `editModel`,
@@ -526,6 +775,20 @@ migration table at the end collects the common ones.
   typed `field:` instead of a column. `BeakPanel.fromConfig` is removed (the
   `config:` parameter stays); the form controller types are no longer exported;
   `TableViewModel` is `BeakTableViewModel`.
+- **Breaking, `beak_core`: permissions are data.** `BeakPermissions` no longer
+  takes a map of closures. It is `BeakPermissions(read:, write:, create:,
+  update:, delete:, actions:)`, a constant `BeakAccess` per operation checked
+  against a `BeakPrincipal` with `allows(operation, principal)` and
+  `allowsAction(action, principal)`, so the panel and the server read one
+  value. `create`, `update` and `delete` default to `write`, a command to
+  `update`, and an operation with no access value is denied.
+  `BeakPermissions.allowAll()` stays the default of a model. Replace
+  `BeakPermissions({BeakOperation.read: () => true})` with
+  `const BeakPermissions(read: BeakAccess.anyone)`.
+- **Breaking, `beak_core` and `beak_backend`: `BeakAccess` and `BeakPrincipal`
+  move.** They are defined in `beak_core` now. `package:beak/beak.dart` and
+  `package:beak/server.dart` both export them, so an import of either keeps
+  compiling.
 - **Breaking, `beak_frontend`: the panel shorthand and its checks.**
   `BeakPanel.title` and `apiBaseUrl` are nullable (`Beak`, and the
   `BEAK_API_BASE_URL` define else `http://localhost:8080`). `config:` together
@@ -685,9 +948,68 @@ migration table at the end collects the common ones.
   `127.0.0.1`. The corrections table of the agent docs takes its heading from
   the version, a missing table fails `check-agent-docs`, and a removed symbol is
   proven gone against public declarations, the vendored worm packages excluded.
+- **Serverpod 4.0.4.** `examples/serverpod` and the pinned CLI in
+  `tool/serverpod_cli_4` move from 4.0.3 to 4.0.4, and the generated client and
+  protocol are unchanged. The declared `>=4.0.3 <5.0.0` ranges stay.
+- **`analyzer >=13.1.0 <15.0.0` and `dart_style ^3.1.14` in `beak_cli` and
+  `beak_serverpod_generator`** (were `^8.4.0` and `^10.0.1`, and `^3.1.0`), the
+  range `analysis_server_plugin ^0.3.18` resolves to. Each package reads the
+  analyzer through one file (`lib/src/analyzer_syntax.dart` and
+  `lib/src/analyzer_shim.dart`), so the next major changes one file. Both
+  suites pass on analyzer 13.3.0 and 14.7.0.
+- **Generated code is formatted for Dart 3.13 unless told otherwise.**
+  `BeakEmitters.format` takes an optional `languageVersion` and
+  `BeakEmitters.defaultLanguageVersion` replaces `BeakEmitters.languageVersion`
+  (3.11). `generateServerpodCompanions` takes the same parameter, where it used
+  the installed `dart_style`'s newest version. The examples are regenerated:
+  a blank line now separates `package:` imports from relative ones.
+- **Breaking, Dart `^3.12` and Flutter `>=3.44` for the panel packages.**
+  `beak_frontend`, `beak`, `beak_serverpod_flutter`, the `beak create` scaffold and
+  the examples move from `^3.11.0` and `>=3.41.0`, because go_router 18 needs
+  them. The pure-Dart packages stay at `^3.11.0`. Two constructors
+  (`BeakNavigationItem.resource` and `.screen`) and `BeakTableViewModel` take their
+  private fields as private named parameters, which Dart 3.12 allows.
+- **`go_router ^18.1.1` and `signals ^7.1.0`** in `beak_frontend`,
+  `beak_serverpod_flutter` and the examples (were `^17.3.0` and `^6.3.0`). Beak's own
+  use of go_router needed no change. signals 7 deprecates `Watch`, so the panel
+  builds its reactive subtrees with `SignalBuilder`.
+- **`beak_image` takes `image ^4.9.2`**, where it pinned 4.9.1 exactly. image 4.9.1
+  needed `xml ^7`; from 4.9.2 it does not need xml at all, so a project that keeps
+  `xml ^6` for another package no longer needs an override. Tested at 4.9.2 and
+  4.12.0.
+- **The vendored worm tooling leaves the legacy stack.** `worm_lints` is an
+  analyzer plugin on `analysis_server_plugin ^0.3.18`, named under `plugins:` in
+  `analysis_options.yaml`, where it was a `custom_lint` rule whose runner crashed
+  `dart analyze` at the repository root; `custom_lint` is gone from `worm`.
+  `worm_generator` moves to `build ^5`, `source_gen ^4.3.1`, `build_runner ^2.17.1`
+  and `analyzer ^14` (were `^2.4`, `^1.5`, `^2.4` and `^6`), and `worm_mongodb` to
+  `mongo_dart ^0.10.10` (was `^0.9`).
 
 ### Removed
 
+- **Breaking, Serverpod admin.** The YAML inventory and the generated schema
+  package: `generate.output`, `generate.inventory` and `generate.writes` are
+  refused with a pointer to the definition classes, which replace them. Write
+  one `@Resource` + `@ServerpodModel` class per inventory entry in the
+  definitions package; each writable model has its own write binding instead
+  of a shared one.
+- **Breaking.** `BeakDefinitions`, `BeakModelDefinition`,
+  `BeakModelRegistry.of(models, definitions:)` and `BeakPanelConfig.definitions`.
+  A definition class declares `static get behavior` and
+  `static get validationRules`, and its generated part forwards to them.
+- **Breaking.** `BeakServerpodEngine.admitted(definitions:, writes:)`: pass
+  `handlers:` (the generated `<Prefix>Handlers`). A hand-written
+  `BeakWriteBindings` switch over the write enum becomes the generated
+  aggregate and one handler class per model that runs custom code.
+
+- `BeakLabels.current` and the `BeakLabels` `field`, `enumValue` and `action`
+  callbacks, and `BeakPanelConfig.labels`. Labels come from the model's
+  translations instead; `BeakLabels.language` is the panel's language.
+
+- **Breaking.** `WormDataSource.softDeleteColumnKey` and
+  `BeakResourceService.createdAtColumnKey` / `updatedAtColumnKey`: use
+  `BeakModel.deletedAtColumnKey`, `.isDeletedColumnKey`, `.createdAtColumnKey`
+  and `.updatedAtColumnKey`, which a model configures.
 - **Breaking, examples.** `examples/store`, `examples/superdashboard` and
   `examples/embedded` are gone, with their CI, deployment files and tutorial
   references. `examples/quickstart` stays, byte-identical to `beak create`
@@ -1181,6 +1503,9 @@ From the pre-0.9 line, the renames people meet first:
 
 | Before | Now |
 | --- | --- |
+| `BeakPanelConfig(labels: BeakLabels(field: ..., enumValue: ...))` | Label files in `beak.yaml` `labels:`, see [Labels in every language](docs/panel/labels.md) |
+| `BeakResource.standard(model, 'Products')` | `BeakResource.standard(model)`, or `title: 'Products'` |
+| `runServerpodBeakAdmin(config: (auth) => ...)` | `config: (context, auth) => ...` |
 | `@Column(maxLength: 80)`, `min:`, `max:` | `rules: [BeakMaxLength(80)]`, `[BeakMin(n)]`, `[BeakMax(n)]` |
 | `@BelongsTo(searchOn: ['email'])` | `@BelongsTo(searchOn: [#email])` |
 | `BeakResource(label:, section:)`, `BeakScreen(label:, section:)` | `title:`, `navigationTitle:`, `navigationGroup:` |
@@ -1190,6 +1515,7 @@ From the pre-0.9 line, the renames people meet first:
 | `graphOnlyTables: {'orders'}` | `graphOnly: [OrderModel()]` |
 | `initializeWormPostgres` | `initializeBeakDatabase` |
 | `BeakKpiBlock` | `BeakMetricBlock(previous:, target:, format:)` |
+| `theme: light, darkTheme: dark`, `beakLightTheme()` and `beakDarkTheme()` | `theme: BeakTheme(light: light, dark: dark)`, `BeakTheme beakTheme()` |
 | `BeakWizardBlock` | `BeakWizardScreen` |
 | `lib/dashboard.dart` `beakDashboard()` | A `BeakScreen` with `path: '/'` under `lib/screens/` |
 | `lib/resources/<table>.dart` `beakResource()` override | A `BeakResource` subclass (`beak eject resource <table>`) |
@@ -1198,6 +1524,9 @@ From the pre-0.9 line, the renames people meet first:
 | `MinioS3ObjectClient(minio: ...)`, `dependency_overrides: xml` | `HttpS3ObjectClient(httpClient: ...)`, no override |
 | A `switch` over `BeakException` | Add arms for `BeakInternalException`, `BeakPayloadTooLargeException` and `BeakTransportException` |
 | `beak make:resource --fields price:decimal` (a `double`) | `price:double` for a `double`; `price:decimal` is a `BeakDecimal` now |
+| `generate: {output:, inventory:, writes:}` and `definitions/resources/*.yaml` | `generate: {definitions:, handlers:}` and one `@Resource` + `@ServerpodModel` class per model, see [Generating the admin from definition classes](docs/serverpod/admin-app/generate.md) |
+| `BeakModelDefinition(model, behavior:, rules:)` in a `BeakDefinitions` list | `static get behavior` and `static get validationRules` on the definition class |
+| `BeakServerpodEngine.admitted(definitions:, writes: BeakWriteBindings(...))` | `admitted(handlers: ShopHandlers(order: OrderAdminHandler()))` |
 
 #### Migrating from beak_serverpod 0.0.x
 

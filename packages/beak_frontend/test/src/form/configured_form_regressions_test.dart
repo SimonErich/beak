@@ -39,6 +39,44 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('localized edit controls wrap within a narrow page header', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(375, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      OiApp(
+        theme: OiThemeData.light(),
+        locale: const Locale('de'),
+        localizationsDelegates: const [BeakLocalizations.delegate],
+        supportedLocales: BeakLocalizations.supportedLocales,
+        home: BeakConfiguredForm(
+          model: const NoteFormModel(),
+          dataSource: dataSource,
+          recordId: 'n1',
+          submitLabel: 'Zahlung bestätigen',
+          frameBuilder: (context, session, mode, actions, body) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              children: [
+                OiPageHeader(
+                  title: 'Rechnung',
+                  actions: [actions],
+                  padding: EdgeInsets.zero,
+                ),
+                Expanded(child: body),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Abbrechen'), findsOneWidget);
+    expect(find.text('Zahlung bestätigen'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   group('create mode', () {
     testWidgets('unmounting during a save ignores the late response', (
       tester,

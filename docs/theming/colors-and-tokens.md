@@ -1,6 +1,6 @@
 ---
 title: Colors and tokens
-description: How the seven BeakColor names resolve to theme colors on badges, buttons, boards and charts, and how to build a full palette from a design system.
+description: How the seven BeakColor names resolve to theme colors on badges, buttons, boards and charts, and how Gabel builds a full palette from a design system.
 type: guide
 audience: [expert]
 status: stable
@@ -8,7 +8,7 @@ status: stable
 
 # Colors and tokens
 
-Beak has two color vocabularies. Your schema and your blocks speak in seven semantic names, `BeakColor`. The theme speaks in tokens: swatches, surfaces, text and border colors. This page shows how a name becomes a token on each surface, so a badge does not come out the wrong color in a theme you built by hand, and how Foodio builds a complete palette from a design system's tokens.
+Beak has two color vocabularies. Your schema and your blocks speak in seven semantic names, `BeakColor`. The theme speaks in tokens: swatches, surfaces, text and border colors. This page shows how a name becomes a token on each surface, so a badge does not come out the wrong color in a theme you built by hand, and how the Gabel theme builds a complete palette from a design system's tokens.
 
 ## At a glance
 
@@ -69,38 +69,37 @@ So a status badge is drawn in `dark` on either a tinted `base` or `muted`. A swa
 
 ## A full palette from a design system
 
-Foodio's theme comes from a design file whose tokens have names like `canvas`, `sheet`, `ink` and `primary-soft`. The tokens live in two classes of named constants, one for light and one for dark:
+The Gabel theme (`beak_theme_gabel`, selected by Foodio, see [Built-in themes](built-in-themes.md)) comes from a design file whose tokens have names like `canvas`, `sheet`, `ink` and `primary-soft`. The tokens live in two classes of named constants, one for light and one for dark:
 
-```dart title="examples/foodio-adminpanel/lib/theme/gabel_tokens.dart"
-/// Exact light semantic colors from the supplied prototype.
+```dart title="packages/beak_theme_gabel/lib/src/tokens/gabel_light.dart"
 abstract final class GabelLight {
-  /// Prototype `canvas` token.
-  static const canvas = Color(0xFFF3F3F7);
-
-  /// Prototype `sheet` token.
-  static const sheet = Color(0xFFFEFEFF);
+  /// Page background, panel, recessed well and popover surfaces.
+  static const canvas = Color(0xFFF3F3F7),
+      sheet = Color(0xFFFEFEFF),
+      well = Color(0xFFF6F7FA),
+      overlay = Color(0xFFFFFFFF);
   // ...
 }
 ```
 
-`gabelTheme({bool dark})` picks one class by brightness and maps its tokens onto the obers_ui slots. First a helper that turns a design's three colors into a swatch, with `dark` deliberately set to the ink color so soft badges read well:
+`GabelPalette(dark:)` picks one class by brightness, and `gabelColors` maps its tokens onto the obers_ui slots. First a helper that turns a design's three colors into a swatch, with `dark` deliberately set to the ink color so soft badges read well:
 
-```dart title="examples/foodio-adminpanel/lib/theme/gabel_theme.dart"
---8<-- "examples/foodio-adminpanel/lib/theme/gabel_theme.dart:gabelSwatch"
+```dart title="packages/beak_theme_gabel/lib/src/gabel_colors.dart"
+--8<-- "packages/beak_theme_gabel/lib/src/gabel_colors.dart:gabelSwatch"
 ```
 
 Then the whole `OiColorScheme`, copied from the stock theme and overridden slot by slot:
 
-```dart title="examples/foodio-adminpanel/lib/theme/gabel_theme.dart"
---8<-- "examples/foodio-adminpanel/lib/theme/gabel_theme.dart:gabelColors"
+```dart title="packages/beak_theme_gabel/lib/src/gabel_colors.dart"
+--8<-- "packages/beak_theme_gabel/lib/src/gabel_colors.dart:gabelColors"
 ```
 
-Read the mapping as a table of your own: the design's `canvas` is `background`, `sheet` is `surface`, `well` is `surfaceSubtle`, `fill-hover` and `fill-press` are `surfaceHover` and `surfaceActive`, `scrim` is `overlay`, `ink` is `text`, `line` is `borderSubtle`, and each status swatch takes the color's `-ink` token as `base` and `dark`, and its `-soft` token as `light` and `muted`. The six `chart` colors are a list in series order. Everything the design does not name (`glassBackground`, `glassBorder`) keeps the stock value, because the code starts from `base.colors.copyWith(...)`.
+Read the mapping as a table of your own: the design's `canvas` is `background`, `sheet` is `surface`, `well` is `surfaceSubtle`, `fill-hover` and `fill-press` are `surfaceHover` and `surfaceActive`, `scrim` is `overlay`, `ink` is `text`, `line` is `borderSubtle`, and each status swatch takes the color's `-ink` token as `base` and `dark`, and its `-soft` token as `light` and `muted`. The six `chart` colors are a list in series order. Everything the design does not name (`glassBackground`, `glassBorder`) keeps the stock value, because the code starts from `base.copyWith(...)`.
 
-The panel receives the result as `theme: gabelTheme()` and `darkTheme: gabelTheme(dark: true)`:
+`GabelTheme` builds the two results with `buildGabelTheme(dark:)` and the panel receives them as one value, `theme: GabelTheme()`:
 
 ```dart title="examples/foodio-adminpanel/lib/main.dart"
---8<-- "examples/foodio-adminpanel/lib/main.dart:foodioThemes"
+--8<-- "examples/foodio-adminpanel/lib/main.dart:foodioTheme"
 ```
 
 ## Rules and limits
@@ -124,7 +123,7 @@ every BeakColor maps onto an obers badge color
 All tests passed!
 ```
 
-Nothing tests Foodio's dark palette. Run Foodio, switch to dark, and look at a status badge and a chart.
+The Gabel package keeps a golden of a small showcase in each mode (`packages/beak_theme_gabel/test/goldens`), which catches a palette that drifts. It does not measure contrast, so run Foodio, switch to dark, and look at a status badge and a chart.
 
 ## Reference
 
@@ -141,6 +140,7 @@ Nothing tests Foodio's dark palette. Run Foodio, switch to dark, and look at a s
 ## Continue reading
 
 - [Typography and icons](typography-and-icons.md) the type ramp and the icon set, themed the same way.
+- [Built-in themes](built-in-themes.md) select the Gabel design instead of rebuilding it.
 - [Theming basics](theming-basics.md) where the theme goes and how the toggle works.
 - [Charts](../blocks/charts.md) the chart palette in use.
 - [Semantic fields](../models/semantic-fields.md) money, percentages and units, which format independently of color.

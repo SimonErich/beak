@@ -10,8 +10,8 @@ issue_tracker: https://github.com/SimonErich/beak/issues
 topics: [admin-panel, flutter, low-code, crud]
 
 environment:
-  sdk: ^3.11.0
-  flutter: '>=3.41.0'
+  sdk: ^3.12.0
+  flutter: '>=3.44.0'
 
 dependencies:
   beak_backend:
@@ -30,17 +30,17 @@ dependencies:
   obers_ui:
     git:
       url: https://github.com/SimonErich/obers_ui
-      ref: c956d25634c93e23847ec5a4150c1d62fe3a7c90
+      ref: 2cecec0f724cfc0b2cdd36aae46396960008f80e
   obers_ui_autoforms:
     git:
       url: https://github.com/SimonErich/obers_ui
       path: packages/obers_ui_autoforms
-      ref: c956d25634c93e23847ec5a4150c1d62fe3a7c90
+      ref: 2cecec0f724cfc0b2cdd36aae46396960008f80e
   obers_ui_charts:
     git:
       url: https://github.com/SimonErich/obers_ui
       path: packages/obers_ui_charts
-      ref: c956d25634c93e23847ec5a4150c1d62fe3a7c90
+      ref: 2cecec0f724cfc0b2cdd36aae46396960008f80e
   worm:
     path: ../worm
 

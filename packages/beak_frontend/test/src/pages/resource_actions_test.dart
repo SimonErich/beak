@@ -29,11 +29,15 @@ final class _Model extends BeakModel {
   @override
   List<BeakColumn> get columns => const NoteModel().columns;
 
+  /// Answers with the deletion rule the test currently wants, so a test can
+  /// revoke the permission while the panel is mounted.
   @override
-  BeakPermissions get permissions => BeakPermissions({
-    BeakOperation.read: () => true,
-    BeakOperation.delete: canDelete,
-  });
+  BeakPermissions get permissions => canDelete()
+      ? const BeakPermissions(
+          read: BeakAccess.anyone,
+          delete: BeakAccess.anyone,
+        )
+      : const BeakPermissions(read: BeakAccess.anyone);
 }
 
 final class _Source extends FakeDataSource {

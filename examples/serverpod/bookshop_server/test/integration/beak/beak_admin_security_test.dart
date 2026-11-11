@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_serverpod/wire.dart';
 import 'package:beak_serverpod_server/beak_serverpod_server.dart';
-import 'package:bookshop_beak/bookshop_beak.dart';
+import 'package:bookshop_definitions/bookshop_definitions.dart';
 import 'package:bookshop_server/src/beak/bookshop_scopes.dart';
 import 'package:bookshop_server/src/generated/protocol.dart' as sp;
 import 'package:serverpod/serverpod.dart' show Scope;
@@ -92,7 +92,9 @@ void main() {
             'POST',
             '/api/author/query',
             json: const AuthorModel()
-                .query(relationLoads: [BeakRelationLoad('books')])
+                .query(
+                  relationLoads: [BeakRelationLoad(AuthorRelations.book.key)],
+                )
                 .toJson(),
           ),
           'one': await staff.call('GET', '/api/book/${bookId()}'),
@@ -102,11 +104,6 @@ void main() {
             json: {
               'ids': [bookId()],
             },
-          ),
-          'patch': await staff.call(
-            'PATCH',
-            '/api/book/${bookId()}',
-            json: {'stock': 2},
           ),
           'commit': await staff.call(
             'POST',
@@ -156,21 +153,46 @@ void main() {
     });
 
     group('a client cannot write it', () {
-      test('create, update and graph commit refuse the column', () async {
+      test('create and update graph commits refuse the column', () async {
+        const draft = BeakRecordRef.draft('book', 'book');
         final create = await staff.call(
           'POST',
-          '/api/book',
-          json: {
-            'title': 'Smuggled',
-            'isbn': 'smuggled-1',
-            'format': 'ebook',
-            'priceInCents': 100,
-            'stock': 1,
-            'authorId': catalog.tove.id,
-            'supplierCostInCents': 1,
-          },
+          '/api/commits',
+          json: BeakSavePlan(
+            saveId: 'leak-create',
+            root: draft,
+            operations: [
+              BeakSaveOperation(
+                id: 'book',
+                kind: BeakSaveOperationKind.create,
+                target: draft,
+                values: const BeakRecord(
+                  values: {
+                    'title': BeakStringValue('Smuggled'),
+                    'isbn': BeakStringValue('smuggled-1'),
+                    'format': BeakStringValue('ebook'),
+                    'priceInCents': BeakIntValue(100),
+                    'stock': BeakIntValue(1),
+                    'supplierCostInCents': BeakIntValue(1),
+                  },
+                ),
+                references: {
+                  'authorId': BeakRecordRef.existing(
+                    'author',
+                    catalog.tove.id!,
+                  ),
+                },
+              ),
+            ],
+          ).toJson(),
         );
-        expect(create.status, 422, reason: create.body);
+        expect(
+          create.status == 200
+              ? BeakSaveResult.fromJson(_json(create)).complete
+              : false,
+          isFalse,
+          reason: create.body,
+        );
         expect(
           await sp.Book.db.count(
             sessionBuilder.build(),
@@ -178,13 +200,6 @@ void main() {
           ),
           0,
         );
-
-        final patch = await staff.call(
-          'PATCH',
-          '/api/book/${bookId()}',
-          json: {'supplierCostInCents': 1},
-        );
-        expect(patch.status, 422, reason: patch.body);
 
         final commit = await staff.call(
           'POST',

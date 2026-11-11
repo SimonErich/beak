@@ -9,7 +9,7 @@ search: {boost: 2}
 
 # Packages
 
-Twenty packages live under `packages/`: thirteen Beak packages and seven vendored worm packages. An app installs one of them, `beak`. This page says what the others are, what they depend on, and which you add yourself.
+Twenty-one packages live under `packages/`: fourteen Beak packages and seven vendored worm packages. An app installs one of them, `beak`. This page says what the others are, what they depend on, and which you add yourself.
 
 ## Import
 
@@ -46,10 +46,12 @@ Every package has `publish_to: none`. Nothing is on pub.dev yet, so a git depend
 | `beak_backend` | 0.9.0 | Dart VM | server | never; it comes with `beak` |
 | `beak_frontend` | 0.9.0 | Flutter | panel | never; it comes with `beak` |
 | `beak_test` | 0.9.0 | pure Dart | tests | never in an app; it comes with `beak` as `testing.dart` |
+| `beak_test_flutter` | 0.9.0 | Flutter | tests | the widget-side helpers, including `beakRouteSweep` |
 | `beak_cli` | 0.9.0 | Dart VM | dev machine | never as a dependency; `dart pub global activate` |
 | `beak_image` | 0.9.0 | pure Dart | server | never; `beak_backend` depends on it |
 | `beak_storage_s3` | 0.9.0 | pure Dart | server | when uploads live in S3 or MinIO |
 | `beak_storage_ftp` | 0.9.0 | pure Dart | server | when uploads live on an FTP host |
+| `beak_theme_gabel` | 0.9.0 | Flutter | panel | to select the Gabel theme; `beak` does not depend on it |
 | `beak_serverpod` | 0.9.0 | pure Dart | both | for the client bridge |
 | `beak_serverpod_flutter` | 0.9.0 | Flutter | panel | in a Serverpod admin app or bridge panel |
 | `beak_serverpod_server` | 0.9.0 | Dart VM, Serverpod 4 | server | in a Serverpod server that hosts the admin |
@@ -90,6 +92,7 @@ A pubspec dependency costs nothing on its own, since only imports reach the comp
 | `beak_image` | `ImageTransformRunner`: executes the resize, re-encode and thumbnail steps of an image column. `beak_core` defines the steps and ships no codec. | `beak_core` | `image` |
 | `beak_storage_s3` | `S3StorageDriver` for AWS S3 and MinIO, `registerS3Storage`. It signs its own requests (SigV4) over `http` and `crypto`, so it drags in no S3 SDK | `beak_core` | `http`, `crypto` |
 | `beak_storage_ftp` | `FtpStorageDriver` over plain sockets, `registerFtpStorage`. FTP has no expiring links, so files are served from a configured public base URL. | `beak_core` | none |
+| `beak_theme_gabel` | `GabelTheme`, a `BeakTheme` with the Gabel color tokens, type ramp, component themes and icons, and the Mona Sans and JetBrains Mono fonts (about 360 KB) with their licences. Not a dependency of `beak`, so a panel that does not select it ships none of the fonts. See [Built-in themes](../theming/built-in-themes.md). | `beak_frontend` | `obers_ui` |
 
 The `memory` and `local` storage drivers are in `beak_core`, so uploads work with no extra dependency. `beak_backend` depends on no driver package; an S3 or FTP project adds the package and registers it, see [Configuration and environment](configuration.md).
 
@@ -102,9 +105,9 @@ Two supported paths, four packages. See [Choosing an integration](../serverpod/c
 | `beak_serverpod` | bridge, admin app | `ServerpodResource`, `ServerpodDataSource`, the codecs, and the tunnel wire types (`wire.dart`) | `beak_core` | `http`, `uuid` |
 | `beak_serverpod_flutter` | bridge, admin app | `ServerpodAuthAdapter`, `serverpodBeakDataSource`, the panel side of the tunnel | `beak_core`, `beak_frontend`, `beak_serverpod` | `serverpod_client`, `serverpod_auth_core_flutter`, `serverpod_auth_idp_client` (each `>=4.0.3 <5.0.0`), `signals` |
 | `beak_serverpod_server` | admin app | `BeakServerpodEngine`, `BeakAdminGate`, `ServerpodSessionAdapter`; runs Beak inside a Serverpod 4 server. Needs Dart ^3.12.2. | `beak_backend`, `beak_core`, `beak_serverpod` | `serverpod` (`>=4.0.3 <5.0.0`), `shelf`, `worm`, `worm_postgres` |
-| `beak_serverpod_generator` | bridge | `generateServerpodCompanions` and `bin/generate.dart`, which turn a generated Serverpod client into typed Beak companions. Imports no Beak package at run time; `beak_core` and `beak_serverpod` are dev dependencies for its tests. | none | `analyzer`, `args`, `dart_style`, `path`, `yaml` |
+| `beak_serverpod_generator` | bridge | `generateServerpodCompanions` and `bin/generate.dart`, which turn a generated Serverpod client into typed Beak companions. Imports no Beak package at run time; `beak_core` and `beak_serverpod` are dev dependencies for its tests. | none | `analyzer`, `args`, `dart_style`, `path`, `pub_semver`, `yaml` |
 
-The pinned Serverpod CLI is `tool/serverpod_cli_4`: a package that depends on `serverpod_cli: 4.0.3`, with a `serverpod` wrapper beside it, so a globally activated older CLI cannot generate the wrong code. Version rules are on [Version compatibility](../serverpod/versions.md).
+The pinned Serverpod CLI is `tool/serverpod_cli_4`: a package that depends on `serverpod_cli: 4.0.4`, with a `serverpod` wrapper beside it, so a globally activated older CLI cannot generate the wrong code. Version rules are on [Version compatibility](../serverpod/versions.md).
 
 ## Dependency graph
 
@@ -117,9 +120,11 @@ flowchart TD
   backend[beak_backend]
   frontend[beak_frontend]
   testkit[beak_test]
+  testkitf[beak_test_flutter]
   image[beak_image]
   s3[beak_storage_s3]
   ftp[beak_storage_ftp]
+  gabel[beak_theme_gabel]
   cli[beak_cli]
   sp[beak_serverpod]
   spf[beak_serverpod_flutter]
@@ -141,9 +146,12 @@ flowchart TD
   backend --> wsq
   frontend --> core
   testkit --> core
+  testkitf --> testkit
+  testkitf --> frontend
   image --> core
   s3 --> core
   ftp --> core
+  gabel --> frontend
   cli --> worm
   cli --> wpg
   cli --> wsq
@@ -188,9 +196,9 @@ Five runnable projects under `examples/`. The docs quote them instead of inventi
 | --- | --- | --- | --- | --- |
 | `examples/quickstart` | Byte-for-byte what `beak create` writes: one `Note` resource. The floor. | 8080 | any (`beak dev` prints the run line) | in the gate |
 | `examples/clean_beak_config` | The shop: schema classes with semantic fields and exact money, resources, form screens, named actions, graph preparer, custom screens. The main teaching source. | 8080 | 3000 | in the gate |
-| `examples/foodio-adminpanel` | Gabel food-ordering admin: composed lists, wizard, record templates, summaries, printable documents, durable effects, custom navigation and theme. | 8081 | 3002 | in the gate |
+| `examples/foodio-adminpanel` | Gabel food-ordering admin: composed lists, wizard, record templates, summaries, printable documents, durable effects, custom navigation and the Gabel theme. | 8081 | 3002 | in the gate |
 | `examples/showcase` | The Aviary: every block, every column kind, every relation kind, soft deletes. Exists to fill the gaps the others leave. | 8082 | 3003 | in the gate |
-| `examples/serverpod` | Bookshop: a Serverpod 4.0.3 workspace with an admin app. Beak's API runs inside the Serverpod server behind one endpoint, so there is no separate Beak port; Serverpod's API is on 8080. | 8080 (Serverpod) | 8095 (admin) | ignored: its own pub workspace |
+| `examples/serverpod` | Bookshop: a Serverpod 4.0.4 workspace with an admin app. Beak's API runs inside the Serverpod server behind one endpoint, so there is no separate Beak port; Serverpod's API is on 8080. | 8080 (Serverpod) | 8095 (admin) | ignored: its own pub workspace |
 
 The quickstart and the shop both use API port 8080; run one at a time or change `server.port` in `beak.yaml`. Ports come from each example's `beak.yaml` and README.
 
@@ -202,10 +210,10 @@ Beak pins `obers_ui`, `obers_ui_autoforms` and `obers_ui_charts` by git commit, 
   obers_ui:
     git:
       url: https://github.com/SimonErich/obers_ui
-      ref: c956d25634c93e23847ec5a4150c1d62fe3a7c90
+      ref: 2cecec0f724cfc0b2cdd36aae46396960008f80e
 ```
 
-Two pubspecs declare the three dependencies: `packages/beak/pubspec.yaml` and `packages/beak_frontend/pubspec.yaml`. Examples and apps get them through `beak`. `test/obers_ui_pin_test.dart` fails if a pubspec under `packages/` or `examples/` points at a path above the repo root, or if the SHA differs anywhere. To work against a local checkout run `melos run link-obers-ui`, see [Working with obers_ui](../contributing/working-with-obers-ui.md).
+Two pubspecs declare the three dependencies: `packages/beak/pubspec.yaml` and `packages/beak_frontend/pubspec.yaml`. `packages/beak_theme_gabel/pubspec.yaml` declares `obers_ui` alone, with the same ref. Examples and apps get them through `beak`. `test/obers_ui_pin_test.dart` fails if a pubspec under `packages/` or `examples/` points at a path above the repo root, or if the SHA differs anywhere. To work against a local checkout run `melos run link-obers-ui`, see [Working with obers_ui](../contributing/working-with-obers-ui.md).
 
 ## Versions
 
@@ -262,7 +270,7 @@ Contributor detail is in [Dev infrastructure](../contributing/dev-infrastructure
 - Only `beak_backend` imports worm on the data path. `beak_cli` and `beak_serverpod_server` name worm for their own reasons, and `beak` re-exports it in `migrations.dart`.
 - `beak_frontend` is the only package that imports obers_ui for widgets. `beak` depends on the three obers_ui packages only to re-export them.
 - Storage drivers are plug-ins. A project that never adds `beak_storage_s3` never resolves it, and adding it next to `beak` needs no `dependency_overrides`.
-- Dart ^3.11.0 everywhere, Flutter `>=3.41.0` for the Flutter packages, Dart ^3.12.2 for `beak_serverpod_server` because Serverpod 4.0.3 requires it.
+- Dart ^3.11.0 for the pure-Dart packages, Dart ^3.12.0 and Flutter `>=3.44.0` for the Flutter packages and the examples (go_router 18 requires them), Dart ^3.12.2 for `beak_serverpod_server` because Serverpod 4.0.4 requires it.
 
 ## Source
 

@@ -105,6 +105,8 @@ final class BeakColumnIr {
     this.declaredValueType,
     this.arguments = const {},
     this.docComment,
+    this.omitFromValues = false,
+    this.enumValueNames = const [],
   });
 
   /// The Dart field this column came from.
@@ -125,6 +127,10 @@ final class BeakColumnIr {
   /// For [BeakColumnKind.enumeration], the enum's Dart type name.
   final String? enumTypeName;
 
+  /// For [BeakColumnKind.enumeration], the names of the enum's values, so
+  /// their labels can be looked up (`orderStatus.pending`).
+  final List<String> enumValueNames;
+
   /// Semantic Dart type when it differs from its physical column reader.
   final String? declaredValueType;
 
@@ -133,6 +139,13 @@ final class BeakColumnIr {
 
   /// The field's own doc comment, carried onto the generated constant.
   final String? docComment;
+
+  /// Whether the constant is emitted but kept out of `columns`.
+  ///
+  /// A relation foreign key needs a column constant the admission can name,
+  /// yet must not become a model column: the relation picker owns that value,
+  /// and a second raw input would edit the same storage twice.
+  final bool omitFromValues;
 
   /// Whether `@Column(unique: true)` was declared.
   ///
@@ -177,6 +190,7 @@ final class BeakRelationIr {
     this.docComment,
     this.generateInverse = true,
     this.isRequired = false,
+    this.owned = false,
   });
 
   /// The Dart field this relationship came from.
@@ -225,6 +239,9 @@ final class BeakRelationIr {
 
   /// Whether the schema declares a non-nullable to-one relationship.
   final bool isRequired;
+
+  /// Whether the rows belong exclusively to their parent.
+  final bool owned;
 }
 
 /// One resource, as read from a schema class.
@@ -237,18 +254,30 @@ final class BeakSchemaIr {
     required this.columns,
     required this.relations,
     required this.displayColumnKey,
+    this.displayTranslationRelation,
+    this.displayTranslationColumn,
+    this.displayTranslationLocale,
     required this.softDeletes,
     required this.timestamps,
     required this.managesSchema,
+    this.createdAtColumnKey = 'created_at',
+    this.updatedAtColumnKey = 'updated_at',
+    this.deletedAtColumnKey = 'deleted_at',
+    this.isDeletedColumnKey,
     this.hasValidationRules = false,
     this.hasBehavior = false,
     this.hasPermissions = false,
     this.hasCapabilities = false,
     this.docComment,
+    this.labelKey,
   });
 
   /// The annotated class's name.
   final String className;
+
+  /// The key its labels are found under in the label files, when it is not
+  /// the lowerCamelCase [className] (`@Resource(labelKey: 'order')`).
+  final String? labelKey;
 
   /// Physical table name.
   final String table;
@@ -265,11 +294,34 @@ final class BeakSchemaIr {
   /// Key of the column representing a record.
   final String displayColumnKey;
 
+  /// The translation relation whose row names a record, or `null`.
+  final String? displayTranslationRelation;
+
+  /// The translation column with the text, when [displayTranslationRelation]
+  /// is set.
+  final String? displayTranslationColumn;
+
+  /// The translation column with the locale, when [displayTranslationRelation]
+  /// is set.
+  final String? displayTranslationLocale;
+
   /// Whether deletes write a marker.
   final bool softDeletes;
 
   /// Whether the schema carries created/updated stamps.
   final bool timestamps;
+
+  /// Physical creation timestamp key.
+  final String createdAtColumnKey;
+
+  /// Physical revision timestamp key.
+  final String updatedAtColumnKey;
+
+  /// Physical soft-delete timestamp key.
+  final String deletedAtColumnKey;
+
+  /// Optional boolean visibility flag.
+  final String? isDeletedColumnKey;
 
   /// Whether Beak owns this resource's schema.
   final bool managesSchema;
@@ -300,4 +352,129 @@ final class BeakSchemaIr {
 
   /// Generated typed-record name.
   String get recordClass => '${className}Record';
+}
+
+/// The reviewed write admission of one generated model.
+final class BeakAdmissionIr {
+  /// Creates an admission.
+  const BeakAdmissionIr({
+    this.writable = const [],
+    this.hidden = const [],
+    this.restoreKey = const [],
+    this.writeValue,
+    this.reason,
+    this.translationOwner,
+    this.translationLocale,
+  });
+
+  /// Field names a client may write.
+  final List<String> writable;
+
+  /// Field names that never leave the server.
+  final List<String> hidden;
+
+  /// Field names re-creating a soft-deleted row restores by.
+  final List<String> restoreKey;
+
+  /// The generated write-binding value, as Dart source, or `null`.
+  final String? writeValue;
+
+  /// Why writes are closed, for a read-only model.
+  final String? reason;
+
+  /// The owner foreign-key field of a translation table, if any.
+  final String? translationOwner;
+
+  /// The locale field of a translation table, if any.
+  final String? translationLocale;
+}
+
+/// The role-based access a generated model declares.
+final class BeakPermissionsIr {
+  /// Creates permissions.
+  const BeakPermissionsIr({
+    this.read = const [],
+    this.write = const [],
+    this.create,
+    this.update,
+    this.delete,
+  });
+
+  /// Roles that must all be held to read.
+  final List<String> read;
+
+  /// Roles that must all be held to write.
+  final List<String> write;
+
+  /// Roles for create, when narrower than [write].
+  final List<String>? create;
+
+  /// Roles for update, when narrower than [write].
+  final List<String>? update;
+
+  /// Roles for delete, when narrower than [write].
+  final List<String>? delete;
+}
+
+/// One generated model: its schema plus the reviewed facts the inventory adds.
+final class BeakGeneratedModel {
+  /// Creates a generated model.
+  const BeakGeneratedModel({
+    required this.schema,
+    required this.capabilities,
+    required this.permissions,
+    this.admission = const BeakAdmissionIr(),
+  });
+
+  /// Columns, relationships and table metadata.
+  final BeakSchemaIr schema;
+
+  /// The operations the panel may offer, by `BeakOperation` value name.
+  final Set<String> capabilities;
+
+  /// Who may do what.
+  final BeakPermissionsIr permissions;
+
+  /// The write admission.
+  final BeakAdmissionIr admission;
+}
+
+/// One value of a generated enum.
+final class BeakGeneratedEnumValue {
+  /// Creates a value with its property literals.
+  const BeakGeneratedEnumValue(this.name, this.properties);
+
+  /// The wire name.
+  final String name;
+
+  /// One Dart literal per property, in [BeakGeneratedEnum.properties] order.
+  final List<String> properties;
+}
+
+/// A Serverpod enum emitted as a standalone Dart enum.
+final class BeakGeneratedEnum {
+  /// Creates an enum.
+  const BeakGeneratedEnum({
+    required this.name,
+    required this.values,
+    this.properties = const {},
+  });
+
+  /// The enum name.
+  final String name;
+
+  /// The values, in order.
+  final List<BeakGeneratedEnumValue> values;
+
+  /// Property name to Dart type.
+  final Map<String, String> properties;
+}
+
+/// A non-persisted command input model.
+final class BeakGeneratedInput {
+  /// Creates an input model.
+  const BeakGeneratedInput(this.schema);
+
+  /// Its columns and relationships.
+  final BeakSchemaIr schema;
 }

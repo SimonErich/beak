@@ -16,8 +16,8 @@ You have a clone of Beak and a change in mind. This tab covers what sits between
 
 | You need | Version | Why |
 | --- | --- | --- |
-| Dart | `^3.11` | the SDK constraint of every package |
-| Flutter | stable, `>=3.41.0` | the panel, the umbrella package and the examples |
+| Dart | `^3.12` | the SDK constraint of the Flutter packages and the examples; the pure-Dart packages declare `^3.11` |
+| Flutter | stable, `>=3.44.0` | the panel, the umbrella package and the examples (go_router 18 needs it) |
 | Melos | exactly `6.3.3` | runs the gate scripts in `melos.yaml` |
 | Docker with Compose | any recent | optional, for the Postgres and MinIO suites only |
 | Python 3 | 3.14 in CI | optional, only to preview the docs |

@@ -17,6 +17,7 @@ import '../query/beak_value.dart';
 import '../relations/beak_relationship.dart';
 import 'beak_field_value.dart';
 import 'beak_model.dart';
+import 'beak_translation_display.dart';
 
 /// A model-owned field reference shared by queries, forms, and detail views.
 ///
@@ -103,13 +104,28 @@ class BeakScalarField<T extends Object> extends BeakFieldRef<T> {
   @override
   String get key => column.key;
 
+  /// The column's label, or the relationship's when the field shows the
+  /// related record's display column: `role.displayName` reads "Role".
   @override
-  String get label => column.label;
+  String get label => switch (path) {
+    [..., final last] when last.displayColumnKey == column.key => last.label,
+    _ => column.label,
+  };
 
   @override
   T? readFrom(BeakRecord record) {
     final owner = ownerRecord(record);
     if (owner == null) return null;
+    // Money on an integer column is stored in minor units: the Dart type is
+    // still `int`, so the semantic must not widen it to a decimal.
+    if (column case final BeakIntColumn intColumn
+        when intColumn.semantic.kind == BeakSemanticKind.money && T == int) {
+      final int? value = intColumn.readFrom(owner);
+      return switch (value) {
+        final T typed => typed,
+        _ => null,
+      };
+    }
     if (column.semantic.hasCodec) {
       return switch (column.semantic.tryDecode(owner[key])) {
         final T value => value,
@@ -358,7 +374,14 @@ class BeakToOneField extends BeakFieldRef<BeakRecord> {
   /// The eager load that brings this related record along with its root
   /// record, including every relationship on the [path] leading to it.
   BeakRelationLoad get relationLoad {
-    var load = BeakRelationLoad(key);
+    var load = BeakRelationLoad(
+      key,
+      nested: [
+        if (relation.displayTranslation
+            case final BeakTranslationDisplay display)
+          BeakRelationLoad(display.relationKey),
+      ],
+    );
     for (final step in path.reversed) {
       load = BeakRelationLoad(step.key, nested: [load]);
     }
@@ -431,6 +454,11 @@ class BeakToOneField extends BeakFieldRef<BeakRecord> {
         query: target.query(
           filter: filter,
           search: BeakSearch(search, relation.effectiveSearchColumnKeys),
+          relationLoads: [
+            if (relation.displayTranslation
+                case final BeakTranslationDisplay display)
+              BeakRelationLoad(display.relationKey),
+          ],
         ),
       );
 }

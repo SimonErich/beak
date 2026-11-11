@@ -1,8 +1,10 @@
 import 'package:flutter/widgets.dart';
 import 'package:obers_ui/obers_ui.dart';
+import 'package:signals/signals_flutter.dart';
 
 import '../blocks/beak_block.dart';
 import '../blocks/beak_block_host.dart';
+import '../panel/beak_panel_access.dart';
 import '../panel/beak_screen.dart';
 
 /// Renders a [BeakScreen]: its declarative [BeakBlock] body, optionally
@@ -20,21 +22,26 @@ class BeakScreenView extends StatelessWidget {
   final BeakScreen screen;
 
   @override
-  Widget build(BuildContext context) {
-    final body = BeakBlockHost(block: screen.body);
-    if (!screen.framed) {
-      return body;
-    }
-    return OiPageLayout(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-      gap: 16,
-      header: OiPageHeader(
-        title: screen.title,
-        titleVariant: OiLabelVariant.h1,
-        padding: EdgeInsets.zero,
-      ),
-      scrollable: true,
-      child: body,
-    );
-  }
+  Widget build(BuildContext context) => SignalBuilder(
+    builder: (context) {
+      if (!screen.isAccessibleTo(BeakPanelAccess.of(context))) {
+        return OiErrorPage.forbidden();
+      }
+      final body = BeakBlockHost(block: screen.body);
+      if (!screen.framed) {
+        return body;
+      }
+      return OiPageLayout(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+        gap: 16,
+        header: OiPageHeader(
+          title: screen.title,
+          titleVariant: OiLabelVariant.h1,
+          padding: EdgeInsets.zero,
+        ),
+        scrollable: true,
+        child: body,
+      );
+    },
+  );
 }

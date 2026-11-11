@@ -22,6 +22,24 @@ final class BeakModelRegistry {
   /// Creates an empty registry.
   BeakModelRegistry();
 
+  /// Builds a registry holding [models].
+  ///
+  /// The generated `models.dart` of a project calls this for its models:
+  ///
+  /// ```dart
+  /// final registry = BeakModelRegistry.of(shopModels);
+  /// ```
+  ///
+  /// Throws a [BeakConfigurationException] when two models share a table, or
+  /// when a model fails registration.
+  factory BeakModelRegistry.of(Iterable<BeakModel> models) {
+    final registry = BeakModelRegistry();
+    for (final model in models) {
+      registry.register(model);
+    }
+    return registry;
+  }
+
   final Map<String, BeakModel> _modelsByTable = {};
 
   /// Registers [model] under its table name.
@@ -41,6 +59,15 @@ final class BeakModelRegistry {
       );
     }
     model.behavior.validate(model);
+    final commands = {for (final action in model.behavior.actions) action.name};
+    for (final name in model.permissions.actions.keys) {
+      if (!commands.contains(name)) {
+        throw BeakConfigurationException(
+          'Model "${model.table}" grants access to the action "$name", which '
+          'its behavior does not declare.',
+        );
+      }
+    }
     const validation = BeakValidation();
     final defaults = validation.applyDefaults(
       model,

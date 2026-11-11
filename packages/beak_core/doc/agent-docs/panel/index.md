@@ -24,7 +24,11 @@ final routing = useMemoized(() {
         );
   return (
     container: container,
-    router: createBeakRouter(config, authRefresh: authRefresh),
+    router: createBeakRouter(
+      config,
+      authRefresh: authRefresh,
+      access: container<BeakPanelAccess>(),
+    ),
     authRefresh: authRefresh,
   );
   // The seams are part of the key: swapping a fake on rebuild used to
@@ -111,10 +115,12 @@ import 'resources/vouchers/voucher_resource.dart';
 void main() => runApp(
   BeakPanel(
     title: 'Clean Beak Shop',
-    theme: OiThemeData.fromBrand(color: const Color(0xFF315D91)),
-    darkTheme: OiThemeData.fromBrand(
-      color: const Color(0xFF82ACDF),
-      brightness: Brightness.dark,
+    theme: BeakTheme(
+      light: OiThemeData.fromBrand(color: const Color(0xFF315D91)),
+      dark: OiThemeData.fromBrand(
+        color: const Color(0xFF82ACDF),
+        brightness: Brightness.dark,
+      ),
     ),
     locale: const Locale('en'),
     formatting: const BeakFormatting(
@@ -155,12 +161,15 @@ Pick one form per panel. `BeakPanel(config: ...)` together with an individual ev
 | Custom pages, the dashboard at `/` | a top-level `BeakScreen` under `lib/screens/` | `pages:` |
 | Navigation sections, notifications, shell actions, maintenance | `lib/panel.dart` (`beak eject panel`), through `copyWith` | `BeakPanel` or `BeakPanelConfig` directly |
 | Sign-in, registration, idle lock | `lib/auth.dart` (`beak eject auth`) | `auth:` |
-| Light and dark theme | `lib/theme.dart` (`beak eject theme`) | `theme:` and `darkTheme:` |
+| Light and dark theme | `theme.preset` in `beak.yaml`, or `lib/theme.dart` (`beak eject theme`) | `theme:` |
 | API origin | `api.baseUrl` in `beak.yaml`, or `--dart-define=BEAK_API_BASE_URL=...` | `apiBaseUrl:` |
 
 Permissions are not on this list on purpose. The panel hides what an account may not use, the server refuses it, and the server is the only one that counts. [Where authority lives](../concepts/where-authority-lives.md) has the long version.
 
 ## Which page to read
+
+- [Defaults, labels and standard resources](defaults-and-labels.md): one conventional resource and one list shape.
+- [Labels in every language](labels.md): model, field, enum and command names from ARB files, app copy from the context.
 
 | You want to... | Read | For that |
 | --- | --- | --- |

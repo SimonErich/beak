@@ -106,116 +106,119 @@ class BeakAuthPage extends HookWidget {
             child: OiCard(
               child: Padding(
                 padding: EdgeInsets.all(context.spacing.lg),
-                child: Watch((context) {
-                  final busy = vm.busy.value;
-                  final step = vm.step.value;
-                  final heading = switch (mode) {
-                    BeakAuthMode.login => strings.authSignIn,
-                    BeakAuthMode.register => strings.authRegister,
-                    BeakAuthMode.recover => strings.authRecover,
-                  };
-                  final button = mode == BeakAuthMode.login
-                      ? strings.authSignIn
-                      : switch (step) {
-                          BeakAuthStep.email => strings.authSendCode,
-                          BeakAuthStep.verify => strings.authVerifyCode,
-                          BeakAuthStep.password =>
-                            mode == BeakAuthMode.register
-                                ? strings.authRegister
-                                : strings.authSavePassword,
-                        };
-                  final error = vm.error.value;
-                  return OiColumn(
-                    breakpoint: context.breakpoint,
-                    gap: OiResponsive(context.spacing.md),
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      OiLabel.h3(title),
-                      OiLabel.h2(heading),
-                      if (mode == BeakAuthMode.login ||
-                          step == BeakAuthStep.email)
-                        OiTextInput(
-                          label: mode == BeakAuthMode.login
-                              ? strings.authIdentifier
-                              : strings.authEmail,
-                          controller: email,
-                          keyboardType: mode == BeakAuthMode.login
-                              ? TextInputType.text
-                              : TextInputType.emailAddress,
+                child: SignalBuilder(
+                  builder: (context) {
+                    final busy = vm.busy.value;
+                    final step = vm.step.value;
+                    final heading = switch (mode) {
+                      BeakAuthMode.login => strings.authSignIn,
+                      BeakAuthMode.register => strings.authRegister,
+                      BeakAuthMode.recover => strings.authRecover,
+                    };
+                    final button = mode == BeakAuthMode.login
+                        ? strings.authSignIn
+                        : switch (step) {
+                            BeakAuthStep.email => strings.authSendCode,
+                            BeakAuthStep.verify => strings.authVerifyCode,
+                            BeakAuthStep.password =>
+                              mode == BeakAuthMode.register
+                                  ? strings.authRegister
+                                  : strings.authSavePassword,
+                          };
+                    final error = vm.error.value;
+                    return OiColumn(
+                      breakpoint: context.breakpoint,
+                      gap: OiResponsive(context.spacing.md),
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        OiLabel.h3(title),
+                        OiLabel.h2(heading),
+                        if (mode == BeakAuthMode.login ||
+                            step == BeakAuthStep.email)
+                          OiTextInput(
+                            label: mode == BeakAuthMode.login
+                                ? strings.authIdentifier
+                                : strings.authEmail,
+                            controller: email,
+                            keyboardType: mode == BeakAuthMode.login
+                                ? TextInputType.text
+                                : TextInputType.emailAddress,
+                            enabled: !busy,
+                            // Sign-in submits from the password field; here the
+                            // email step has nothing else to fill in.
+                            onSubmitted: mode == BeakAuthMode.login
+                                ? null
+                                : (_) => submit(),
+                          ),
+                        if (mode != BeakAuthMode.login &&
+                            step == BeakAuthStep.verify) ...[
+                          OiLabel.body(strings.authCodeSent),
+                          OiTextInput(
+                            label: strings.authCode,
+                            controller: code,
+                            enabled: !busy,
+                            onSubmitted: (_) => submit(),
+                          ),
+                          OiButton.ghost(
+                            label: strings.authResendCode,
+                            enabled: !busy,
+                            onTap: () => vm.start(email.text),
+                          ),
+                        ],
+                        if (mode == BeakAuthMode.login ||
+                            step == BeakAuthStep.password)
+                          OiTextInput.password(
+                            label: strings.authPassword,
+                            controller: password,
+                            enabled: !busy,
+                            onSubmitted: (_) => submit(),
+                          ),
+                        if (mode != BeakAuthMode.login &&
+                            step == BeakAuthStep.password)
+                          OiTextInput.password(
+                            label: strings.authConfirmPassword,
+                            controller: confirmation,
+                            enabled: !busy,
+                            onSubmitted: (_) => submit(),
+                          ),
+                        if (error != null)
+                          OiBanner.error(
+                            message: strings.authError(error),
+                            dismissible: false,
+                          ),
+                        OiButton.primary(
+                          label: button,
+                          onTap: submit,
                           enabled: !busy,
-                          // Sign-in submits from the password field; here the
-                          // email step has nothing else to fill in.
-                          onSubmitted: mode == BeakAuthMode.login
-                              ? null
-                              : (_) => submit(),
+                          loading: busy,
+                          fullWidth: true,
                         ),
-                      if (mode != BeakAuthMode.login &&
-                          step == BeakAuthStep.verify) ...[
-                        OiLabel.body(strings.authCodeSent),
-                        OiTextInput(
-                          label: strings.authCode,
-                          controller: code,
-                          enabled: !busy,
-                          onSubmitted: (_) => submit(),
-                        ),
-                        OiButton.ghost(
-                          label: strings.authResendCode,
-                          enabled: !busy,
-                          onTap: () => vm.start(email.text),
-                        ),
+                        if (mode == BeakAuthMode.login && config.allowsRecovery)
+                          OiButton.ghost(
+                            label: strings.authForgotPassword,
+                            enabled: !busy,
+                            onTap: () =>
+                                onModeChanged?.call(BeakAuthMode.recover),
+                          ),
+                        if (mode == BeakAuthMode.login &&
+                            config.allowsRegistration)
+                          OiButton.ghost(
+                            label: strings.authRegister,
+                            enabled: !busy,
+                            onTap: () =>
+                                onModeChanged?.call(BeakAuthMode.register),
+                          ),
+                        if (mode != BeakAuthMode.login)
+                          OiButton.ghost(
+                            label: strings.authBackToLogin,
+                            enabled: !busy,
+                            onTap: () =>
+                                onModeChanged?.call(BeakAuthMode.login),
+                          ),
                       ],
-                      if (mode == BeakAuthMode.login ||
-                          step == BeakAuthStep.password)
-                        OiTextInput.password(
-                          label: strings.authPassword,
-                          controller: password,
-                          enabled: !busy,
-                          onSubmitted: (_) => submit(),
-                        ),
-                      if (mode != BeakAuthMode.login &&
-                          step == BeakAuthStep.password)
-                        OiTextInput.password(
-                          label: strings.authConfirmPassword,
-                          controller: confirmation,
-                          enabled: !busy,
-                          onSubmitted: (_) => submit(),
-                        ),
-                      if (error != null)
-                        OiBanner.error(
-                          message: strings.authError(error),
-                          dismissible: false,
-                        ),
-                      OiButton.primary(
-                        label: button,
-                        onTap: submit,
-                        enabled: !busy,
-                        loading: busy,
-                        fullWidth: true,
-                      ),
-                      if (mode == BeakAuthMode.login && config.allowsRecovery)
-                        OiButton.ghost(
-                          label: strings.authForgotPassword,
-                          enabled: !busy,
-                          onTap: () =>
-                              onModeChanged?.call(BeakAuthMode.recover),
-                        ),
-                      if (mode == BeakAuthMode.login &&
-                          config.allowsRegistration)
-                        OiButton.ghost(
-                          label: strings.authRegister,
-                          enabled: !busy,
-                          onTap: () =>
-                              onModeChanged?.call(BeakAuthMode.register),
-                        ),
-                      if (mode != BeakAuthMode.login)
-                        OiButton.ghost(
-                          label: strings.authBackToLogin,
-                          enabled: !busy,
-                          onTap: () => onModeChanged?.call(BeakAuthMode.login),
-                        ),
-                    ],
-                  );
-                }),
+                    );
+                  },
+                ),
               ),
             ),
           ),

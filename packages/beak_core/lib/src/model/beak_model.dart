@@ -7,6 +7,7 @@ import '../columns/beak_semantic_values.dart';
 import '../common/beak_exception.dart';
 import '../context/beak_context.dart';
 import '../data/beak_data_source.dart';
+import '../localization/beak_labels.dart';
 import '../query/beak_aggregate_spec.dart';
 import '../query/beak_filter.dart';
 import '../query/beak_record.dart';
@@ -18,9 +19,11 @@ import '../query/beak_summary_spec.dart';
 import '../query/beak_value.dart';
 import '../query/beak_table_ref.dart';
 import '../relations/beak_relationship.dart';
+import 'beak_admission.dart';
 import 'beak_field_ref.dart';
 import 'beak_field_value.dart';
 import 'beak_permissions.dart';
+import 'beak_translation_display.dart';
 import '../validation/beak_record_rule.dart';
 
 /// ORM-agnostic metadata describing one admin resource: its table, columns,
@@ -61,6 +64,19 @@ abstract base class BeakModel {
   /// Key of the column that represents a record in pickers and links.
   String get displayColumnKey;
 
+  /// Where the display text comes from when it is not a column on this row,
+  /// or `null` to read [displayColumnKey].
+  BeakTranslationDisplay? get translationDisplay => null;
+
+  /// The label of [record] in pickers, links and relation cells.
+  ///
+  /// Reads [translationDisplay] when the model has one, otherwise the raw
+  /// value of [displayColumnKey].
+  String displayValueOf(BeakRecord record) =>
+      translationDisplay?.labelOf(record) ??
+      record[displayColumnKey]?.raw?.toString() ??
+      '';
+
   /// The columns of this model, in display order.
   List<BeakColumn> get columns;
 
@@ -70,8 +86,18 @@ abstract base class BeakModel {
   /// Shared value lifecycles, workflow guards and named commands.
   BeakModelBehavior get behavior => const BeakModelBehavior();
 
-  /// Live presentation policy shared by every resource using this model.
+  /// Who may read, write and run commands on this model, as data.
+  ///
+  /// The panel and the server check this same constant against the principal
+  /// each one knows. Defaults to [BeakPermissions.allowAll], which leaves a
+  /// handwritten model unrestricted; a generated model names its roles.
   BeakPermissions get permissions => const BeakPermissions.allowAll();
+
+  /// The constant facts a generator reviewed about this model, or `null` for
+  /// a model that was not generated: the columns a client may write, the
+  /// columns that never leave the server, the restore key and the write
+  /// binding.
+  BeakAdmission? get admission => null;
 
   /// Operations actually supported by this model's transport.
   ///
@@ -96,6 +122,39 @@ abstract base class BeakModel {
   /// Update command metadata; an edit-capable source supplies its prefill data.
   BeakModel? get editModel => null;
 
+  /// What this model and its commands are called, in each language.
+  ///
+  /// Generated models carry the project's translations; a hand-written model
+  /// may override it or keep the table-name fallback of [singularLabel].
+  BeakModelLabels get labels => const BeakModelLabels();
+
+  /// What one record is called in the panel's [BeakLabels.language].
+  ///
+  /// Without a translation, the title-cased table name (`tax_rates` reads
+  /// `Tax Rates`).
+  String get singularLabel => BeakLabels.pick(labels.one, _tableTitle);
+
+  /// What several records are called in the panel's [BeakLabels.language],
+  /// falling back to [singularLabel].
+  String get pluralLabel => BeakLabels.pick(labels.other, singularLabel);
+
+  /// The label of [action] in the panel's language, or its declared label.
+  String actionLabelOf(BeakModelAction action) =>
+      BeakLabels.pick(labels.actions[action.name] ?? const {}, action.label);
+
+  /// The description of [action] in the panel's language, or its declared one.
+  String? actionDescriptionOf(BeakModelAction action) =>
+      BeakLabels.pickOrNull(
+        labels.actionDescriptions[action.name] ?? const {},
+      ) ??
+      action.description;
+
+  String get _tableTitle => table
+      .split('_')
+      .where((part) => part.isNotEmpty)
+      .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+      .join(' ');
+
   /// The relationships of this model. Defaults to none.
   List<BeakRelationship> get relationships => const [];
 
@@ -108,6 +167,21 @@ abstract base class BeakModel {
   /// Whether deletes are soft (a deleted-at marker the backend filters on)
   /// instead of physical row removal. Defaults to `false`.
   bool get softDeletes => false;
+
+  /// Creation timestamp key, stamped when the model declares this column.
+  String get createdAtColumnKey => 'created_at';
+
+  /// Revision timestamp key, stamped and compared on conditional writes.
+  String get updatedAtColumnKey => 'updated_at';
+
+  /// Nullable timestamp set on soft delete and cleared on restore.
+  String get deletedAtColumnKey => 'deleted_at';
+
+  /// Optional boolean soft-delete flag used instead of timestamp visibility.
+  ///
+  /// When present, false means live and true means deleted. Both the flag and
+  /// [deletedAtColumnKey] are updated together by delete and restore.
+  String? get isDeletedColumnKey => null;
 
   /// The pool of enum values this model's forms take a field slot from, or
   /// `null` for Beak's default pool.
@@ -384,8 +458,12 @@ abstract base class BeakModel {
 BeakValue beakValueForColumn(BeakColumn? column, Object? raw) {
   if (column is BeakJsonColumn &&
       !column.semantic.hasCodec &&
-      raw is BeakJson) {
-    return BeakStringValue(raw.encode());
+      (raw is BeakJson ||
+          raw is Map<Object?, Object?> ||
+          raw is List<Object?>)) {
+    return BeakStringValue(
+      (raw is BeakJson ? raw : BeakJson.fromEncodable(raw)).encode(),
+    );
   }
   if (column != null && column.semantic.hasCodec) {
     // Typed callers and drivers meet at the same canonical primitive shape.

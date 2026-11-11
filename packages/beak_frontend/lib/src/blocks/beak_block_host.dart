@@ -14,6 +14,8 @@ import '../data/beak_data_changes.dart';
 import '../query/beak_query_scope.dart';
 import '../localization/beak_localizations.dart';
 import '../overlays/beak_overlays.dart';
+import '../panel/beak_panel_access.dart';
+import '../panel/beak_routes.dart';
 import '../detail/beak_record_scope.dart';
 import '../detail/relation_manager.dart';
 import '../di/beak_locator.dart';
@@ -72,6 +74,14 @@ class BeakBlockHost extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => switch (block) {
+    final BeakVisibilityBlock visibility => SignalBuilder(
+      builder: (context) {
+        final access = BeakPanelAccess.of(context);
+        return visibility.visibleWhen(access)
+            ? BeakBlockHost(block: visibility.child)
+            : const SizedBox.shrink();
+      },
+    ),
     final BeakColumnBlock column => _column(context, column),
     final BeakRowBlock row => _row(context, row),
     final BeakGridBlock grid => _grid(context, grid),
@@ -331,14 +341,20 @@ class BeakBlockHost extends StatelessWidget {
         breakpoint: context.breakpoint,
         gap: const OiResponsive<double>(4),
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [OiLabel.caption(label), value],
+        children: [
+          OiLabel.small(label, color: context.colors.textSubtle),
+          value,
+        ],
       ),
       BeakFieldLayout.inline => OiRow(
         breakpoint: context.breakpoint,
         gap: const OiResponsive<double>(12),
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 160, child: OiLabel.smallStrong(label)),
+          SizedBox(
+            width: 160,
+            child: OiLabel.small(label, color: context.colors.textSubtle),
+          ),
           Expanded(child: value),
         ],
       ),

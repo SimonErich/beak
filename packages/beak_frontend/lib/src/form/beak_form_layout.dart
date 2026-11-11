@@ -4,6 +4,8 @@ import 'dart:async';
 import 'package:beak_core/beak_core.dart';
 import 'package:flutter/widgets.dart';
 
+import '../localization/beak_localizations.dart';
+
 import 'beak_form_session.dart';
 import '../formatting/beak_field_format.dart';
 import '../presentation/beak_record_template.dart';
@@ -213,10 +215,36 @@ class BeakCard extends BeakFormLayout {
     super.spacingInPixels,
     super.visibleIf,
     super.enabledIf,
-  });
+  }) : _standardTitle = null;
+
+  /// A card headed "General" in the panel's language.
+  const BeakCard.general({
+    required super.children,
+    this.description,
+    this.padding,
+    this.headerGapInPixels = 16,
+    this.collapseLeading = false,
+    this.disclosurePadding,
+    this.collapsible = false,
+    this.initiallyExpanded = true,
+    this.presentation = BeakCardPresentation.surface,
+    super.spacingInPixels,
+    super.visibleIf,
+    super.enabledIf,
+  }) : title = null,
+       headerSubtitle = null,
+       headerTrailing = null,
+       _standardTitle = _BeakStandardTitle.general;
 
   /// Heading displayed above this content.
   final String? title;
+
+  final _BeakStandardTitle? _standardTitle;
+
+  /// The heading in the panel's language: Beak's own wording for
+  /// [BeakCard.general], else [title].
+  String? titleIn(BuildContext context) =>
+      _standardTitle?.wordedIn(context) ?? title;
 
   /// Optional guidance below the card heading.
   final String? description;
@@ -284,9 +312,9 @@ final class BeakFormLock extends BeakFormNode {
 }
 
 /// Responsive side-by-side form content.
-class BeakColumns extends BeakFormLayout {
+class BeakRow extends BeakFormLayout {
   /// Places child sections side by side.
-  const BeakColumns({
+  const BeakRow({
     required super.children,
     this.columns = 2,
     this.minColumnWidthInPixels = 280,
@@ -377,10 +405,42 @@ class BeakTab extends BeakFormLayout {
     this.showValidationBadge = true,
     super.visibleIf,
     super.enabledIf,
-  });
+  }) : _standardTitle = null;
+
+  /// A tab titled "General" in the panel's language, for a record's main fields.
+  const BeakTab.general({
+    required super.children,
+    super.spacingInPixels,
+    this.icon,
+    this.badge,
+    this.showValidationBadge = true,
+    super.visibleIf,
+    super.enabledIf,
+  }) : title = '',
+       _standardTitle = _BeakStandardTitle.general;
+
+  /// A tab titled "Details" in the panel's language, for related records and
+  /// secondary fields.
+  const BeakTab.details({
+    required super.children,
+    super.spacingInPixels,
+    this.icon,
+    this.badge,
+    this.showValidationBadge = true,
+    super.visibleIf,
+    super.enabledIf,
+  }) : title = '',
+       _standardTitle = _BeakStandardTitle.details;
 
   /// Text displayed on the tab selector.
   final String title;
+
+  final _BeakStandardTitle? _standardTitle;
+
+  /// The title in the panel's language: Beak's own wording for
+  /// [BeakTab.general] and [BeakTab.details], else [title].
+  String titleIn(BuildContext context) =>
+      _standardTitle?.wordedIn(context) ?? title;
 
   /// Optional icon displayed beside the tab title.
   final IconData? icon;
@@ -1799,10 +1859,22 @@ final class BeakFormLinks extends BeakFormNode {
 /// Positions authoritative model commands within a form's layout or regions.
 final class BeakFormActions extends BeakFormNode {
   /// Null [actions] displays all currently available model commands.
-  const BeakFormActions({this.actions, super.visibleIf, super.enabledIf});
+  ///
+  /// With [page] true on a form that has a page frame, the commands appear in
+  /// the page heading actions instead of inline in the layout. Without a page
+  /// frame they still render inline.
+  const BeakFormActions({
+    this.actions,
+    this.page = false,
+    super.visibleIf,
+    super.enabledIf,
+  });
 
   /// Explicit commands, in display order.
   final List<BeakModelAction>? actions;
+
+  /// Places these commands in the generated page heading when a frame is used.
+  final bool page;
 }
 
 /// Places a model command's typed argument form inline in the current screen.
@@ -1886,6 +1958,38 @@ class BeakCalculated extends BeakFormNode {
     this.format = BeakValueFormat.text,
     super.visibleIf,
   });
+
+  /// The live value of [field], read-only, labelled with the field's label
+  /// in the panel's language unless [label] is given.
+  ///
+  /// [format] follows the column: currency for money (the draft already
+  /// reads integer minor units as a decimal amount), a date or date-time for
+  /// dates, text otherwise.
+  factory BeakCalculated.field(
+    BeakScalarField<Object> field, {
+    String? label,
+    BeakValueFormat? format,
+    BeakCalculatedPresentation presentation = BeakCalculatedPresentation.text,
+  }) {
+    final column = field.column;
+    final bool money = column.semantic.kind == BeakSemanticKind.money;
+    return BeakCalculated(
+      label: label,
+      labelBuilder: label == null ? (_) => field.label : null,
+      dependencies: [field],
+      presentation: presentation,
+      format:
+          format ??
+          switch (column) {
+            _ when money => BeakValueFormat.currency,
+            BeakDateTimeColumn(format: BeakDateFormat.dateOnly) =>
+              BeakValueFormat.date,
+            BeakDateTimeColumn() => BeakValueFormat.dateTime,
+            _ => BeakValueFormat.text,
+          },
+      value: (state) => state.read(field),
+    );
+  }
 
   /// Reactive display calculation; its result is never submitted.
   final Object? Function(BeakFormReader state) value;
@@ -2425,3 +2529,17 @@ class BeakDraftScope extends InheritedWidget {
       enabled != oldWidget.enabled;
 }
 // --8<-- [end:BeakDraftScope]
+
+/// Titles Beak words itself, so they follow the panel's language.
+enum _BeakStandardTitle {
+  general,
+  details;
+
+  String wordedIn(BuildContext context) {
+    final strings = BeakLocalizations.of(context);
+    return switch (this) {
+      _BeakStandardTitle.general => strings.general,
+      _BeakStandardTitle.details => strings.details,
+    };
+  }
+}

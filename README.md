@@ -3,7 +3,7 @@
 [![CI](https://github.com/SimonErich/beak/actions/workflows/ci.yaml/badge.svg)](https://github.com/SimonErich/beak/actions/workflows/ci.yaml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 ![Dart](https://img.shields.io/badge/Dart-%5E3.11-0175C2?logo=dart)
-![Flutter](https://img.shields.io/badge/Flutter-%3E%3D3.41-02569B?logo=flutter)
+![Flutter](https://img.shields.io/badge/Flutter-%3E%3D3.44-02569B?logo=flutter)
 
 Beak is the toolbox for the admin panel that almost every Dart or Flutter app
 grows eventually. You declare a model once, as an annotated Dart class, and
@@ -119,7 +119,7 @@ detail page from the model. Add `BeakTableScreen`, `BeakFormScreen` or
 
 ## Install and run
 
-You need Dart `^3.11` and Flutter `3.41` or newer. There is no database to
+You need Dart `^3.12` and Flutter `3.44` or newer. There is no database to
 install: a new project uses a SQLite file.
 
 ```console
@@ -189,6 +189,7 @@ few opt-in extras.
 | [`beak_test`](packages/beak_test) | `InMemoryBeakDataSource`, `BeakRecordingDataSource`, the executable data-source contract, record factories. |
 | [`beak_image`](packages/beak_image) | The image transform runner behind image columns. |
 | [`beak_storage_s3`](packages/beak_storage_s3), [`beak_storage_ftp`](packages/beak_storage_ftp) | Storage drivers for S3 or MinIO and for FTP. `memory` and `local` ship in `beak_core`. |
+| [`beak_theme_gabel`](packages/beak_theme_gabel) | The official Gabel theme: tokens, type ramp, component themes, icons and the Mona Sans and JetBrains Mono fonts. Opt in with `theme: GabelTheme()`. |
 | [`beak_serverpod_server`](packages/beak_serverpod_server) | Runs Beak's API inside a Serverpod 4 server, behind one gated endpoint, on Serverpod's own database. |
 | [`beak_serverpod`](packages/beak_serverpod) | The tunnel envelope and HTTP client behind the admin app, and the client bridge: `ServerpodResource` and codecs over an existing Serverpod client. |
 | [`beak_serverpod_flutter`](packages/beak_serverpod_flutter) | The Serverpod side of the panel: the tunnel client and Beak's login, registration and recovery screens over Serverpod's email sign-in. |
@@ -209,7 +210,7 @@ Each example is a package of its own. `melos bootstrap` resolves all of them exc
 | [`clean_beak_config`](examples/clean_beak_config) | The shop: eleven resources with exact `BeakDecimal` money, form screens and sections, named invoice actions, dynamic attributes and variants, media galleries, imports, a graph preparer and custom widgets. | `:8080` |
 | [`foodio-adminpanel`](examples/foodio-adminpanel) | The Gabel food-ordering admin with 48,213 demo orders: composed lists with presets and saved views, a wizard with named steps, record templates, summaries, printable documents, durable effects, its own theme. | `:8081` |
 | [`showcase`](examples/showcase) | The Aviary: every block type, column kind and relationship kind Beak has, with soft deletes. Three tests fail when Beak grows one the example does not show. | `:8082` |
-| [`serverpod`](examples/serverpod) | A Serverpod 4.0.3 workspace with a Beak admin for `Author` and `Book`, running inside the Serverpod server. Outside melos. | `:8080` |
+| [`serverpod`](examples/serverpod) | A Serverpod 4.0.4 workspace with a Beak admin for `Author` and `Book`, running inside the Serverpod server. Outside melos. | `:8080` |
 
 The four Beak-only examples run the same way. From an example's directory:
 
@@ -239,7 +240,7 @@ ways in, and they differ in where Beak's code runs.
   generated client, with `beak_serverpod_generator` writing the resources. No
   server change, and a smaller feature set: equality filters, one sort, one
   search, no relations, no atomic saves.
-- Tested against Serverpod 4.0.3 only. The admin app is a proof on two tables, not
+- Tested against Serverpod 4.0.4 only. The admin app is a proof on two tables, not
   a product; the [Serverpod section](https://simonerich.github.io/beak/serverpod/)
   lists every gap with its workaround.
 
@@ -288,15 +289,11 @@ them, so delete stale `packages/*/coverage` first. After a change to `docs/`, a
 file a page quotes, or this changelog, run `melos run agent-docs` and commit the
 bundle; `melos run check-agent-docs` fails when it is stale.
 
-`beak` and `beak_frontend` depend on obers_ui by pinned git commit
-(`c956d25634c93e23847ec5a4150c1d62fe3a7c90`), so `melos bootstrap` needs that
-commit to be fetchable from `github.com/SimonErich/obers_ui`, and a bootstrap
-that resolves is not yet a build that compiles. The commit is fetchable, but it
-predates components `beak_frontend` uses (`OiFilterChip`, `OiPageLayout`,
-`OiCapacityIndicator`, `OiFieldLabel`, `OiIcon.raw` and more), and the obers_ui
-state that has them is not published. Until it is, and the pin moves to it, you
-work against a local checkout that has them. With such a checkout next to this
-repository (`../obers_ui`), run:
+`beak`, `beak_frontend`, `beak_theme_gabel` and `beak_test_flutter` depend on
+obers_ui by pinned git commit (`2cecec0f724cfc0b2cdd36aae46396960008f80e`), so
+`melos bootstrap` needs that commit to be fetchable from
+`github.com/SimonErich/obers_ui`. It is, and it carries the components the panel
+uses. To develop against a local checkout instead (`../obers_ui`), run:
 
 ```console
 $ melos run link-obers-ui

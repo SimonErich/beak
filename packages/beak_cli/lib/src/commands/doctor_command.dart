@@ -18,7 +18,9 @@ import '../introspect/beak_schema_introspection.dart';
 import '../project/beak_authored_main.dart';
 import '../project/beak_discovery.dart';
 import '../project/beak_emitters.dart';
+import '../labels/project_label_loader.dart';
 import '../project/beak_project_config.dart';
+import '../project/beak_theme_preset.dart';
 import '../schema/beak_drift_migration_emitter.dart';
 import '../schema/beak_migration_emitter.dart';
 import '../schema/beak_migration_order.dart';
@@ -26,6 +28,8 @@ import '../schema/beak_schema_drift.dart';
 import '../schema/beak_schema_emitter.dart';
 import '../schema/beak_schema_ir.dart';
 import '../schema/beak_schema_reader.dart';
+import '../serverpod/generate_issue.dart';
+import '../serverpod/generator.dart';
 import '../version.dart';
 import 'prepare_command.dart';
 
@@ -210,6 +214,7 @@ Future<List<BeakCheck>> diagnose(
   for (final issue in [
     ...discovery.issues,
     ...beakConfigIssues(config, discovery),
+    ...beakThemeIssues(config, discovery, root: root),
   ]) {
     checks.add(
       BeakCheck(
@@ -284,15 +289,47 @@ Future<List<BeakCheck>> diagnose(
     // wide enough for `examples/quickstart` to sit 18 lines behind the
     // emitter while reporting "generated files up to date".
     if (schemaIssues.isEmpty) {
+      final labels = loadProjectLabels(
+        root: root,
+        settings: config.labels,
+        schemas: schemas,
+      ).labels;
       for (final schema in schemas) {
         expected[BeakSchemaEmitter.partPathOf(schema)] = BeakSchemaEmitter.emit(
           schema,
           schemas,
+          labels: labels,
         );
       }
     }
   }
   checks.add(_generatedFilesCheck(root, expected));
+  if (hasServerpodGenerate(root)) {
+    try {
+      final generated = runServerpodGenerate(environment, check: true);
+      checks.add(
+        BeakCheck(
+          status: generated.isSuccess
+              ? BeakCheckStatus.ok
+              : BeakCheckStatus.fail,
+          label: generated.isSuccess
+              ? 'the generated Serverpod schema is up to date'
+              : 'the generated Serverpod schema is stale',
+          remedy: generated.isSuccess ? null : 'run `beak generate`',
+          group: 'serverpod',
+        ),
+      );
+    } on BeakGenerateException catch (error) {
+      checks.add(
+        BeakCheck(
+          status: BeakCheckStatus.fail,
+          label: 'beak generate: ${error.issues.first}',
+          remedy: 'fix the server models, migration or definition classes',
+          group: 'serverpod',
+        ),
+      );
+    }
+  }
   checks.addAll(_leftoverWiringChecks(root, config));
 
   checks.add(_migrationCoverageCheck(discovery, schemas, schemaIssues));

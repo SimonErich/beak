@@ -142,7 +142,7 @@ The default is `BeakAllowAllPolicy`, which permits everything. It exists so a ne
 
 `BeakPolicies` is the production shape. It denies whatever it does not list. Each `BeakModelRules` states who may read, write and delete a model, which rows a principal sees, which fields the server owns and who may run each named action. A part left out is denied:
 
-```dart title="packages/beak_backend/lib/src/auth/beak_policies.dart"
+```dart
   BeakModelRules(
     this.model, {
     this.read,

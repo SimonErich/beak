@@ -145,6 +145,13 @@ static const addNote = BeakModelAction(
 
 `OrderNoteInputModel` (`examples/foodio-adminpanel/lib/domain/_order_note_input.dart`) is a small `BeakModel` with a `body` string column, required by default and capped at 2000 characters. The same rules run in the dialog and on the server. A command without an `inputModel` opens a confirmation instead, showing its `description`.
 
+`BeakFormActions` and `BeakFormActionInput` retain the configured action's `label`
+and `description`, so a localized presentation can refer to the registered command
+with the same identity. The model's registered action still supplies the input
+schema, allowed states, creation eligibility and value behavior. Permission checks
+and dispatch use that registered command. An inline input's explicit `description`
+or `editDescription` overrides the action description.
+
 ### What a click does
 
 1. The runner loads the record afresh and checks the command: the account's capabilities allow it, and `availableWhen` holds for the stored record.
@@ -160,7 +167,7 @@ If the answer to the commit is lost (a dropped connection, a closed laptop), the
 | --- | --- | --- |
 | List row | A `model:<name>` action | The resource allows edit, and `availableWhen` holds for that row |
 | Show page (generated) | One button per available command | The resource allows edit |
-| Form page | Buttons beside Save, or inline where `BeakFormActions` places them | The account may run it and it is available; on create, only commands with `allowOnCreate` |
+| Form page | Buttons beside Save, in the page heading when `BeakFormActions(page: true)`, or inline where `BeakFormActions` places them | The account may run it and it is available; on create, only commands with `allowOnCreate` |
 | Selection bar | Bulk commands of a composed list | Listed in `bulkModelActions`, or as `BeakActionPresentation.model` in `bulkActions` |
 
 A bulk command asks once ("Apply Cancel order to 3 selected records? Each record is saved independently."), collects the input once, and then runs record by record. Every record has its own receipt. One failure does not stop the others, and the failures come back as one message naming each id.

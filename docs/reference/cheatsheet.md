@@ -126,7 +126,7 @@ Add the resource to `resources: [...]` in an authored `lib/main.dart`; a generat
 | You want... | Declare | Page |
 | --- | --- | --- |
 | One form for read, create and edit | `BeakFormScreen(roles: {read, create, edit}, layout: ...)` | [Screens and form layouts](screens-and-layouts.md) |
-| Layout | `BeakFormLayout`, `BeakCard`, `BeakSection`, `BeakColumns`, `BeakTabs` | [Screens and form layouts](screens-and-layouts.md) |
+| Layout | `BeakFormLayout`, `BeakCard`, `BeakSection`, `BeakRow`, `BeakTabs` | [Screens and form layouts](screens-and-layouts.md) |
 | Sections shown as a form, tabs or steps | `BeakFormSections` projections | [Screens and form layouts](screens-and-layouts.md) |
 | A wizard | `BeakWizardScreen` with `BeakWizardStep` | [Multi-step forms](../forms/multi-step-forms.md) |
 | An input for a field | `X.name.inputText()`, `X.price.inputCurrency()`, `X.active.inputToggle()`, `X.due.inputDate()` | [Input builders](input-builders.md) |
@@ -173,7 +173,7 @@ Add the resource to `resources: [...]` in an authored `lib/main.dart`; a generat
 | Hide a resource from the sidebar | `resources.<table>.hidden: true` in `beak.yaml`, or leave it out of `resources: [...]` | [beak.yaml](beak-yaml.md#resources) |
 | Sign-in, registration, idle lock | `BeakAuthConfig` in `lib/auth.dart` | [Auth and idle-lock](../panel/auth-and-idle-lock.md) |
 | Maintenance and coming-soon pages | `BeakMaintenanceConfig` | [Maintenance and coming soon](../panel/maintenance-and-coming-soon.md) |
-| Themes | `beakLightTheme()`, `beakDarkTheme()` in `lib/theme.dart` | [Theming basics](../theming/theming-basics.md) |
+| Themes | `theme.preset` in `beak.yaml`, or `beakTheme()` in `lib/theme.dart` | [Theming basics](../theming/theming-basics.md), [Built-in themes](../theming/built-in-themes.md) |
 | Date, number and currency display | `BeakFormatting` | [Formatting and localization](../theming/formatting-and-localization.md) |
 | Map server errors to messages | `BeakPanelConfig.mapException` | [Panel and resource options](panel-options.md#mapexception) |
 
@@ -182,6 +182,7 @@ Add the resource to `resources: [...]` in an authored `lib/main.dart`; a generat
 | You want... | Declare | Page |
 | --- | --- | --- |
 | Who may do what | `BeakPolicies(rules: [BeakModelRules(const OrderModel(), read: BeakAccess.role('staff'))])` passed to `defaults.build(policy:)` | [Auth and policies](../backend/auth-and-policies.md) |
+| One permission the panel and the server both read | `BeakPermissions(read: BeakAccess.role('staff'), write: BeakAccess.role('manager'))` on `BeakModel.permissions` | [Auth and policies](../backend/auth-and-policies.md#permissions-on-the-model) |
 | Row scoping | A `BeakRowPolicy` | [Auth and policies](../backend/auth-and-policies.md) |
 | Field and action gates | `BeakFieldPolicy`, `BeakActionPolicy` | [Auth and policies](../backend/auth-and-policies.md) |
 | Login, logout, me | `authSessions:` on `defaults.build` | [Auth and policies](../backend/auth-and-policies.md) |

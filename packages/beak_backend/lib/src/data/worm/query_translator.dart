@@ -2,6 +2,7 @@ import 'package:beak_core/beak_core.dart';
 import 'package:worm/worm.dart';
 
 import 'beak_record_keys.dart';
+import 'beak_soft_delete.dart';
 import 'column_type_mapper.dart';
 import 'filter_operands.dart';
 import 'worm_record_model.dart';
@@ -54,7 +55,7 @@ final class WormQueryTranslator {
     final model = registry.byTableOrThrow(spec.table);
     var builder = projectedBuilder(model, adapter);
     if (spec.withTrashed) {
-      builder = builder.withTrashed();
+      builder = builder.withoutGlobalScope<BeakSoftDeleteScope>();
     }
     final PredicateTree? filter = predicateFor(spec.filter, model);
     if (filter != null) {
@@ -106,7 +107,7 @@ final class WormQueryTranslator {
       contextFor(model, adapter),
     );
     if (spec.withTrashed) {
-      builder = builder.withTrashed();
+      builder = builder.withoutGlobalScope<BeakSoftDeleteScope>();
     }
     final PredicateTree? filter = predicateFor(spec.filter, model);
     if (filter != null) {
@@ -134,9 +135,7 @@ final class WormQueryTranslator {
       table: model.table,
       primaryKey: model.primaryKey.key,
       hydrate: _hydratorForTable(model.table),
-      globalScopes: model.softDeletes
-          ? const [SoftDeleteScope<Model>()]
-          : const [],
+      globalScopes: model.softDeletes ? [BeakSoftDeleteScope(model)] : const [],
       relations: relations.flat,
       relationsByTable: relations.byTable,
     );
@@ -320,14 +319,7 @@ final class WormQueryTranslator {
       depth: depth + 1,
     );
     if (related.softDeletes) {
-      final visible = LeafNode(
-        Predicate(
-          fieldName: 'deleted_at',
-          tableName: alias,
-          operator: Operator.isNull,
-          value: null,
-        ),
-      );
+      final visible = beakSoftDeletePredicate(related, qualifier: alias);
       condition = condition == null ? visible : condition.and(visible).group();
     }
     PredicateTree correlate(
@@ -453,7 +445,7 @@ final class WormQueryTranslator {
     // A soft-deleted row is gone to a reader, related or not: the load
     // constrains the related table the way a query on it would be.
     final PredicateTree? constrain = related.softDeletes
-        ? _withLive(requested)
+        ? _withLive(requested, related)
         : requested;
     return EagerLoad(
       relation.key,
@@ -463,14 +455,8 @@ final class WormQueryTranslator {
   }
 
   /// [condition] narrowed to rows whose `deleted_at` is unset.
-  PredicateTree _withLive(PredicateTree? condition) {
-    const live = LeafNode(
-      Predicate(
-        fieldName: 'deleted_at',
-        operator: Operator.isNull,
-        value: null,
-      ),
-    );
+  PredicateTree _withLive(PredicateTree? condition, BeakModel model) {
+    final live = beakSoftDeletePredicate(model);
     return condition == null ? live : condition.and(live).group();
   }
 

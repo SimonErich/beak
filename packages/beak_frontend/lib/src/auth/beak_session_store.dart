@@ -63,7 +63,7 @@ final class BeakSessionStore extends BeakAuthAdapter {
       }
       _session.value = session;
       _state.value = BeakAuthAuthenticated(
-        BeakAuthIdentity(id: session.principalId),
+        BeakAuthIdentity(id: session.principalId, roles: session.roles),
       );
       return const BeakOk(null);
     } on BeakException catch (error) {

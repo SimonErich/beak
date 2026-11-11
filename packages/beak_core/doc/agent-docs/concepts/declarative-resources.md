@@ -99,12 +99,11 @@ final class BookResource extends BeakResource {
   BookResource()
     : super(
         model: const BookModel(),
-        title: 'Books',
         filters: [
           BookModel.title.textFilter(),
           BookModel.author.relationFilter(),
           BookModel.format.selectFilter(),
-          BookModel.priceInCents.numberRangeFilter(label: 'Price'),
+          BookModel.priceInCents.numberRangeFilter(),
         ],
         screens: [
           BeakTableScreen(
@@ -168,6 +167,7 @@ const BeakScreen({
   this.navigationGroup,
   this.showInNav = true,
   this.framed = true,
+  this.canAccess,
 });
 ```
 
@@ -193,7 +193,11 @@ final routing = useMemoized(() {
         );
   return (
     container: container,
-    router: createBeakRouter(config, authRefresh: authRefresh),
+    router: createBeakRouter(
+      config,
+      authRefresh: authRefresh,
+      access: container<BeakPanelAccess>(),
+    ),
     authRefresh: authRefresh,
   );
   // The seams are part of the key: swapping a fake on rebuild used to

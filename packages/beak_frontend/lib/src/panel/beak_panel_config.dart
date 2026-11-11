@@ -6,6 +6,7 @@ import '../data/beak_data_changes.dart';
 import '../localization/beak_localizations.dart';
 import '../filters/beak_filter_widget.dart';
 import '../formatting/beak_formatting.dart';
+import '../query/beak_list_defaults.dart';
 import '../query/beak_list_definition.dart';
 import '../presentation/beak_action_presentation.dart';
 import 'beak_auth_config.dart';
@@ -16,6 +17,7 @@ import 'beak_navigation.dart';
 import 'beak_resource.dart';
 import 'beak_screen.dart';
 import 'beak_resource_screen.dart';
+import 'beak_theme.dart';
 
 export 'beak_resource.dart';
 
@@ -74,7 +76,6 @@ final class BeakPanelConfig {
     this.auth,
     this.maintenance,
     this.theme,
-    this.darkTheme,
     this.initialThemeMode = OiThemeMode.system,
     this.locale,
     this.formatting,
@@ -88,6 +89,7 @@ final class BeakPanelConfig {
     this.refreshPolicy,
     this.shellActions,
     this.mapException,
+    this.defaults = const BeakListDefaults(),
   });
   // --8<-- [end:BeakPanelConfig]
 
@@ -119,11 +121,8 @@ final class BeakPanelConfig {
   /// Maintenance / coming-soon routes; `null` mounts neither.
   final BeakMaintenanceConfig? maintenance;
 
-  /// The light theme (defaults to `OiThemeData.light()`).
-  final OiThemeData? theme;
-
-  /// The dark theme (defaults to `OiThemeData.dark()`).
-  final OiThemeData? darkTheme;
+  /// The panel's light and dark themes (defaults to [BeakTheme.standard]).
+  final BeakTheme? theme;
 
   /// The theme mode the panel starts in; toggled live from the shell.
   final OiThemeMode initialThemeMode;
@@ -174,6 +173,9 @@ final class BeakPanelConfig {
   final BeakException? Function(Exception exception, StackTrace stackTrace)?
   mapException;
 
+  /// List presentation every resource without its own table screen inherits.
+  final BeakListDefaults defaults;
+
   /// Returns a copy with the given parts replaced.
   ///
   /// Keeps a shared configuration and changes one thing about it, such as a
@@ -192,8 +194,7 @@ final class BeakPanelConfig {
     List<BeakScreen>? pages,
     BeakAuthConfig? auth,
     BeakMaintenanceConfig? maintenance,
-    OiThemeData? theme,
-    OiThemeData? darkTheme,
+    BeakTheme? theme,
     OiThemeMode? initialThemeMode,
     Locale? locale,
     BeakFormatting? formatting,
@@ -208,6 +209,7 @@ final class BeakPanelConfig {
     List<Widget> Function(BuildContext context)? shellActions,
     BeakException? Function(Exception exception, StackTrace stackTrace)?
     mapException,
+    BeakListDefaults? defaults,
   }) => BeakPanelConfig(
     title: title ?? this.title,
     resources: resources ?? this.resources,
@@ -216,7 +218,6 @@ final class BeakPanelConfig {
     auth: auth ?? this.auth,
     maintenance: maintenance ?? this.maintenance,
     theme: theme ?? this.theme,
-    darkTheme: darkTheme ?? this.darkTheme,
     initialThemeMode: initialThemeMode ?? this.initialThemeMode,
     locale: locale ?? this.locale,
     formatting: formatting ?? this.formatting,
@@ -232,6 +233,7 @@ final class BeakPanelConfig {
     refreshPolicy: refreshPolicy ?? this.refreshPolicy,
     shellActions: shellActions ?? this.shellActions,
     mapException: mapException ?? this.mapException,
+    defaults: defaults ?? this.defaults,
   );
 
   void _checkDestinations() {

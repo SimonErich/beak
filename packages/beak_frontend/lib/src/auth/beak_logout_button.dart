@@ -23,8 +23,8 @@ class BeakLogoutButton extends HookWidget {
       adapter,
     ]);
     useEffect(() => vm.dispose, [vm]);
-    return Watch(
-      (context) => OiButton.ghost(
+    return SignalBuilder(
+      builder: (context) => OiButton.ghost(
         label: strings.authSignOut,
         loading: vm.busy.value,
         enabled: !vm.busy.value,

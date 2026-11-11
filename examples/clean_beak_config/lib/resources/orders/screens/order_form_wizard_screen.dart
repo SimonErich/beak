@@ -28,7 +28,7 @@ BeakFormSections orderSections() => BeakFormSections(
       title: 'Select a customer',
       description: 'Identify the order and its customer.',
       children: [
-        BeakColumns(
+        BeakRow(
           children: [
             BeakCard(
               title: 'Order',
@@ -53,7 +53,7 @@ BeakFormSections orderSections() => BeakFormSections(
       title: 'Profile and delivery',
       description: 'Choose an address belonging to the selected customer.',
       children: [
-        BeakColumns(
+        BeakRow(
           children: [
             BeakCard(
               title: 'Delivery details',
@@ -106,7 +106,7 @@ BeakFormSections orderSections() => BeakFormSections(
           ],
           advancedForm: BeakFormLayout(
             children: [
-              BeakColumns(
+              BeakRow(
                 children: [
                   BeakCard(
                     title: 'Description',
@@ -167,7 +167,7 @@ BeakFormSections orderSections() => BeakFormSections(
         BeakCard(
           title: 'Order summary',
           children: [
-            BeakColumns(
+            BeakRow(
               children: [
                 BeakCalculated(
                   label: 'Customer',

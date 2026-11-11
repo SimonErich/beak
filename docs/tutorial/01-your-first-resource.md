@@ -26,7 +26,7 @@ The six chapters grow this project into a subset of the shop in `examples/clean_
 
 | You need | Why |
 | --- | --- |
-| Dart `^3.11` and Flutter stable `3.41` or newer | The CLI and the server run on Dart, the panel on Flutter. |
+| Dart `^3.12` and Flutter stable `3.44` or newer | The CLI and the server run on Dart, the panel on Flutter. |
 | The `beak` command on your path | [Installation](../start-here/installation.md) has the one line. |
 | Chrome and `curl` | Chrome runs the panel, `curl` talks to the API. |
 | Port `8080` free | The API listens there. |

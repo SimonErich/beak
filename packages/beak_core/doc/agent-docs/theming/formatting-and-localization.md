@@ -4,7 +4,7 @@
 
 A panel shows a price, a timestamp and a Save button, and each of the three follows a different setting. After this page you can set number, money and date conventions once, keep the CSV export in step with the screen, switch Beak's own controls to German, add a language of your own, and tell which strings Beak does not translate.
 
-Beak 0.9 has no localization system for your text: no message catalog, no ARB files, no live language switch. It has a format policy that covers numbers, money, dates and durations, and translations of Beak's own controls into English and German, which leave gaps. This page says where they are.
+Beak names your models, fields, relationships, enum values and commands from ARB label files in every language ([Labels in every language](../panel/labels.md)), and `BeakLocalizedPanel` builds your configuration in a context that holds your own localizations. It also has a format policy that covers numbers, money, dates and durations, and translations of Beak's own controls into English and German, which leave gaps. This page says where they are.
 
 ## At a glance
 
@@ -304,11 +304,11 @@ Everything in this table stays English in a German panel. It is what a sweep of 
 | Messages a form session writes itself | `Add at least 1 row.`, `Complete the related rows.`, `Complete the new related record.`, `Enter a valid amount.`, `Enter a valid number.`, `Choose Yes or No.` and `Choose an available option.` on attribute inputs, the parse errors of a semantic input (`Use hours:minutes:seconds, for example 2:30:00.`, `Must be valid JSON.`), the notices about a draft or a recovery snapshot that could not be stored, and `The file exceeds the limit of N bytes.` in the upload field. |
 | Form controls | The option pickers' `Loading options`, `No matching options.`, `Retry options` and `Options` heading. The `Add`, `Edit`, `Remove` and `Apply` buttons of related-records tables, with their screen-reader names. `More actions`, `Pick a date`, and `From` and `To` on a date range. The `Edit` link of a form section, the default `Details` card title, `Create <label>` and `Create new` on a create-in-place picker, and `Select <field> first.`. `Not set` on a three-state boolean input, and its `Yes` and `No` unless the column sets `trueLabel` and `falseLabel`. The catalog input's `Variant` and `Catalog categories`, and its `Search catalog`, `Add` and `Default` defaults, which are parameters you can set. The form inspector behind the `Inspect form` button. |
 | Import view | The default `title` of `BeakImportView` and `BeakBulkEditView` (`Import records`, `Review changes`), and the error messages the import writes itself, for example `Some import fields are not writable by your account.` and `Row N has already been saved. ...`. |
-| Lists | The Export button (`BeakListExport.label` defaults to `Export`), the `All` option of a choice filter (`allLabel`), and the texts of an active filter chip (`From ...`, `Through ...`, `Active`). The semantic range control's `Custom` preset. |
+| Lists | The Export button (`BeakListExport.label` defaults to `Export`) and the texts of an active filter chip (`From ...`, `Through ...`, `Active`). The semantic range control's `Custom` preset. |
 | Blocks | `Select a message` in the inbox, `Get Started` on a plan without a `ctaField`, the default `label` of each module block, the summary truncation line, and the text the obers_ui modules draw themselves ([Module blocks](../blocks/module-blocks.md)). |
 | Failures and words in code | The exception messages of domain failures (`errorMessage` shows those as written), the default titles of `BeakMaintenanceConfig`, the words `create` and `update` in the review dialog, and the model action runner's `This action is not permitted.` and `The outcome is not yet known...`. |
 
-Not Beak's to translate: your text, the messages the server sends, and the CSV header, which is your column labels. A boolean in a CSV reads `Yes` and `No` unless its column sets `trueLabel` and `falseLabel`.
+Not Beak's to translate: your own copy, the messages the server sends, and the CSV header, which is your column labels in the label files' template language. A boolean in a CSV reads `Yes` and `No` unless its column sets `trueLabel` and `falseLabel`.
 
 ### Add a language
 
@@ -351,10 +351,10 @@ localizationsDelegates: const [_FrenchBeakDelegate()],
 
 | Gap | Today |
 | --- | --- |
-| Labels, titles and enum labels | Plain strings in the schema and the screens, compile-time constants for columns, so one build speaks one language. Write them in the panel's language. |
+| Labels, titles and enum labels | One language: plain strings in the schema. More: label files, which `beak generate` and `beak prepare` write onto the models in every language ([Labels in every language](../panel/labels.md)). |
 | Rule messages | A form in a German panel words the built-in column rules in German (`BeakLocalizations.validate`), keeping a rule's own `message:` such as `BeakPattern`'s. Record rules and the messages of server-side validation keep the text they were written with ([Validation rules](../reference/validation-rules.md)). |
 | Hard-coded English in the import view, the form inspector or one of the form controls above | Nothing overrides it from outside. Accept English for that control, or build the screen from blocks. |
-| A live language switch | A new `locale` is a new configuration. The panel builds a new router and dependency scope and lands on `/`. |
+| A live language switch | `BeakLocalizedPanel` builds the configuration again for a new locale. The panel builds a new router and dependency scope and lands on `/`. |
 | Your own widgets | `BeakLocalizations.of(context)` and `BeakFormatting.of(context)`, as below. |
 
 The shop's receivables card is a widget of the last kind. It takes loading, error and retry text from `BeakLocalizations`, formats the sum with the panel's policy, and owns its two sentences, which stay English:
@@ -406,7 +406,7 @@ $ flutter test --no-pub test/shop_widget_test.dart --plain-name "exact euro pric
 All tests passed!
 ```
 
-To see the split yourself, change `locale: const Locale('en')` to `Locale('de')` in `examples/showcase/lib/main.dart`, restart, and open Specimens. The Create button, the table footer and the `Back` button on a form are German, the column headers are not, because they are your labels. Then set `useLocalTime: false` in the Aviary's `BeakFormatting`, open a specimen, and compare its `Hatched At` with the device-time value.
+To see the split yourself, change `locale: const Locale('en')` to `Locale('de')` in `examples/showcase/lib/main.dart`, restart, and open Specimens. The Create button, the table footer and the `Back` button on a form are German, the column headers are not: the showcase has no label files, so they keep their schema labels. Then set `useLocalTime: false` in the Aviary's `BeakFormatting`, open a specimen, and compare its `Hatched At` with the device-time value.
 
 ## Reference
 

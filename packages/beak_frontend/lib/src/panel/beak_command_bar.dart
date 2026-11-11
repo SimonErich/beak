@@ -7,12 +7,12 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
 
-import '../overlays/beak_overlays.dart';
 import '../di/beak_locator.dart';
 import '../data/beak_resource_repository.dart';
 import '../data/beak_data_changes.dart';
 import 'beak_routes.dart';
 import '../localization/beak_localizations.dart';
+import 'beak_panel_access.dart';
 import 'beak_panel_config.dart';
 
 /// Opens the panel command bar — a fuzzy-searchable palette (Ctrl/⌘-K) that
@@ -20,25 +20,42 @@ import 'beak_panel_config.dart';
 /// config, so every navigable destination is reachable in two keystrokes with
 /// no per-app wiring.
 // --8<-- [start:openBeakCommandBar]
+OverlayEntry? _commandBarOverlay;
+
+/// Closes the command bar if it is open.
+///
+/// The panel calls this when it locks, so the palette cannot float above the
+/// lock screen. Opening the bar twice closes the first one.
+void closeBeakCommandBar() {
+  final entry = _commandBarOverlay;
+  _commandBarOverlay = null;
+  if (entry != null && entry.mounted) entry.remove();
+}
+
+/// Opens the command palette over the panel's root overlay.
+///
+/// Closes a palette that is already open.
 void openBeakCommandBar(BuildContext context, BeakPanelConfig config) {
   final GoRouter router = GoRouter.of(context);
-  final strings = BeakLocalizations.of(context);
-  void go(String route) => router.go(route);
-  BeakOverlays(context).dialog<void>(
-    title: strings.goTo,
-    builder: (close) => SizedBox(
-      width: 640,
-      height: 440,
-      child: BeakSearchPalette(
-        config: config,
-        onSelect: (route) {
-          close();
-          go(route);
-        },
-        onDismiss: () => close(),
-      ),
+  final overlay = Overlay.of(context, rootOverlay: true);
+  closeBeakCommandBar();
+  late final OverlayEntry entry;
+  void close() {
+    if (identical(_commandBarOverlay, entry)) _commandBarOverlay = null;
+    if (entry.mounted) entry.remove();
+  }
+
+  entry = _commandBarOverlay = OverlayEntry(
+    builder: (_) => BeakSearchPalette(
+      config: config,
+      onSelect: (route) {
+        close();
+        router.go(route);
+      },
+      onDismiss: close,
     ),
   );
+  overlay.insert(entry);
 }
 // --8<-- [end:openBeakCommandBar]
 
@@ -48,11 +65,12 @@ void openBeakCommandBar(BuildContext context, BeakPanelConfig config) {
 List<OiCommand> beakNavigationCommands(
   BeakPanelConfig config,
   void Function(String route) go, {
+  required BeakPanelAccess access,
   BeakLocalizations localizations = BeakLocalizations.english,
 }) {
   return [
     for (final resource in config.navigationResources)
-      if (resource.isVisible)
+      if (resource.isVisibleTo(access))
         OiCommand(
           id: 'nav:${resource.route}',
           label: resource.effectiveNavigationTitle,
@@ -62,7 +80,7 @@ List<OiCommand> beakNavigationCommands(
           onExecute: () => go(resource.route),
         ),
     for (final page in config.pages)
-      if (page.showInNav)
+      if (page.showInNav && page.isAccessibleTo(access))
         OiCommand(
           id: 'nav:${page.path}',
           label: page.effectiveNavigationTitle,
@@ -99,13 +117,14 @@ final class BeakResourceSearchResult {
 Future<BeakResourceSearchResult> beakSearchResourcePage(
   BeakPanelConfig config,
   BeakDataSource dataSource,
-  String term,
-) async {
+  String term, {
+  required BeakPanelAccess access,
+}) async {
   final trimmed = term.trim();
   if (trimmed.isEmpty) return const BeakResourceSearchResult();
   final results = await Future.wait([
     for (final resource in config.navigationResources)
-      if (resource.isVisible)
+      if (resource.isVisibleTo(access))
         () async {
           final fields = resource.globalSearchSources.isEmpty
               ? [
@@ -259,8 +278,30 @@ Future<BeakResourceSearchResult> beakSearchResourcePage(
 Future<List<OiSearchResult>> beakSearchResources(
   BeakPanelConfig config,
   BeakDataSource dataSource,
-  String term,
-) async => (await beakSearchResourcePage(config, dataSource, term)).items;
+  String term, {
+  required BeakPanelAccess access,
+}) async => (await beakSearchResourcePage(
+  config,
+  dataSource,
+  term,
+  access: access,
+)).items;
+
+final class _PaletteEntry {
+  const _PaletteEntry({
+    required this.id,
+    required this.title,
+    required this.category,
+    required this.semanticLabel,
+    this.icon,
+  });
+
+  final String id;
+  final String title;
+  final String category;
+  final String semanticLabel;
+  final IconData? icon;
+}
 
 /// Live panel search with navigation, resource matches and explicit retry.
 ///
@@ -291,16 +332,18 @@ final class BeakSearchPalette extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final strings = BeakLocalizations.of(context);
+    final colors = context.colors;
+    final spacing = context.spacing;
     final inputFocus = useFocusNode();
+    final textController = useTextEditingController();
     useEffect(() {
-      // The dialog establishes its focus trap after mounting. Request the
-      // input afterwards so immediate typing reaches the search field.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) inputFocus.requestFocus();
       });
       return null;
     }, [inputFocus]);
     final source = dataSource ?? beakDependencies(context)<BeakDataSource>();
+    final access = BeakPanelAccess.of(context);
     final revision = useBeakDataRevision(source);
     final term = useState('');
     final retry = useState(0);
@@ -312,7 +355,12 @@ final class BeakSearchPalette extends HookWidget {
       final timer = Timer(const Duration(milliseconds: 200), () async {
         if (!active) return;
         loading.value = term.value.trim().isNotEmpty;
-        final result = await beakSearchResourcePage(config, source, term.value);
+        final result = await beakSearchResourcePage(
+          config,
+          source,
+          term.value,
+          access: access,
+        );
         if (!active) return;
         response.value = result;
         loading.value = false;
@@ -321,22 +369,52 @@ final class BeakSearchPalette extends HookWidget {
         active = false;
         timer.cancel();
       };
-    }, [source, config, term.value, revision, retry.value]);
-    final navigation = [
+    }, [source, config, access.principal, term.value, revision, retry.value]);
+
+    final resourceIcons = {
+      for (final resource in config.navigationResources)
+        if (resource.isVisibleTo(access))
+          resource.effectiveLabel: resource.icon.icon,
+    };
+
+    final query = term.value.trim().toLowerCase();
+    final items = <_PaletteEntry>[
       for (final command in beakNavigationCommands(
         config,
         (_) {},
+        access: access,
         localizations: strings,
       ))
-        if (term.value.isEmpty ||
-            command.label.toLowerCase().contains(term.value.toLowerCase()))
-          OiSearchResult(
+        if (query.isEmpty ||
+            command.label.toLowerCase().contains(query) ||
+            (command.category?.toLowerCase().contains(query) ?? false) ||
+            command.keywords.any((word) => word.toLowerCase().contains(query)))
+          _PaletteEntry(
             id: command.id.substring(4),
             title: command.label,
-            subtitle: command.category ?? strings.navigate,
+            category: command.category ?? strings.navigate,
+            icon: command.icon,
+            semanticLabel:
+                '${command.label} · ${command.category ?? strings.navigate}',
           ),
+      for (final result in response.value.items)
+        _PaletteEntry(
+          id: result.id,
+          title: result.title,
+          category: result.subtitle ?? strings.records,
+          icon: result.subtitle == null
+              ? OiIcons.file
+              : resourceIcons[result.subtitle] ?? OiIcons.file,
+          semanticLabel:
+              '${result.title}${result.subtitle == null ? '' : ' · ${result.subtitle}'}',
+        ),
     ];
-    final items = [...navigation, ...response.value.items];
+
+    final grouped = <String, List<_PaletteEntry>>{};
+    for (final item in items) {
+      grouped.putIfAbsent(item.category, () => []).add(item);
+    }
+
     final current = items.isEmpty
         ? 0
         : selected.value.clamp(0, items.length - 1);
@@ -344,76 +422,212 @@ final class BeakSearchPalette extends HookWidget {
       if (items.isNotEmpty) onSelect(items[current].id);
     }
 
-    return Focus(
-      onKeyEvent: (_, event) {
-        if (event is! KeyDownEvent) return KeyEventResult.ignored;
-        if (event.logicalKey == LogicalKeyboardKey.escape) {
-          onDismiss();
-          return KeyEventResult.handled;
-        }
-        if (event.logicalKey == LogicalKeyboardKey.arrowDown &&
-            items.isNotEmpty) {
-          selected.value = (current + 1) % items.length;
-          return KeyEventResult.handled;
-        }
-        if (event.logicalKey == LogicalKeyboardKey.arrowUp &&
-            items.isNotEmpty) {
-          selected.value = (current - 1 + items.length) % items.length;
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Semantics(
+      container: true,
+      explicitChildNodes: true,
+      label: strings.commandBar,
+      child: Stack(
         children: [
-          OiTextInput(
-            label: strings.search,
-            autofocus: true,
-            focusNode: inputFocus,
-            onChanged: (value) {
-              selected.value = 0;
-              term.value = value;
-            },
-            onSubmitted: (_) => choose(),
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onDismiss,
+              child: ColoredBox(color: colors.overlay),
+            ),
           ),
-          const SizedBox(height: 12),
-          if (loading.value)
-            Semantics(liveRegion: true, child: OiLabel.body(strings.loading)),
-          Expanded(
-            child: ListView(
-              children: [
-                for (final entry in response.value.errors.entries)
-                  Semantics(
-                    liveRegion: true,
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: OiLabel.body(
-                        '${entry.key}: ${strings.errorMessage(entry.value)}',
+          Align(
+            alignment: const Alignment(0, -0.35),
+            child: Focus(
+              onKeyEvent: (_, event) {
+                if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+                  return KeyEventResult.ignored;
+                }
+                if (event.logicalKey == LogicalKeyboardKey.escape) {
+                  onDismiss();
+                  return KeyEventResult.handled;
+                }
+                if (event.logicalKey == LogicalKeyboardKey.arrowDown &&
+                    items.isNotEmpty) {
+                  selected.value = (current + 1) % items.length;
+                  return KeyEventResult.handled;
+                }
+                if (event.logicalKey == LogicalKeyboardKey.arrowUp &&
+                    items.isNotEmpty) {
+                  selected.value = (current - 1 + items.length) % items.length;
+                  return KeyEventResult.handled;
+                }
+                if (event.logicalKey == LogicalKeyboardKey.enter) {
+                  choose();
+                  return KeyEventResult.handled;
+                }
+                return KeyEventResult.ignored;
+              },
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: 560,
+                  maxHeight: 480,
+                ),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: colors.borderSubtle),
+                    boxShadow: [
+                      BoxShadow(
+                        color: colors.overlay,
+                        blurRadius: 32,
+                        offset: const Offset(0, 12),
                       ),
-                    ),
+                    ],
                   ),
-                if (response.value.errors.isNotEmpty)
-                  OiButton.ghost(
-                    label: strings.retry,
-                    onTap: () => retry.value++,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          spacing.md,
+                          spacing.md,
+                          spacing.md,
+                          spacing.sm,
+                        ),
+                        child: OiRawInput(
+                          controller: textController,
+                          focusNode: inputFocus,
+                          autofocus: true,
+                          placeholder: strings.commandBarPlaceholder,
+                          textInputAction: TextInputAction.go,
+                          onChanged: (value) {
+                            selected.value = 0;
+                            term.value = value;
+                          },
+                          onSubmitted: (_) => choose(),
+                          leading: Padding(
+                            padding: EdgeInsets.only(right: spacing.sm),
+                            child: OiIcon.raw(
+                              OiIcons.search,
+                              size: 18,
+                              color: colors.textMuted,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (loading.value)
+                        Semantics(
+                          liveRegion: true,
+                          child: Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              spacing.md,
+                              0,
+                              spacing.md,
+                              spacing.sm,
+                            ),
+                            child: OiLabel.small(
+                              strings.loading,
+                              color: colors.textMuted,
+                            ),
+                          ),
+                        ),
+                      const OiDivider(),
+                      Flexible(
+                        child: ListView(
+                          padding: EdgeInsets.symmetric(vertical: spacing.xs),
+                          shrinkWrap: true,
+                          children: [
+                            for (final entry in response.value.errors.entries)
+                              Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: spacing.md,
+                                  vertical: spacing.xs,
+                                ),
+                                child: OiLabel.small(
+                                  '${entry.key}: ${strings.errorMessage(entry.value)}',
+                                  color: colors.error.base,
+                                ),
+                              ),
+                            if (response.value.errors.isNotEmpty)
+                              Padding(
+                                padding: EdgeInsets.only(
+                                  left: spacing.md,
+                                  bottom: spacing.sm,
+                                ),
+                                child: OiButton.ghost(
+                                  label: strings.retry,
+                                  onTap: () => retry.value++,
+                                ),
+                              ),
+                            if (!loading.value &&
+                                items.isEmpty &&
+                                response.value.errors.isEmpty)
+                              Padding(
+                                padding: EdgeInsets.all(spacing.lg),
+                                child: Center(
+                                  child: OiLabel.body(
+                                    strings.noRecords,
+                                    color: colors.textMuted,
+                                  ),
+                                ),
+                              ),
+                            for (final group in grouped.entries) ...[
+                              Padding(
+                                padding: EdgeInsets.fromLTRB(
+                                  spacing.md,
+                                  spacing.sm,
+                                  spacing.md,
+                                  spacing.xs,
+                                ),
+                                child: OiLabel.overline(
+                                  group.key.toUpperCase(),
+                                  color: colors.textMuted,
+                                ),
+                              ),
+                              for (final item in group.value)
+                                _PaletteRow(
+                                  item: item,
+                                  highlighted: items.indexOf(item) == current,
+                                  onHover: () =>
+                                      selected.value = items.indexOf(item),
+                                  onTap: () => onSelect(item.id),
+                                ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const OiDivider(),
+                      Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: spacing.md,
+                          vertical: spacing.sm,
+                        ),
+                        child: Row(
+                          children: [
+                            const OiKbd(keys: ['↑', '↓']),
+                            SizedBox(width: spacing.xs),
+                            OiLabel.tiny(
+                              strings.commandBarSelect,
+                              color: colors.textMuted,
+                            ),
+                            SizedBox(width: spacing.md),
+                            const OiKbd(keys: ['↵']),
+                            SizedBox(width: spacing.xs),
+                            OiLabel.tiny(
+                              strings.commandBarOpen,
+                              color: colors.textMuted,
+                            ),
+                            SizedBox(width: spacing.md),
+                            const OiKbd(keys: ['esc']),
+                            SizedBox(width: spacing.xs),
+                            OiLabel.tiny(
+                              strings.commandBarClose,
+                              color: colors.textMuted,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                for (var index = 0; index < items.length; index++)
-                  Semantics(
-                    selected: index == current,
-                    child: OiButton.ghost(
-                      label:
-                          '${index == current ? '› ' : ''}${_resultLabel(items[index])}',
-                      // The marker is for the eye; a screen reader hears the
-                      // result and the selected state, not an angle bracket.
-                      semanticLabel: _resultLabel(items[index]),
-                      onTap: () => onSelect(items[index].id),
-                    ),
-                  ),
-                if (!loading.value &&
-                    items.isEmpty &&
-                    response.value.errors.isEmpty)
-                  OiLabel.body(strings.noRecords),
-              ],
+                ),
+              ),
             ),
           ),
         ],
@@ -422,5 +636,72 @@ final class BeakSearchPalette extends HookWidget {
   }
 }
 
-String _resultLabel(OiSearchResult result) =>
-    '${result.title}${result.subtitle == null ? '' : ' · ${result.subtitle}'}';
+class _PaletteRow extends StatelessWidget {
+  const _PaletteRow({
+    required this.item,
+    required this.highlighted,
+    required this.onHover,
+    required this.onTap,
+  });
+
+  final _PaletteEntry item;
+  final bool highlighted;
+  final VoidCallback onHover;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final spacing = context.spacing;
+    return MouseRegion(
+      onEnter: (_) => onHover(),
+      child: Semantics(
+        button: true,
+        selected: highlighted,
+        label: item.semanticLabel,
+        child: OiTappable(
+          semanticLabel: item.semanticLabel,
+          onTap: onTap,
+          child: ColoredBox(
+            color: highlighted ? colors.surfaceHover : const Color(0x00000000),
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: spacing.md,
+                vertical: spacing.sm,
+              ),
+              child: Row(
+                children: [
+                  if (item.icon != null)
+                    Padding(
+                      padding: EdgeInsets.only(right: spacing.sm),
+                      child: OiIcon.raw(
+                        item.icon,
+                        size: 16,
+                        color: highlighted ? colors.text : colors.textMuted,
+                      ),
+                    ),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        OiLabel.body(item.title),
+                        OiLabel.small(item.category, color: colors.textMuted),
+                      ],
+                    ),
+                  ),
+                  if (highlighted)
+                    OiIcon.raw(
+                      OiIcons.cornerDownLeft,
+                      size: 14,
+                      color: colors.textMuted,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

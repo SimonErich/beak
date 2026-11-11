@@ -20,7 +20,7 @@ the accounting, capacity, approval and snapshot rules, and
 
 ## Run locally
 
-You need Dart `^3.11` and Flutter 3.41 or newer, one installation used for
+You need Dart `^3.12` and Flutter 3.44 or newer, one installation used for
 dependency resolution, generation, tests and builds alike. The checks in
 [VERIFICATION.md](VERIFICATION.md) ran on Flutter 3.44.0 and Dart 3.12.0.
 
@@ -107,7 +107,8 @@ snapshot contracts and the six disjoint chart populations.
 
 | Concern | Authored source |
 | --- | --- |
-| Panel, navigation and global formatting | `lib/main.dart`, `lib/navigation.dart`, `lib/theme/` |
+| Panel, navigation and global formatting | `lib/main.dart`, `lib/navigation.dart` |
+| Theme: tokens, type ramp, components, icons, fonts | `packages/beak_theme_gabel`, selected in `lib/main.dart` |
 | Resource registration | `lib/foodio_resources.dart` |
 | Typed fields, relationships, validation, labels and badges | `lib/models/` |
 | Order list, filters, presets and table columns | `lib/resources/orders/list/` |

@@ -110,8 +110,8 @@ enum BeakOverrideKind {
   /// `lib/panel.dart` — the whole panel config, last word.
   panel(path: 'panel.dart', symbol: 'beakPanel'),
 
-  /// `lib/theme.dart` — light and dark themes.
-  theme(path: 'theme.dart', symbol: 'beakLightTheme'),
+  /// `lib/theme.dart` — the panel's `BeakTheme`.
+  theme(path: 'theme.dart', symbol: 'beakTheme'),
 
   /// `lib/auth.dart` — auth routes and callbacks.
   auth(path: 'auth.dart', symbol: 'beakAuth'),
@@ -122,7 +122,7 @@ enum BeakOverrideKind {
   const BeakOverrideKind({required this.path, required this.symbol});
 ```
 
-An override applies only when its file declares the named top-level function. `beakPanel(BeakPanelConfig)` has the last word on the panel config. `beakLightTheme` and `beakDarkTheme` set the themes, `beakAuth` the auth config, and `beakServer` configures the host. A `beakStorageRegistry` function in `lib/server.dart` registers storage drivers without replacing the default server.
+An override applies only when its file declares the named top-level function. `beakPanel(BeakPanelConfig)` has the last word on the panel config. `beakTheme` sets the theme, `beakAuth` the auth config, and `beakServer` configures the host. A `beakStorageRegistry` function in `lib/server.dart` registers storage drivers without replacing the default server.
 
 A hidden resource (`beak.yaml`) keeps its model and its API and drops out of `panel.g.dart`.
 
@@ -131,10 +131,10 @@ A hidden resource (`beak.yaml`) keeps its model and its API and drops out of `pa
 `beak prepare` writes six things into each part, in this order:
 
 ```dart
-_writeColumns(buffer, schema);
-_writeRelations(buffer, schema, byClass, all);
+_writeColumns(buffer, schema, names);
+_writeRelations(buffer, schema, byClass, all, names);
 _writeFields(buffer, schema, byClass);
-_writeModel(buffer, schema, all);
+_writeModel(buffer, schema, all, names);
 _writeDraft(buffer, schema, byClass);
 _writeRecord(buffer, schema, byClass);
 // Formatted here rather than by the caller, so any consumer of the
@@ -194,16 +194,18 @@ abstract final class NoteColumns {
 
 ### XRelations
 
-One `static const` per relationship, named after the field, of the `BeakBelongsTo`, `BeakHasOne`, `BeakHasMany` or `BeakBelongsToMany` class. It carries the related table, the related display column, the foreign key or pivot names, and the picker's `searchColumnKeys`. The other side is generated too: a `@BelongsTo` on `Book` adds `AuthorRelations.books`, a has-many named after the plural table. A `@HasMany` or `@HasOne` adds a belongs-to named after the singular table, and a `@BelongsToMany` is mirrored. The inverse is skipped when the far class already declares any relationship to the owner, or when the annotation says `inverse: false`.
+One `static const` per relationship, named after the field, of the `BeakBelongsTo`, `BeakHasOne`, `BeakHasMany` or `BeakBelongsToMany` class. It carries the related table, the related display column, the foreign key or pivot names, the picker's `searchColumnKeys`, and a display translation when the related row takes its text from translations. The other side is generated too: a `@BelongsTo` on `Book` adds `AuthorRelations.books`, a has-many named after the plural table. A `@HasMany` or `@HasOne` adds a belongs-to named after the singular table, and a `@BelongsToMany` is mirrored. The inverse is skipped when the far class already declares any relationship to the owner, or when the annotation says `inverse: false`.
 
 ```dart title="packages/beak_core/lib/src/relations/beak_has_many.dart"
 const BeakHasMany({
   required super.key,
   required super.label,
+  super.translations,
   required super.relatedTable,
   required super.displayColumnKey,
   required this.foreignKey,
   super.searchColumnKeys,
+  super.displayTranslation,
   this.onDelete = BeakOnDelete.restrict,
   this.owned = false,
 });

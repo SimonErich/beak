@@ -34,18 +34,21 @@ void main() {
       await tester.pumpWidget(
         BeakPanel(
           dataSource: source,
-          theme: OiThemeData.light().copyWith(
-            components: const OiComponentThemes(
-              chart: OiChartThemeData(
-                legend: OiChartLegendTheme(
-                  labelStyle: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w500,
+          theme: BeakTheme(
+            light: OiThemeData.light().copyWith(
+              components: const OiComponentThemes(
+                chart: OiChartThemeData(
+                  legend: OiChartLegendTheme(
+                    labelStyle: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    labelColor: Color(0xFF884422),
                   ),
-                  labelColor: Color(0xFF884422),
                 ),
               ),
             ),
+            dark: OiThemeData.dark(),
           ),
           resources: [
             BeakResource(

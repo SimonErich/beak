@@ -308,6 +308,42 @@ void main() {
 
   group('BeakTableBlock', () {
     testWidgets(
+      'presentation columns retain localized labels and typed loads',
+      (tester) async {
+        const field = BeakScalarField<String>(
+          model: ArticleModel(),
+          column: BeakStringColumn(key: 'name', label: 'Category'),
+          path: [ArticleRelations.category],
+        );
+        final presentations = [
+          BeakTableColumn(
+            key: 'category-name',
+            label: 'Kategorie',
+            template: BeakRecordTemplate.fields(title: field),
+          ),
+        ];
+        await pump(
+          tester,
+          BeakTableBlock(
+            model: const ArticleModel(),
+            tableColumns: presentations,
+            enableDelete: false,
+          ),
+        );
+        final table = tester.widget<BeakDataTable>(find.byType(BeakDataTable));
+        expect(table.presentations, presentations);
+        expect(find.text('Kategorie'), findsOneWidget);
+        expect(
+          dataSource.queryCalls.single.relationLoads.map(
+            (load) => load.relationKey,
+          ),
+          ['category'],
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
       'typed fields are exact and read-only blocks omit delete actions',
       (tester) async {
         const fields = [

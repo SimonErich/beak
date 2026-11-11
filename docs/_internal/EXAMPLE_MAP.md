@@ -52,6 +52,7 @@ its exact fixture counts, money and workflow contracts.
 | Live money and budget previews | `examples/foodio-adminpanel/lib/resources/orders/order_totals.dart` |
 | Transactional budget/capacity and immutable snapshots | `examples/foodio-adminpanel/lib/domain/foodio_order_preparer.dart` |
 | Persistent demo effects and stale-request guards | `examples/foodio-adminpanel/lib/domain/foodio_effects.dart` |
+| The Gabel theme: tokens, type ramp, component themes, icons, fonts | `packages/beak_theme_gabel/lib/src/`, selected in `examples/foodio-adminpanel/lib/main.dart` |
 | Query-backed 48,213-order fixture | `examples/foodio-adminpanel/lib/seeders/foodio_seeder.dart` |
 | Real API, replay and rollback tests | `examples/foodio-adminpanel/test/foodio_api_test.dart` |
 | Full panel route, curated form and wizard tests | `examples/foodio-adminpanel/test/foodio_panel_test.dart`, `supporting_forms_test.dart`, `order_wizard_presentation_test.dart` |

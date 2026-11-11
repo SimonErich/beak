@@ -116,10 +116,10 @@ The exit code is 1 and no wiring file is written.
 `BeakSchemaEmitter.emit` writes the part file in six passes, then formats the result:
 
 ```dart title="packages/beak_cli/lib/src/schema/beak_schema_emitter.dart"
-_writeColumns(buffer, schema);
-_writeRelations(buffer, schema, byClass, all);
+_writeColumns(buffer, schema, names);
+_writeRelations(buffer, schema, byClass, all, names);
 _writeFields(buffer, schema, byClass);
-_writeModel(buffer, schema, all);
+_writeModel(buffer, schema, all, names);
 _writeDraft(buffer, schema, byClass);
 _writeRecord(buffer, schema, byClass);
 // Formatted here rather than by the caller, so any consumer of the
@@ -186,8 +186,8 @@ enum BeakOverrideKind {
   /// `lib/panel.dart` — the whole panel config, last word.
   panel(path: 'panel.dart', symbol: 'beakPanel'),
 
-  /// `lib/theme.dart` — light and dark themes.
-  theme(path: 'theme.dart', symbol: 'beakLightTheme'),
+  /// `lib/theme.dart` — the panel's `BeakTheme`.
+  theme(path: 'theme.dart', symbol: 'beakTheme'),
 
   /// `lib/auth.dart` — auth routes and callbacks.
   auth(path: 'auth.dart', symbol: 'beakAuth'),
@@ -310,8 +310,26 @@ The pipeline itself sits in one function. The first half reads, writes parts, sc
 ```dart title="packages/beak_cli/lib/src/commands/prepare_command.dart"
 // Schema classes generate their own part files first, so the models they
 // declare exist before discovery goes looking for them.
-final (schemas, schemaIssues) = BeakSchemaReader(root).readChecked();
-final parts = _writeSchemaParts(root, schemas, schemaIssues);
+final (schemas, readIssues) = BeakSchemaReader(root).readChecked();
+final labels = loadProjectLabels(
+  root: root,
+  settings: config.labels,
+  schemas: schemas,
+);
+for (final warning in labels.warnings) {
+  environment.out.writeln('warning: $warning');
+}
+final schemaIssues = [
+  ...readIssues,
+  for (final issue in labels.errors)
+    BeakDiscoveryIssue(path: issue.path, message: issue.message),
+];
+final parts = _writeSchemaParts(
+  root,
+  schemas,
+  schemaIssues,
+  labels: labels.labels,
+);
 
 final BeakDiscovery discovery = BeakProjectScanner(
   root,
@@ -320,6 +338,7 @@ final allIssues = <BeakDiscoveryIssue>[
   ...schemaIssues,
   ...discovery.issues,
   ...beakConfigIssues(config, discovery),
+  ...beakThemeIssues(config, discovery, root: root),
 ];
 
 if (allIssues.isNotEmpty) {
@@ -357,11 +376,14 @@ bool _writeIfChanged(File file, String contents) {
 That only works when the output is a pure function of the inputs. The lists are sorted (files by path, imports and symbols by path and name), the generated files carry no timestamp, and the formatter is pinned to a language version instead of the installed SDK's:
 
 ```dart title="packages/beak_cli/lib/src/project/beak_emitters.dart"
-static final Version languageVersion = Version(3, 11, 0);
+static final Version defaultLanguageVersion = Version(3, 13, 0);
 
-/// Formats [source] the way `dart format` would.
-static String format(String source) =>
-    DartFormatter(languageVersion: languageVersion).format(source);
+/// Formats [source] the way `dart format` would at [languageVersion], which
+/// is [defaultLanguageVersion] when omitted.
+static String format(String source, {Version? languageVersion}) =>
+    DartFormatter(
+      languageVersion: languageVersion ?? defaultLanguageVersion,
+    ).format(source);
 ```
 
 A formatter that disagreed with the SDK's would produce a diff nobody wrote, which is the classic way generated code breaks a `dart format --set-exit-if-changed` gate. The same run twice prints this:

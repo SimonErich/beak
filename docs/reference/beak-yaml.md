@@ -40,8 +40,12 @@ A missing file, an empty file or a file of only comments means the defaults. The
 | [`agents.instructions`](#agents) | `all`, `package`, `none` | `all` | Which `AGENTS.md` files Beak keeps its block in |
 | [`agents.docs`](#agents) | bool | `true` | Copy the version-matched docs to `.dart_tool/beak/docs` |
 | [`agents.skills`](#agents) | list of `claude`, `agents`, `cursor` | not set | Where skills are installed; `[]` installs none |
+| [`theme.preset`](#theme) | `standard`, `gabel` | `standard` | The built-in theme the generated panel uses |
 | [`theme.sidebar.collapsible`](#theme) | bool | `true` | The sidebar can collapse to an icon rail |
 | [`theme.sidebar.startCollapsed`](#theme) | bool | `false` | It starts collapsed |
+| [`labels.path`](#labels) | folder path | none | ARB files naming models, fields, enum values and commands in each language |
+| [`labels.template`](#labels) | locale | the first by name | The language generated default labels use |
+| [`labels.require`](#labels) | `none`, `shown` | `none` | Whether a shown field without a label fails the run |
 | [`resources.<table>.icon`](#resources) | lowerCamelCase string | `table` | `OiIcons` name of the sidebar icon |
 | [`resources.<table>.label`](#resources) | string | the model's label | Page and navigation title |
 | [`resources.<table>.section`](#resources) | string | none | Sidebar group heading |
@@ -70,6 +74,7 @@ A panel boots one of two ways, see [Two ways to boot a panel](../start-here/gene
 | --- | --- | --- |
 | `name` | `lib/beak/panel.g.dart`, on every `prepare` | Copied into `BeakPanel(title:)` once |
 | `api.baseUrl` | `panel.g.dart`, on every `prepare` | Copied into `apiBaseUrl:` once (omitted when it is the default) |
+| `theme.preset` | `panel.g.dart`: `theme: GabelTheme()` for `gabel` | Copied into `theme:` once, only when not `standard` |
 | `theme.sidebar.*` | `panel.g.dart` | Copied into a `BeakPanelConfig` once, only when not the default |
 | `resources.<table>` | The default resource of each model without a `BeakResource` class | Written into the resource list once. A later edit changes nothing; edit the `BeakResource` in your file |
 | `server.*` | `lib/beak/server.g.dart` | Same file, the backend does not depend on the panel bootstrap |
@@ -171,12 +176,98 @@ What Beak writes for coding agents. Every default is on; a project that would ra
 
 ```yaml
 theme:
+  preset: gabel
   sidebar:
     collapsible: true
     startCollapsed: false
 ```
 
-The two sidebar behaviours. Both are booleans; both default as shown, so a panel that wants neither can leave the block out. Anything else about the look of the panel is Dart, in `lib/theme.dart` (`beak eject theme`), see [Theming basics](../theming/theming-basics.md).
+`preset` names a built-in theme: `standard` (obers_ui's stock light and dark theme, the default) or `gabel`. With `gabel`, `beak prepare` writes `theme: GabelTheme()` and its import into `lib/beak/panel.g.dart`, and refuses to generate until `pubspec.yaml` depends on `beak_theme_gabel`, which `beak doctor` reports too. A project that ejected `lib/theme.dart` cannot also set a preset: remove one of them. See [Built-in themes](../theming/built-in-themes.md).
+
+The two sidebar behaviours are booleans, and both default as shown, so a panel that wants neither can leave them out. Anything else about the look of the panel is Dart, in `lib/theme.dart` (`beak eject theme`), see [Theming basics](../theming/theming-basics.md).
+
+## `serverpod`
+
+Where the Serverpod models are, when the admin's schema is generated from a
+server.
+
+```yaml
+serverpod:
+  server: ../../server
+  models: [lib/src]
+  exclude: [lib/src/features/erd]
+  migrations: migrations
+```
+
+- `server` is the server package, relative to `beak.yaml`. Required.
+- `models` are the folders scanned for `*.spy.yaml` (default `[lib/src]`).
+- `exclude` skips path prefixes. A class there is not importable, but its enums
+  still load when an admitted model uses them.
+- `migrations` holds the `*/definition_project.json` files; the newest is the
+  physical truth for columns, foreign keys (including Serverpod's shadow keys)
+  and unique indexes.
+
+## `generate`
+
+What `beak generate` reads and where it writes, for an admin whose models are
+Serverpod's.
+
+```yaml
+generate:
+  definitions: definitions
+  handlers: ../../server/lib/src/admin/generated
+  prefix: Shop
+  roles: Permission
+  areas:
+    catalog: {read: readCatalog, write: writeCatalog}
+  conventions:
+    dateOnly: ['*Date', periodStart]
+    money: {fields: ['*Cents'], currency: EUR}
+    detailOnly: [version, isImported]
+```
+
+- `definitions` is the pure-Dart package of definition classes, one
+  `@Resource` + `@ServerpodAdminModel` class per exposed model (default
+  `definitions`). `beak generate` writes a `*.beak.dart` part next to each
+  class and the support libraries into its `lib/src/generated/`.
+- `handlers` is the folder in the Serverpod server the handler base classes
+  and the `<Prefix>Handlers` aggregate go into. Required as soon as one
+  definition opens custom or derived code, a custom list or a command.
+- `prefix` names the generated classes (`ShopWrite`, `ShopHandlers`,
+  `createShopRegistry`); it defaults to the definitions package's name without
+  `_definitions`, camel-cased.
+- `roles` names the Serverpod enum every area and access role is checked
+  against.
+- `areas` map an area to the roles that may read and write it.
+- `conventions` set date-only columns, money columns and detail-only columns.
+
+`output`, `inventory` and `writes` are gone: the definition classes say what
+is exposed and how each operation runs, and each writable model gets its own
+write binding. See
+[Generating the admin from definition classes](../serverpod/admin-app/generate.md)
+and [Writes, commands and trees](../serverpod/admin-app/write-bindings.md).
+
+## `labels`
+
+Where the label files are. `labels: labels` is the short form of `path`.
+
+```yaml
+labels:
+  path: labels
+  template: de
+  require: shown
+```
+
+- `path` is a folder of `*.arb` files, one per language, each with
+  `@@locale`. Keys are paths of Dart names (`placedOrder.email`,
+  `*.sortOrder`, `orderStatus.pending`, `placedOrder.actions.cancel`).
+- `template` is the language the generated `label:` defaults use; the others
+  go into `translations`.
+- `require: shown` fails `beak generate` and `beak prepare` when a shown
+  model, field, relationship or enum value has no label in some language.
+
+`beak generate`, `beak prepare` and `beak doctor` read the folder; see
+[Labels in every language](../panel/labels.md).
 
 ## `resources`
 
@@ -218,6 +309,7 @@ Every problem names the key. Real messages:
 | `resources: {notes: {colour: red}}` | `beak.yaml: unknown key "resources.notes.colour". Expected one of: hidden, icon, label, section.` |
 | `resources: {notes: {icon: file-text}}` | `beak.yaml: resources.notes.icon must be a lowerCamelCase OiIcons name (got "file-text").` |
 | `theme: {sidebar: {collapsible: maybe}}` | `beak.yaml: theme.sidebar.collapsible must be true or false (got maybe).` |
+| `theme: {preset: neon}` | `beak.yaml: theme.preset must be one of: standard, gabel (got "neon").` |
 | `agents: {skills: claude}` | `beak.yaml: agents.skills must be a list, such as [claude, agents].` |
 | `resources: {notes: 5}` | `beak.yaml: resources.notes must be a mapping.` |
 | a list as the document root | `beak.yaml: the document root must be a mapping.` |

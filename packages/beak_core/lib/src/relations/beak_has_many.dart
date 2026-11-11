@@ -21,10 +21,12 @@ final class BeakHasMany extends BeakRelationship {
   const BeakHasMany({
     required super.key,
     required super.label,
+    super.translations,
     required super.relatedTable,
     required super.displayColumnKey,
     required this.foreignKey,
     super.searchColumnKeys,
+    super.displayTranslation,
     this.onDelete = BeakOnDelete.restrict,
     this.owned = false,
   });

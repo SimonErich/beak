@@ -147,7 +147,7 @@ The query rows are the rules of `ServerpodQueryReader`. Generated resources use 
 
 Two rules cut across the table:
 
-- `BeakPermissions` on a resource hides controls, nothing else. Every endpoint has to authorize its own operation, because the panel can be bypassed.
+- `BeakPermissions` on a resource hides controls, nothing else. It is data checked against the signed-in principal, and an operation it does not grant is denied. Every endpoint has to authorize its own operation, because the panel can be bypassed.
 - A `BeakPanel` given `dataSource:` replaces every model's own source. Do not set it on a bridge panel, and do not mix bridge resources with tunnel resources in one panel ([the admin app](../admin-app/index.md) sets `dataSource:` on purpose).
 
 If the panel has an authentication adapter and any resource has neither its own source nor a panel `dataSource:`, startup fails with `External authentication requires bound models or a data source.`

@@ -33,7 +33,7 @@ List<BeakResource> financeResources() => [
             BeakTab(
               title: 'Invoice',
               children: [
-                BeakColumns(
+                BeakRow(
                   children: [
                     BeakCard(
                       title: 'Billing document',
@@ -128,7 +128,7 @@ List<BeakResource> financeResources() => [
         ],
       ),
       supportingForm([
-        BeakColumns(
+        BeakRow(
           children: [
             BeakCard(
               title: 'Promotion',
@@ -195,7 +195,7 @@ List<BeakResource> financeResources() => [
         ],
       ),
       supportingForm([
-        BeakColumns(
+        BeakRow(
           children: [
             BeakCard(
               title: 'Monthly allowance',

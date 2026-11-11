@@ -3,6 +3,7 @@
 library;
 
 import 'package:beak/server.dart';
+
 import '../migrations/add_variant_combinations.dart';
 import '../migrations/create_categories_table.dart';
 import '../migrations/create_category_attributes_table.dart';

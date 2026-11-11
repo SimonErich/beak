@@ -69,8 +69,19 @@ Future<BeakSavePlan> _prepare(
       _authorizeTable(operation, principal);
     }
     final prepared = await _prepareBehavior(plan, transactional, principal);
-    return await preparePlan?.call(prepared, transactional, principal) ??
-        prepared;
+    final shaped = await applyBeakTreeRules(
+      trees,
+      prepared,
+      transactional,
+      registry,
+      principal,
+    );
+    try {
+      return await preparePlan?.call(shaped, transactional, principal) ??
+          shaped;
+    } on Object catch (error, stackTrace) {
+      throw _mapped(plan, error, stackTrace);
+    }
   } on BeakException catch (error) {
     // The transaction has not dispatched the prepared graph. Persist a
     // definite rejection so the client can edit instead of treating it as an
@@ -122,6 +133,117 @@ typedef BeakSavePlanFinalizer =
       WormDataSource transaction,
       BeakPrincipal? principal,
     );
+
+/// Delegates an authorized operation to an existing domain use case.
+///
+/// Runs only in the graph transaction, after policy, scope, field validation and
+/// revision checks. Return null to use ordinary persistence. A handled write
+/// skips ordinary SQL and remains subject to final graph validation and receipts.
+/// Network effects must be queued for after commit rather than performed here.
+typedef BeakSaveOperationExecutor =
+    Future<BeakSaveOperationWrite?> Function(BeakSaveOperationContext context);
+
+/// Context for one authorized, resolved operation inside its save transaction.
+final class BeakSaveOperationContext {
+  /// Supplies the operation and its resolved transaction-local data.
+  const BeakSaveOperationContext({
+    required this.plan,
+    required this.operation,
+    required this.model,
+    required this.values,
+    required this.existing,
+    required this.id,
+    required this.transaction,
+    required this.principal,
+  });
+
+  /// Prepared plan, including its named action when present.
+  final BeakSavePlan plan;
+
+  /// Operation being executed; use [values] for resolved foreign keys.
+  final BeakSaveOperation operation;
+
+  /// Authoritative metadata for the target model.
+  final BeakModel model;
+
+  /// Validated input with defaults, identities and references resolved.
+  final BeakRecord values;
+
+  /// Stored record before this operation, or null for a create.
+  final BeakRecord? existing;
+
+  /// Resolved target identity, or null for a create.
+  final Object? id;
+
+  /// Source bound to the same transaction as the graph and receipt.
+  final WormDataSource transaction;
+
+  /// Authenticated caller accepted by the server policy.
+  final BeakPrincipal? principal;
+
+  /// The record as this operation leaves it: the stored [existing] values with
+  /// the validated input [values] laid over them.
+  ///
+  /// What a domain write usually wants to read, so it sees the fields the
+  /// client did not send as well as the ones it did.
+  BeakRecord get merged => BeakRecord(
+    values: {...?existing?.values, ...values.values},
+    relations: existing?.relations ?? const {},
+  );
+
+  /// Refuses the operation unless it is a bare command: the only operation of
+  /// its plan, an update, and carrying no values and no references.
+  ///
+  /// A command such as "cancel the order" has one effect, the one its domain
+  /// write performs. Call this first so a client cannot attach changes to
+  /// other fields to it. Throws a [BeakValidationException].
+  void requireCommandOnly() {
+    if (plan.operations.length != 1 ||
+        operation.kind != BeakSaveOperationKind.update ||
+        operation.values.values.isNotEmpty ||
+        operation.references.isNotEmpty) {
+      throw const BeakValidationException(
+        'This command cannot change other values.',
+      );
+    }
+  }
+}
+
+/// A completed domain write, or trusted scalar derivations for stock persistence.
+final class BeakSaveOperationWrite {
+  /// [record] is required for create/update and carries the persisted identity.
+  /// Deletes and link writes need no record.
+  const BeakSaveOperationWrite({this.record})
+    : values = null,
+      persistedId = null;
+
+  /// Merges trusted, registered scalar values into the authorized input before
+  /// ordinary persistence. Values are validated and cannot replace identity.
+  /// Use this for server-owned bookkeeping without duplicating stock writes.
+  const BeakSaveOperationWrite.withValues(this.values)
+    : record = null,
+      persistedId = null;
+
+  /// A domain write that persisted the record with primary key [id].
+  ///
+  /// The service reads the stored row in the same transaction and returns it,
+  /// so the use case needs no record to hand back, only the identity it
+  /// created or changed (a `UuidValue` is read as its text). An update must
+  /// name the operation's own target.
+  const BeakSaveOperationWrite.persisted(Object id)
+    : persistedId = id,
+      record = null,
+      values = null;
+
+  /// Persisted record; the service rereads it before accepting the write.
+  final BeakRecord? record;
+
+  /// Primary key of the record a domain write persisted, or `null`.
+  final Object? persistedId;
+
+  /// Server-derived fields, or null when the domain write already persisted.
+  final BeakRecord? values;
+}
 ```
 
 A model that declares behavior, or whose validation rules read related rows, is closed to the per-record routes. The plain `POST` and `PATCH` answer with "This resource must be saved through a graph commit." so there is no side door around the behavior:
@@ -130,7 +252,9 @@ A model that declares behavior, or whose validation rules read related rows, is 
 final graphOnlyTables = {
   for (final model in graphOnly) registry.byTableOrThrow(model.table).table,
 };
-if ((preparePlan != null || finalizePlan != null) &&
+if ((preparePlan != null ||
+        finalizePlan != null ||
+        executeOperation != null) &&
     dataSource is! WormDataSource) {
   throw const BeakConfigurationException(
     'Graph preparation requires a Worm data source.',
@@ -165,21 +289,18 @@ Future<Response> query(Request request) async {
 
 `BeakPolicies` is a typed rule set. Everything you don't list is denied, and a model with no rule is invisible: its endpoints answer 401 to an anonymous request and 403 to anyone else. This is the whole policy of the Serverpod bookshop:
 
-```dart title="examples/serverpod/bookshop_server/lib/src/beak/bookshop_policy.dart"
-/// Who may do what in the bookshop admin.
+```dart title="examples/serverpod/bookshop_server/lib/src/beak/bookshop_beak_engine.dart"
+/// The bookshop's Beak engine: one per process, shared by every request.
 ///
-/// Deny by default: holding `beak.admin` opens the tunnel and grants nothing.
-/// Staff (the `bookshop.staff` scope) read and write authors and books.
-/// Nobody may delete: a rule that is not written is a rule that is closed, so
-/// removing an author (and, by cascade, their books) needs a deliberate rule.
-final BeakPolicies bookshopPolicy = BeakPolicies(
-  rules: [
-    BeakModelRules(const AuthorModel(), read: _staff, write: _staff),
-    BeakModelRules(const BookModel(), read: _staff, write: _staff),
-  ],
+/// It serves Beak's stock API for the bookshop's definition classes on the
+/// request's own Serverpod session, so every statement runs on Serverpod's
+/// database with its transactions and logging. Book runs its restock command
+/// through the app's typed handler; Author is saved the stock way.
+final BeakServerpodEngine bookshopBeak = BeakServerpodEngine.admitted(
+  models: bookshopModels,
+  handlers: const BookshopHandlers(book: BookAdminHandler()),
+  principal: BeakServerpodPrincipal.fromScopes,
 );
-
-final BeakAccess _staff = BeakAccess.role(BookshopScopes.staff.name!);
 ```
 
 Nobody can delete, because nobody was given `delete`. `BeakModelRules` also takes `rowScope`, `hiddenFields`, `readOnlyFields` and `actions`, each written with typed references, never a column name.
@@ -195,28 +316,103 @@ Anonymous, no token, deleted. That is right for a first run and wrong for a serv
 
 ### Hiding is presentation
 
-`BeakModel.permissions` is the panel's own switch, and its documentation says so plainly:
+`BeakModel.permissions` is constant data. The panel reads it to switch controls, and its documentation says plainly that this is all the panel does with it:
 
 ```dart title="packages/beak_core/lib/src/model/beak_permissions.dart"
-/// Live model-level presentation permissions.
+/// Who may do what with a model, as data.
 ///
-/// Callbacks read the host's current account each time an action or route is
-/// evaluated. Missing rules deny access. These checks never replace backend
-/// authorization: every endpoint must still enforce its own policy.
+/// A permission is a constant [BeakAccess] value per operation, checked
+/// against a [BeakPrincipal]. The server and the panel evaluate the same
+/// constant, each with the principal it knows, so what the panel offers and
+/// what the server allows cannot drift apart. The panel only hides controls;
+/// the server still enforces its own policy on every request.
+///
+/// ```dart
+/// const permissions = BeakPermissions(
+///   read: BeakAccess.role('staff'),
+///   write: BeakAccess.role('manager'),
+///   actions: {'refund': BeakAccess.role('finance')},
+/// );
+///
+/// const manager = BeakPrincipal(id: 'u1', roles: {'manager'});
+/// permissions.allows(BeakOperation.update, manager); // true
+/// permissions.allows(BeakOperation.read, manager); // false
+/// ```
+///
+/// Nothing is granted by default: an operation with no access value is
+/// denied, for a `null` principal as well. [create], [update] and [delete]
+/// fall back to [write] when unset, so most models name only [read] and
+/// [write]. A model without a host policy uses [BeakPermissions.allowAll].
 @immutable
 final class BeakPermissions {
-  /// Uses [rules], denying operations without an explicit rule.
-  const BeakPermissions(Map<BeakOperation, bool Function()> rules)
-    : _rules = rules;
+  /// Grants each operation to whoever its access value admits.
+  ///
+  /// [create], [update] and [delete] default to [write]. An operation whose
+  /// access value is still `null` is denied. [actions] holds an access value
+  /// per command name; a command without one is governed by [update].
+  const BeakPermissions({
+    this.read,
+    this.write,
+    this.create,
+    this.update,
+    this.delete,
+    this.actions = const {},
+  });
 
-  /// Preserves unrestricted presentation for models without a host policy.
-  const BeakPermissions.allowAll() : _rules = null;
+  /// Unrestricted access for models without a host policy: every operation
+  /// and every action is open to anyone, anonymous requests included.
+  const BeakPermissions.allowAll()
+    : read = BeakAccess.anyone,
+      write = BeakAccess.anyone,
+      create = null,
+      update = null,
+      delete = null,
+      actions = const {};
 
-  final Map<BeakOperation, bool Function()>? _rules;
+  /// Who may list and inspect records. Denied when `null`.
+  final BeakAccess? read;
 
-  /// Whether [operation] is allowed for the current account.
-  bool allows(BeakOperation operation) =>
-      _rules == null || (_rules[operation]?.call() ?? false);
+  /// Who may change data: the default for [create], [update] and [delete].
+  final BeakAccess? write;
+
+  /// Who may create records, instead of [write].
+  final BeakAccess? create;
+
+  /// Who may change records, instead of [write]. Also the default for a
+  /// command without its own entry in [actions].
+  final BeakAccess? update;
+
+  /// Who may delete records, instead of [write].
+  final BeakAccess? delete;
+
+  /// Who may run a command, by its [BeakModelAction.name].
+  ///
+  /// A command not listed here is governed by [update].
+  final Map<String, BeakAccess> actions;
+
+  /// The access value that governs [operation], or `null` when none does.
+  BeakAccess? accessFor(BeakOperation operation) => switch (operation) {
+    BeakOperation.read => read,
+    BeakOperation.create => create ?? write,
+    BeakOperation.update => update ?? write,
+    BeakOperation.delete => delete ?? write,
+  };
+
+  /// Whether [principal] may perform [operation]; a `null` principal is an
+  /// anonymous request.
+  bool allows(BeakOperation operation, BeakPrincipal? principal) =>
+      accessFor(operation)?.allows(principal) ?? false;
+
+  /// The access value that governs [action], or `null` when none does.
+  BeakAccess? accessForAction(BeakModelAction action) =>
+      actions[action.name] ?? update ?? write;
+
+  /// Whether [principal] may run [action].
+  ///
+  /// The command's own entry in [actions] decides when there is one, and
+  /// [update] (then [write]) otherwise.
+  bool allowsAction(BeakModelAction action, BeakPrincipal? principal) =>
+      accessForAction(action)?.allows(principal) ?? false;
 }
 ```
 
@@ -340,6 +536,7 @@ ServerpodIdentityResolver bookshopAdminIdentity(
   return BeakAuthIdentity(
     id: auth.authUserId,
     canAccessPanel: auth.scopeNames.contains(beakAdminScopeName),
+    roles: auth.scopeNames,
   );
 };
 ```

@@ -37,7 +37,7 @@ BeakResource dishResource() => BeakResource(
               BeakTab(
                 title: 'Dish details',
                 children: [
-                  BeakColumns(
+                  BeakRow(
                     children: [
                       BeakCard(
                         title: 'On the menu',

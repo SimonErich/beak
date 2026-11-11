@@ -32,7 +32,7 @@ A `BeakModel` is metadata plus five optional hooks (`dataSource`, `capabilities`
 | --- | --- | --- |
 | `dataSource` | `null` | Routes every query and write for `table` to it. Return a stable instance. |
 | `capabilities` | read, create, update, delete | Hides what the transport cannot do. An API without an update endpoint drops `update`, and the edit action disappears. |
-| `permissions` | `BeakPermissions.allowAll()` | Live yes-or-no callbacks per operation, read each time, so a refresh changes access without rebuilding anything. |
+| `permissions` | `BeakPermissions.allowAll()` | A `BeakAccess` per operation, checked against the signed-in account's roles each time, so a refresh changes access without rebuilding anything. |
 | `createModel`, `editModel` | `null` | Separate column sets for the create and edit forms, when your write commands differ from your read DTOs. |
 
 ## Build it
@@ -91,7 +91,7 @@ The test count depends on the columns you pass: without a numeric column the sum
 | Piece | Where it lives |
 | --- | --- |
 | `BeakDataSource`, `BeakCommitDataSource`, `BeakEditDataSource` | `package:beak/beak.dart` |
-| `BeakModel`, `BeakPermissions`, `BeakOperation` | `package:beak/beak.dart` |
+| `BeakModel`, `BeakPermissions`, `BeakAccess`, `BeakPrincipal`, `BeakOperation` | `package:beak/beak.dart` |
 | `BeakPanel`, `BeakPanelConfig(mapException:)`, `BeakAuthConfig` | `package:beak/panel.dart` |
 | `runBeakDataSourceContract`, `InMemoryBeakDataSource` | `package:beak/testing.dart` |
 

@@ -12,8 +12,8 @@ import 'beak_value.dart';
 
 /// Converts search terms to portable predicates using model field types.
 ///
-/// Text uses case-insensitive contains. Numbers, booleans and timestamps use
-/// typed equality, avoiding database-specific implicit string conversions.
+/// Text uses case-insensitive contains. UUIDs, numbers, booleans and timestamps
+/// use typed equality, avoiding database-specific implicit string conversions.
 /// A term that cannot represent any selected field matches no records.
 ///
 /// A search that names a field which does not exist, or cannot be searched,
@@ -58,6 +58,18 @@ BeakFilter? beakSearchFilter(
       throw BeakValidationException(
         'Password column "$path" cannot be searched.',
       );
+    }
+    if (column.semantic.kind == BeakSemanticKind.uuid) {
+      if (beakIsUuid(term)) {
+        filters.add(
+          BeakFieldFilter.forKey(
+            path,
+            BeakOperator.eq,
+            BeakStringValue(term.toLowerCase()),
+          ),
+        );
+      }
+      continue;
     }
     if (column.semantic.hasCodec && column is! BeakJsonColumn) {
       final Object? decoded = switch (column.semantic.kind) {

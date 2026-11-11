@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
+import 'package:signals/signals.dart';
 
 import '../../support/panel_fixtures.dart';
 
@@ -196,20 +197,21 @@ void main() {
 
   // --8<-- [start:permissionsGovernTest]
   test('model permissions and supported operations govern every resource', () {
-    var canRead = true;
-    final resource = BeakResource(
+    final account = _Account({'reader'});
+    final access = BeakPanelAccess.fromAuth(account);
+    const resource = BeakResource(
       model: _BoundModel(
-        permissions: BeakPermissions({
-          BeakOperation.read: () => canRead,
-          BeakOperation.create: () => true,
-        }),
+        permissions: BeakPermissions(
+          read: BeakAccess.role('reader'),
+          create: BeakAccess.anyone,
+        ),
       ),
-      icon: const BeakIconToken(OiIcons.notebook),
+      icon: BeakIconToken(OiIcons.notebook),
     );
-    expect(resource.isVisible, isTrue);
-    expect(resource.allowsCreate, isFalse);
-    expect(resource.allowsEdit, isFalse);
-    expect(resource.allowsDelete, isFalse);
+    expect(resource.isVisibleTo(access), isTrue);
+    expect(resource.allowsCreateTo(access), isFalse);
+    expect(resource.allowsEditTo(access), isFalse);
+    expect(resource.allowsDeleteTo(access), isFalse);
     final custom = resource.copyWith(
       screens: [
         BeakCustomResourceScreen(
@@ -218,14 +220,15 @@ void main() {
         ),
       ],
     );
-    expect(custom.allowsCreate, isTrue);
-    expect(custom.allowsEdit, isFalse);
-    canRead = false;
-    expect(resource.isVisible, isFalse);
-    expect(custom.allowsCreate, isFalse);
+    expect(custom.allowsCreateTo(access), isTrue);
+    expect(custom.allowsEditTo(access), isFalse);
+    account.setRoles(const {});
+    expect(resource.isVisibleTo(access), isFalse);
+    expect(custom.allowsCreateTo(access), isFalse);
   });
 
   test('a custom edit screen supplies an edit the transport lacks', () {
+    final access = BeakPanelAccess.anonymous;
     final resource = BeakResource(
       model: const _BoundModel(),
       icon: const BeakIconToken(OiIcons.notebook),
@@ -236,10 +239,10 @@ void main() {
         ),
       ],
     );
-    expect(resource.allowsEdit, isTrue);
-    expect(resource.allowsCreate, isFalse);
+    expect(resource.allowsEditTo(access), isTrue);
+    expect(resource.allowsCreateTo(access), isFalse);
     expect(
-      resource.copyWith(canEdit: false).allowsEdit,
+      resource.copyWith(canEdit: false).allowsEditTo(access),
       isFalse,
       reason: 'canEdit still switches a custom edit screen off',
     );
@@ -314,4 +317,33 @@ void main() {
     );
     expect(count, 1);
   });
+}
+
+/// A signed-in account whose roles a test changes in place.
+final class _Account extends BeakAuthAdapter {
+  _Account(Set<String> roles)
+    : _state = signal(
+        BeakAuthAuthenticated(BeakAuthIdentity(id: 'account', roles: roles)),
+      );
+
+  final Signal<BeakAuthState> _state;
+
+  @override
+  ReadonlySignal<BeakAuthState> get state => _state;
+
+  void setRoles(Set<String> roles) => _state.value = BeakAuthAuthenticated(
+    BeakAuthIdentity(id: 'account', roles: roles),
+  );
+
+  @override
+  Future<BeakResult<void>> login({
+    required String email,
+    required String password,
+  }) async => const BeakOk(null);
+
+  @override
+  Future<BeakResult<void>> logout() async => const BeakOk(null);
+
+  @override
+  Future<BeakResult<void>> refresh() async => const BeakOk(null);
 }

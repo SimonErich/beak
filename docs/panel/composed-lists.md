@@ -99,6 +99,10 @@ That is one count query (`perPage: 1`) per preset per refresh. Six presets, six 
 
 With `persistQueryInUrl` (default `true`) the list writes its state into the address as `?list=`, using `router.replace`, so it adds no history entries and leaves other parameters such as `returnTo` alone. Opening that address restores the view, so copying the address bar shares it.
 
+Local URL acknowledgments preserve newer edits and the search caret. Pending
+writes use the latest state at the next frame; an external bookmark or history
+navigation still restores its own state and cancels obsolete local writes.
+
 ```dart title="packages/beak_frontend/lib/src/query/beak_query_controller.dart"
 --8<-- "packages/beak_frontend/lib/src/query/beak_query_controller.dart:BeakQueryStateJson"
 ```

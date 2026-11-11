@@ -27,6 +27,8 @@ final class BeakBoolColumn extends BeakColumn with BeakTypedColumn<bool> {
     super.unique,
     super.rules,
     super.semantic,
+    super.translations,
+    super.hints,
     super.defaultValue,
     this.tristate = false,
     this.trueLabel,

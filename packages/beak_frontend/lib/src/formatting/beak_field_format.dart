@@ -11,9 +11,8 @@ class BeakFormattedField<T extends Object> extends BeakScalarField<T> {
     required this.format,
     this.minorUnits = false,
     this.scale = 2,
-    String? label,
+    this._label,
   }) : assert(scale >= 0 && scale <= 12),
-       _label = label ?? field.label,
        super(
          model: field.model,
          column: field.column,
@@ -30,10 +29,10 @@ class BeakFormattedField<T extends Object> extends BeakScalarField<T> {
   /// Decimal places in stored integer minor units, independent of display policy.
   final int scale;
 
-  final String _label;
+  final String? _label;
 
   @override
-  String get label => _label;
+  String get label => _label ?? super.label;
 }
 
 // --8<-- [start:fieldPresentations]

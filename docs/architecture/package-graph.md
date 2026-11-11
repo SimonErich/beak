@@ -8,7 +8,7 @@ status: stable
 
 # Package graph
 
-Your app depends on one package, `beak`. Behind it sit twelve more under `packages/`, and the edges between them decide where a piece of code has to live. After this page you can say which package may import worm, which may import obers_ui, and what stops either from leaking.
+Your app depends on one package, `beak`. Behind it sit thirteen more under `packages/`, and the edges between them decide where a piece of code has to live. After this page you can say which package may import worm, which may import obers_ui, and what stops either from leaking.
 
 ## The idea in one picture
 
@@ -31,6 +31,7 @@ flowchart TD
 
   S3[beak_storage_s3] -.-> CORE
   FTP[beak_storage_ftp] -.-> CORE
+  GABEL[beak_theme_gabel] -.-> FE
   SP[beak_serverpod] -.-> CORE
   SPF[beak_serverpod_flutter] -.-> FE
   SPF -.-> SP
@@ -57,11 +58,12 @@ Two packages float free of the Beak edges. `beak_cli` and `beak_serverpod_genera
 | `beak_image` | pure Dart | `beak_core` | `image` |
 | `beak_storage_s3` | pure Dart | `beak_core` | `http`, `crypto` |
 | `beak_storage_ftp` | pure Dart | `beak_core` | none, plain sockets |
-| `beak_cli` | Dart CLI | none | `analyzer`, `args`, `dart_style`, `yaml`, `yaml_edit`, `worm`, `worm_postgres`, `worm_sqlite` |
+| `beak_theme_gabel` | Flutter | `beak_frontend` | `obers_ui` |
+| `beak_cli` | Dart CLI | none | `analyzer`, `args`, `dart_style`, `pub_semver`, `yaml`, `yaml_edit`, `worm`, `worm_postgres`, `worm_sqlite` |
 | `beak_serverpod` | pure Dart | `beak_core` | `http`, `uuid` |
 | `beak_serverpod_flutter` | Flutter | `beak_core`, `beak_frontend`, `beak_serverpod` | `serverpod_client`, `serverpod_auth_core_flutter`, `serverpod_auth_idp_client` |
 | `beak_serverpod_server` | Dart VM (Serverpod 4) | `beak_backend`, `beak_core`, `beak_serverpod` | `serverpod`, `worm`, `worm_postgres` |
-| `beak_serverpod_generator` | Dart CLI | none | `analyzer`, `args`, `dart_style`, `yaml` |
+| `beak_serverpod_generator` | Dart CLI | none | `analyzer`, `args`, `dart_style`, `path`, `pub_semver`, `yaml` |
 
 `worm`, its drivers, `worm_generator` and `worm_lints` are vendored under `packages/worm*`. They are consumed as path dependencies and stay out of the Melos gate, which only runs `melos run test-worm` over them.
 
@@ -157,7 +159,7 @@ It also rejects `dart:io`, `dart:ffi` and `dart:mirrors`. The web guard earns it
 
 ## What it means for you
 
-- Depend on `beak` and import the library you need. Add `beak_storage_s3` or `beak_storage_ftp` only when you upload there.
+- Depend on `beak` and import the library you need. Add `beak_storage_s3` or `beak_storage_ftp` only when you upload there, and `beak_theme_gabel` only when you select the Gabel theme.
 - A model file imports `beak.dart` and `schema.dart` and nothing else. It is shared with the server.
 - A screen imports `panel.dart`, and `ui.dart` or `charts.dart` when it composes widgets itself.
 - `lib/server.dart`, `lib/migrations/` and `lib/seeders/` may import `server.dart` and `migrations.dart`. A panel file may not.

@@ -50,6 +50,8 @@ final class BeakCustomColumn extends BeakColumn with BeakTypedColumn<Object> {
     super.unique,
     super.rules,
     super.semantic,
+    super.translations,
+    super.hints,
     super.defaultValue,
   });
   // --8<-- [end:BeakCustomColumn]

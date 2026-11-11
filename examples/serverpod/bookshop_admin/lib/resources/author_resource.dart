@@ -1,5 +1,5 @@
 import 'package:beak/panel.dart';
-import 'package:bookshop_beak/bookshop_beak.dart';
+import 'package:bookshop_definitions/bookshop_definitions.dart';
 
 /// The Authors section: a table and a form.
 final class AuthorResource extends BeakResource {
@@ -7,7 +7,6 @@ final class AuthorResource extends BeakResource {
   AuthorResource()
     : super(
         model: const AuthorModel(),
-        title: 'Authors',
         filters: [AuthorModel.name.textFilter()],
         screens: [
           BeakTableScreen(fields: [AuthorModel.name, AuthorModel.website]),

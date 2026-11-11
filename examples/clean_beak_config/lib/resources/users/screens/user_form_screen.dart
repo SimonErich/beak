@@ -16,7 +16,7 @@ final class UserFormScreen extends BeakFormScreen {
         },
         layout: BeakFormLayout(
           children: [
-            BeakColumns(
+            BeakRow(
               children: [
                 BeakCard(
                   title: 'Personal details',

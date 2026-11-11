@@ -132,6 +132,10 @@ That is one count query (`perPage: 1`) per preset per refresh. Six presets, six 
 
 With `persistQueryInUrl` (default `true`) the list writes its state into the address as `?list=`, using `router.replace`, so it adds no history entries and leaves other parameters such as `returnTo` alone. Opening that address restores the view, so copying the address bar shares it.
 
+Local URL acknowledgments preserve newer edits and the search caret. Pending
+writes use the latest state at the next frame; an external bookmark or history
+navigation still restores its own state and cancels obsolete local writes.
+
 ```dart title="packages/beak_frontend/lib/src/query/beak_query_controller.dart"
 Map<String, Object?> toJson() => {
   'version': 1,
@@ -171,14 +175,15 @@ Without `columns` the list shows `BeakTableScreen.fields`, and without those the
 ```dart title="packages/beak_frontend/lib/src/presentation/beak_record_template.dart"
 const BeakTableColumn({
   required this.key,
-  required this.label,
+  required String this._label,
   required BeakRecordTemplate this.template,
   this.sortBy,
   this.widthInPixels,
   this.minWidthInPixels = 160,
   this.textAlign = TextAlign.start,
   this.cellPadding,
-}) : actionSelector = null,
+}) : _labelField = null,
+     actionSelector = null,
      actionChoices = const {},
      fallbackAction = null;
 
@@ -186,7 +191,7 @@ const BeakTableColumn({
 /// Unavailable actions remain absent; presentation never grants permission.
 const BeakTableColumn.action({
   required this.key,
-  required this.label,
+  required String this._label,
   required BeakValueBinding<String> selector,
   required Map<String, BeakActionPresentation> choices,
   BeakActionPresentation? fallback,
@@ -194,11 +199,26 @@ const BeakTableColumn.action({
   this.minWidthInPixels = 160,
   this.textAlign = TextAlign.start,
   this.cellPadding,
-}) : actionSelector = selector,
+}) : _labelField = null,
+     actionSelector = selector,
      actionChoices = choices,
      fallbackAction = fallback,
      template = null,
      sortBy = null;
+
+BeakTableColumn._({
+  required this.key,
+  required BeakFieldRef<Object> this._labelField,
+  required BeakRecordTemplate this.template,
+  this.sortBy,
+  this.widthInPixels,
+  this.minWidthInPixels = 160,
+  this.textAlign = TextAlign.start,
+  this.cellPadding,
+}) : _label = null,
+     actionSelector = null,
+     actionChoices = const {},
+     fallbackAction = null;
 ```
 
 `BeakTableColumn.field(field, {widthInPixels, minWidthInPixels, textAlign, cellPadding})` is the shorthand for one scalar field, and it is what `fields` turns into. Foodio's first column shows a reference with a placement line under it. Its Total column right-aligns money that is stored in cents:
@@ -517,7 +537,7 @@ const BeakListDefinition({
   this.filterDescription,
   this.advancedFilterDescription,
   this.advancedFilterColumns = 1,
-  this.recordNoun = 'records',
+  this.recordNoun,
   this.header,
   this.collapsedHeader,
   this.initialPreset,
@@ -600,9 +620,9 @@ factory BeakTableColumn.field(
   double minWidthInPixels = 160,
   TextAlign textAlign = TextAlign.start,
   EdgeInsetsGeometry? cellPadding,
-}) => BeakTableColumn(
+}) => BeakTableColumn._(
   key: field.qualifiedKey,
-  label: field.label,
+  labelField: field,
   template: BeakRecordTemplate.fields(title: field),
   sortBy: field,
   widthInPixels: widthInPixels,

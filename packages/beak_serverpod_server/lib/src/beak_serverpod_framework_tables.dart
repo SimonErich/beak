@@ -19,9 +19,9 @@ import 'package:beak_backend/beak_backend.dart';
 /// Serverpod's `create-migration` owns the table, so nothing here runs
 /// Beak's own [BeakCommitReceiptsMigration]. The serial `id` and `createdAt`
 /// are filled by the database; Beak only ever filters on the unique
-/// `receiptKey`. Nothing prunes the table: the engine keeps the commit service
-/// (and its `pruneReceipts`) to itself, so age receipts out by `createdAt` with
-/// the generated model, `BeakCommitReceipt.db.deleteWhere`.
+/// `receiptKey`. Nothing prunes automatically. Schedule
+/// `BeakServerpodEngine.pruneReceipts` from a host maintenance job to age
+/// receipts out by `createdAt` using the existing graph pruning service.
 ///
 /// A project that delivers effects adds the outbox model too, so
 /// `BeakOutbox.enqueue`, `BeakOutboxSchedule` and `BeakOutbox.prune` can be

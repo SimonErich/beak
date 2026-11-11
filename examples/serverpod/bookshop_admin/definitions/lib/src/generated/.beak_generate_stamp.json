@@ -1,0 +1,6 @@
+{
+  "tool": "beak generate",
+  "beak": "0.9.0",
+  "package": "bookshop_definitions",
+  "inputs": "f423e51c5101ded15f3a858789fde2ac6f1e7b4a84984717a17727a7fd702899"
+}

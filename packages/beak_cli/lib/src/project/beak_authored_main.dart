@@ -1,8 +1,6 @@
 import 'dart:io';
 
-import 'package:analyzer/dart/analysis/utilities.dart';
-import 'package:analyzer/dart/ast/ast.dart';
-import 'package:analyzer/dart/ast/visitor.dart';
+import '../analyzer_syntax.dart';
 
 /// What a static read of an authored `lib/main.dart` says about its panel.
 ///
@@ -27,10 +25,7 @@ final class BeakAuthoredMain {
   /// Reads the syntax of [source], the text of an authored entrypoint.
   factory BeakAuthoredMain.parse(String source) {
     final visitor = _PanelVisitor();
-    parseString(
-      content: source,
-      throwIfDiagnostics: false,
-    ).unit.accept(visitor);
+    parseDart(source).accept(visitor);
     return BeakAuthoredMain(
       listedResources: visitor.isReadable ? visitor.listed : null,
       resourcesAreConstant: visitor.lists.isNotEmpty && visitor.areAllConstant,
@@ -122,9 +117,8 @@ final class _PanelVisitor extends RecursiveAstVisitor<void> {
 
   void _collect(ArgumentList arguments) {
     for (final argument in arguments.arguments) {
-      if (argument is NamedExpression &&
-          argument.name.label.name == 'resources') {
-        lists.add(argument.expression);
+      if (argument.argumentName == 'resources') {
+        lists.add(argument.argumentExpression);
       }
     }
   }

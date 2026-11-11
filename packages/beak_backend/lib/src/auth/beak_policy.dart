@@ -1,7 +1,5 @@
 import 'package:beak_core/beak_core.dart';
 
-import 'beak_auth_guard.dart';
-
 /// Per-resource authorization decisions, consulted by every generated
 /// handler before it acts.
 ///

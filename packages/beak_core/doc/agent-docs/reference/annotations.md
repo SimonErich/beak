@@ -29,6 +29,9 @@ part 'note.beak.dart';
 | [`@HasOne`](#hasone) | schema-typed field | To-one relationship, the other table holds the key |
 | [`@HasMany`](#hasmany) | `List<Schema>` field | To-many relationship, the other table holds the key |
 | [`@BelongsToMany`](#belongstomany) | `List<Schema>` field | To-many relationship through a pivot table |
+| [`@ServerpodAdminModel`](#serverpod-definition-classes) | class | The class exposes the Serverpod model of its name, and how each operation runs |
+| [`@CommandInput`](#serverpod-definition-classes) | class | A command's typed input that is never stored |
+| [`@ReadOnly`](#serverpod-definition-classes), [`@Hidden`](#serverpod-definition-classes) | field | A server-owned field the admin shows but never writes, or keeps off the wire |
 
 A field with no annotation is a valid column: its Dart type picks the column kind and its nullability decides whether it is required. [Field types](field-types.md) has the type to column table.
 
@@ -53,7 +56,7 @@ A schema class can also declare four `static` getters. `beak prepare` looks for 
 | `permissions` | `BeakPermissions` | `BeakModel.permissions` | [Model-owned transports](../extending/model-transports.md) |
 | `capabilities` | `Set<BeakOperation>` | `BeakModel.capabilities` | [Model-owned transports](../extending/model-transports.md) |
 
-`BeakPermissions` only hides UI. The server enforces access through its own policies.
+`BeakPermissions` is constant data: a `BeakAccess` per operation, checked against a `BeakPrincipal`. In the panel it only hides controls. The server enforces access through its own policies.
 
 ## Resource
 
@@ -65,6 +68,11 @@ const Resource({
   this.softDeletes = false,
   this.timestamps = false,
   this.managesSchema = true,
+  this.createdAtColumnKey = 'created_at',
+  this.updatedAtColumnKey = 'updated_at',
+  this.deletedAtColumnKey = 'deleted_at',
+  this.isDeletedColumnKey,
+  this.labelKey,
 });
 ```
 
@@ -74,8 +82,13 @@ const Resource({
 | `softDeletes` | `bool` | `false` | Adds a `deletedAt` column (`deleted_at`). Deletes write it instead of removing the row, and the model reports `softDeletes => true`. |
 | `timestamps` | `bool` | `false` | Adds `createdAt` and `updatedAt` (`created_at`, `updated_at`), stamped by the API. |
 | `managesSchema` | `bool` | `true` | `false` when another system migrates the table (a Serverpod model, a database Beak was pointed at). `beak prepare` writes no migration for it. |
+| `createdAtColumnKey` | `String` | `created_at` | Creation timestamp storage key; custom keys reuse declared fields. |
+| `updatedAtColumnKey` | `String` | `updated_at` | Revision timestamp storage key used by writes and form guards. |
+| `deletedAtColumnKey` | `String` | `deleted_at` | Nullable deletion timestamp storage key. |
+| `isDeletedColumnKey` | `String?` | `null` | Optional boolean visibility flag; false is live and true is deleted. Delete and restore also update the deletion timestamp. |
+| `labelKey` | `String?` | `null` | The key the resource's labels are found under in the label files; `null` uses the lowerCamelCase class name. See [Labels in every language](../panel/labels.md). |
 
-```dart title="examples/serverpod/bookshop_beak/lib/models/book.dart"
+```dart
 @Resource(table: 'book', managesSchema: false)
 final class Book extends BeakSchema {
 ```
@@ -166,9 +179,9 @@ When a rule list repeats a bound, the tightest wins. A bound that is not an inte
 
 ### Rules added for you
 
-A non-nullable field gets `BeakRequired()` at the front of its `rules`. A `List` field and a `BeakJsonObject` field get `BeakRequired(allowEmpty: true)`, because an empty list is a value. A nullable `bool` becomes a tri-state column. A password field is visible on `{BeakContext.form}` only, unless you pass `visibleOn`.
+A non-nullable field gets `BeakRequired()` at the front of its `rules`. A `List` field, a `BeakJsonObject` field and a string field with an explicit empty-string default get `BeakRequired(allowEmpty: true)`, so the declared empty value remains valid while null is rejected. Additional declared rules still apply. A nullable `bool` becomes a tri-state column. A password field is visible on `{BeakContext.form}` only, unless you pass `visibleOn`.
 
-```dart title="examples/serverpod/bookshop_beak/lib/models/book.dart"
+```dart
   /// Shelf price in cents.
   @Column(
     columnName: 'priceInCents',
@@ -188,6 +201,8 @@ const Display();
 ```
 
 Without one, Beak uses the first single-line text field that is not a password, and the `id` when there is none. A password field cannot be `@Display`. Put it on one field per class: `beak prepare` reports a class that marks two, naming both.
+
+In a Serverpod definition class, put `@Display()` on a `@HasMany` translations relation when the row has no text column of its own. Pickers and relation links then read the target class's `@Display` field for the panel language, falling back to the first translation. The target needs a `locale` field and one `@Display` field.
 
 ## Image and FileField
 
@@ -298,7 +313,7 @@ const BelongsTo({
 
 `onDelete` is `BeakOnDelete.restrict` for a non-nullable field and `BeakOnDelete.setNull` for a nullable one, unless you pass a value. `BeakOnDelete` has `cascade`, `ormCascade`, `restrict`, `setNull`, `setDefault` and `noAction`.
 
-```dart title="examples/serverpod/bookshop_beak/lib/models/book.dart"
+```dart
   /// Who wrote it.
   @BelongsTo(
     foreignKey: 'authorId',
@@ -338,7 +353,7 @@ const HasMany({
 | `onDelete` | `BeakOnDelete` | `BeakOnDelete.restrict` | What happens to the children when this row is deleted. |
 | `owned` | `bool` | `false` | The children belong exclusively to this record. An explicitly configured relationship editor may delete them. |
 
-```dart title="examples/serverpod/bookshop_beak/lib/models/author.dart"
+```dart
   /// Every book this author wrote.
   @HasMany(foreignKey: 'authorId', onDelete: BeakOnDelete.cascade)
   late final List<Book>? books;
@@ -375,6 +390,68 @@ const BelongsToMany({
 ### Inverse sides
 
 Declare the side you think about and Beak generates the other. A `@BelongsTo` on `Book` makes `Author` gain a has-many named after the plural table (`books`). A `@HasMany` or `@HasOne` makes the far side gain a belongs-to named after the singular table. A `@BelongsToMany` is mirrored. Beak skips the inverse when the far class already declares any relationship to the owner, so an explicit declaration always wins over a generated one.
+
+## Serverpod definition classes
+
+An admin over a Serverpod server declares one class per exposed model in its
+definitions package, with `@Resource` and the annotations of
+`package:beak_serverpod/schema.dart` (which also exports
+`package:beak_core/schema.dart`). The class has the Serverpod model's name and
+declares the fields it exposes, typed and named as Serverpod declares them. A
+field it leaves out is never read or written. `beak generate`, not
+`beak prepare`, reads these classes; see
+[Generating the admin from definition classes](../serverpod/admin-app/generate.md).
+
+```dart title="packages/beak_serverpod/lib/src/schema_annotations.dart"
+enum BeakHandling {
+  /// The operation is not offered: the panel hides it and the server refuses
+  /// it.
+  off,
+
+  /// Beak runs the operation through Serverpod after its checks.
+  stock,
+
+  /// Beak saves the record after the model's server handler adds trusted
+  /// values (`derive`), such as a revision or who published it.
+  derived,
+
+  /// The model's server handler runs the operation, typically through a use
+  /// case the rest of the server shares. Beak still checks permissions,
+  /// admission and rules first, and runs it in the request's transaction.
+  ///
+  /// On `list`, the handler narrows the rows (`scope`); the narrowed rows are
+  /// all a list, a count, an export or opening one record can reach.
+  custom,
+}
+```
+
+| `@ServerpodAdminModel` parameter | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `area` | `String?` | `null` | The `generate.areas` entry whose roles read and write the model |
+| `list` | `BeakHandling` | `stock` | `stock` (every row) or `custom` (the handler's `scope`) |
+| `create`, `update`, `delete` | `BeakHandling` | `off` | How each write runs; `derived` is for create and update only |
+| `commands` | `List<String>` | `[]` | Model commands the server handler runs; each is saved as an update that changes no field |
+| `access` | `Map<String, List<String>>` | `{}` | Roles that replace the area's for `read`, `write`, `create`, `update` or `delete` |
+| `reason` | `String?` | `null` | Why the writes are closed; required on a model that opens none |
+| `restoreKey` | `List<String>?` | detected | The fields that identify a soft-deleted row to restore |
+
+`@ServerpodAdminModel.editable(area:)` opens stock create, update and delete in one
+word. Every other model starts read only.
+
+| Field annotation | Meaning |
+| --- | --- |
+| `@ReadOnly()` | Shown, never written by the admin (a version, a stamp a handler derives) |
+| `@Hidden(defaultValue: '[]')` | Never shown or sent; a create writes the literal when Serverpod requires a value |
+| `@Column(...)`, `@Display()` | As on a Beak-owned class, laid over what Beak derives from Serverpod. `columnName`, `indexed` and `unique` are Serverpod's and refused |
+| `@BelongsTo()`, `@HasOne()`, `@HasMany(owned: true)` | Exposes the Serverpod relation of that name; the kind must match Serverpod's |
+
+`@CommandInput(table:)` marks a class whose fields are a command's typed input,
+such as the role an "assign role" command takes. It takes `@BelongsTo` fields
+and `String`, `int`, `double`, `bool` and `DateTime` fields.
+
+Keys, timestamps and soft-delete fields (`id`, `createdAt`, `updatedAt`,
+`deletedAt`, `isDeleted`) are always exposed and never written, whether the
+class declares them or not.
 
 ## Authoring types
 
@@ -440,7 +517,8 @@ The plain Dart types `String`, `int`, `double`, `bool`, `DateTime`, any project 
 - `packages/beak_core/lib/src/schema/beak_schema_types.dart` declares the authoring types.
 - `packages/beak_cli/lib/src/schema/beak_schema_reader.dart` reads the class and produces the errors above.
 - `packages/beak_cli/lib/src/schema/beak_schema_emitter.dart` writes the part file.
-- `examples/serverpod/bookshop_beak/lib/models` holds the `Author` and `Book` schemas quoted here.
+- `packages/beak_serverpod/lib/src/schema_annotations.dart` declares the Serverpod definition-class annotations; `packages/beak_cli/lib/src/serverpod/definition_reader.dart` reads them.
+- `examples/foodio-adminpanel/lib/models` holds annotated schema classes in the same style.
 
 ## Continue reading
 

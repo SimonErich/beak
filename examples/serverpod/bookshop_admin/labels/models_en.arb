@@ -1,0 +1,27 @@
+{
+  "@@locale": "en",
+
+  "*.id": "ID",
+  "*.name": "Name",
+
+  "book": "{count, plural, one{Book} other{Books}}",
+  "book.title": "Title",
+  "book.isbn": "ISBN",
+  "book.format": "Format",
+  "book.priceInCents": "Price",
+  "book.stock": "In stock",
+  "book.publishedOn": "Published on",
+  "book.author": "Author",
+
+  "book.actions.restock": "Restock",
+  "book.actions.restock.description": "Add five copies to the shelf.",
+
+  "bookFormat.paperback": "Paperback",
+  "bookFormat.hardcover": "Hardcover",
+  "bookFormat.ebook": "E-book",
+
+  "author": "{count, plural, one{Author} other{Authors}}",
+  "author.bio": "Biography",
+  "author.website": "Website",
+  "author.book": "Books"
+}

@@ -63,9 +63,12 @@ const List<String> panelEntrypoints = [
   'packages/beak_core/lib/schema.dart',
   'packages/beak_frontend/lib/beak_frontend.dart',
   'packages/beak_serverpod/lib/beak_serverpod.dart',
+  'packages/beak_serverpod/lib/schema.dart',
   'packages/beak_serverpod/lib/wire.dart',
   'packages/beak_serverpod_flutter/lib/beak_serverpod_flutter.dart',
   'packages/beak_serverpod_flutter/lib/tunnel.dart',
+  'packages/beak_theme_gabel/lib/beak_theme_gabel.dart',
+  'packages/beak_theme_gabel/lib/testing.dart',
 ];
 
 /// The public libraries that reach the server on purpose, relative to the

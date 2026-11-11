@@ -167,7 +167,7 @@ Predicates on related records become correlated `EXISTS` subqueries, not joins. 
 --8<-- "packages/beak_backend/lib/src/data/worm/worm_data_source.dart:query"
 ```
 
-Search is typed by the field, not by the database. Text columns match with a case-insensitive contains, and `%`, `_` and a backslash in the term match themselves. Numbers, booleans and timestamps match by typed equality, so a term that is not a number cannot match a number column and a `SQLite` implicit cast cannot make it match. A term that fits none of the chosen columns matches no rows.
+Search is typed by the field, not by the database. Text columns match with a case-insensitive contains, and `%`, `_` and a backslash in the term match themselves. UUID fields match complete canonical UUIDs by equality, normalized to lowercase; other terms skip those fields while retaining text matches. Numbers, booleans and timestamps also match by typed equality, so a term that is not a number cannot match a number column and a `SQLite` implicit cast cannot make it match. A term that fits none of the chosen columns matches no rows.
 
 ## Why it is shaped this way
 

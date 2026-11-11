@@ -18,6 +18,18 @@ void main() {
   const compiler = SqliteCompiler();
 
   group('SqliteCompiler.compileSelect', () {
+    test('a row lock is ignored: one writer holds the whole database', () {
+      final result = compiler.compileSelect(
+        const QueryDescriptor(
+          table: 'nodes',
+          columns: ['id'],
+          orderBy: [SortClause('id')],
+          lock: true,
+        ),
+      );
+      expect(result.sql, 'SELECT "id" FROM "nodes" ORDER BY "id" ASC');
+    });
+
     test('binds values as ? positional placeholders', () {
       final result = compiler.compileSelect(
         QueryDescriptor(

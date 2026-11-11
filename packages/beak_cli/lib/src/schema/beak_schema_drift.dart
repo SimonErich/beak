@@ -211,18 +211,21 @@ List<BeakDrift> beakSchemaDrift({
       for (final column in schema.columns) column.columnKey,
     };
     if (schema.softDeletes &&
-        !declared.contains('deleted_at') &&
-        !columns.contains('deleted_at')) {
+        !declared.contains(schema.deletedAtColumnKey) &&
+        !columns.contains(schema.deletedAtColumnKey)) {
       problems.add(
         BeakMissingColumn(
           schema: schema,
-          columnKey: 'deleted_at',
+          columnKey: schema.deletedAtColumnKey,
           cause: BeakMissingColumnCause.softDelete,
         ),
       );
     }
     if (schema.timestamps) {
-      for (final column in const ['created_at', 'updated_at']) {
+      for (final column in [
+        schema.createdAtColumnKey,
+        schema.updatedAtColumnKey,
+      ]) {
         if (!declared.contains(column) && !columns.contains(column)) {
           problems.add(
             BeakMissingColumn(
@@ -258,8 +261,12 @@ List<BeakDrift> _undeclaredColumns(
     for (final relation in schema.relations)
       if (relation.kind == BeakRelationKind.belongsTo)
         if (relation.foreignKey case final String key) key,
-    if (schema.softDeletes) 'deleted_at',
-    if (schema.timestamps) ...['created_at', 'updated_at'],
+    if (schema.softDeletes) schema.deletedAtColumnKey,
+    if (schema.softDeletes) ?schema.isDeletedColumnKey,
+    if (schema.timestamps) ...[
+      schema.createdAtColumnKey,
+      schema.updatedAtColumnKey,
+    ],
   };
   return [
     for (final column in table.columns)

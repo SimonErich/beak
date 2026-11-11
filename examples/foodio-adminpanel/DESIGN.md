@@ -2,9 +2,10 @@
 
 The reference is [`design/food-ordering-shop.html`](design/food-ordering-shop.html)
 in this example. Foodio uses Beak and the local **Obers UI** package. No Fluvie
-package is used by this app. `lib/theme/gabel_theme.dart` owns typography,
-surfaces, geometry and interaction colors; resources own their declarative
-composition and business content.
+package is used by this app. The `beak_theme_gabel` package
+(`packages/beak_theme_gabel`) owns typography, surfaces, geometry and
+interaction colors; resources own their declarative composition and business
+content.
 
 ## Why the earlier rendering differed
 

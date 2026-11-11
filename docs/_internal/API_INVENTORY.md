@@ -118,7 +118,13 @@ Pure Dart. No Flutter, no worm. The shared vocabulary both sides speak.
 - `BeakModel` (@immutable abstract base): abstract `table`, `displayColumnKey`,
   `columns`; overridable `relationships`, `softDeletes`, `primaryKey`; methods
   `primaryKeyOf`, `columnsFor`, `columnByKey`, `relationshipByKey`.
-- `BeakModelRegistry`: `register`, `byTable`, `byTableOrThrow`, `all`.
+- `BeakModelRegistry`: `register`, `byTable`, `byTableOrThrow`, `all`, and
+  `BeakModelRegistry.of(models)`, which registers every model.
+- `BeakAdmission`, `BeakTranslationSpec` (`src/model/beak_admission.dart`): the
+  constant facts a generator records on `BeakModel.admission`.
+- `BeakPermissions` (`src/model/beak_permissions.dart`): a `BeakAccess` per
+  operation and per action, checked with `allows` and `allowsAction` against a
+  `BeakPrincipal`. `BeakAccess` and `BeakPrincipal` live in `src/auth/`.
 - `BeakDataSource` (interface): `query`, `getOne`, `create`, `update`,
   `delete({force})`, `batchGet`, `attach`, `detach`, `aggregate`.
 - `BeakUploadClient`: `upload(table, columnKey, BeakUpload)`.
@@ -207,7 +213,7 @@ Pure Dart. No Flutter, no worm. The shared vocabulary both sides speak.
 ### Configured resource forms
 - `BeakResourceScreen`, `BeakScreenRole`, `BeakFormScreen`, `BeakWizardScreen`,
   `BeakTableScreen`, `BeakCustomResourceScreen` (`src/panel/beak_resource_screen.dart`).
-- `BeakFormNode`, `BeakFormLayout`, `BeakCard`, `BeakColumns`, `BeakWizardStep`,
+- `BeakFormNode`, `BeakFormLayout`, `BeakCard`, `BeakRow`, `BeakWizardStep`,
   `BeakInput`, `BeakRelationInput`, `BeakRelationTable`, `BeakCalculated`,
   `BeakFormWidget`, `BeakRemoveBehavior` (`src/form/beak_form_layout.dart`).
 - `BeakConfiguredForm`, `BeakFormSession`, `BeakDraftRecord`, `BeakFormReader`:
@@ -222,7 +228,7 @@ The Flutter panel. Built on obers_ui / obers_ui_autoforms / obers_ui_charts.
   complete `config:` (a generated or host-built `BeakPanelConfig`), never both.
   Both forms support the transport overrides `dataSource:` and `httpClient:`.
 - `BeakPanelConfig`: `{title, resources, apiBaseUrl, pages=[], auth?,
-  maintenance?, theme?, darkTheme?, initialThemeMode=system, locale?,
+  maintenance?, theme? (BeakTheme), initialThemeMode=system, locale?,
   supportedLocales=BeakLocalizations.supportedLocales, localizationsDelegates=[],
   sidebarCollapsible, sidebarDefaultCollapsed, formatting?, home?,
   notifications?, navigation?, refreshPolicy?, shellActions?, mapException?}`;
@@ -290,7 +296,7 @@ one `BeakBlockHost` renderer. ~48 variants:
 - `BeakRelationManager` manages persisted to-many relationships on detail pages.
 - `BeakFormScreen`, `BeakWizardScreen` and `BeakScreenRole` assign read,
   create and edit screens to resources.
-- `BeakFormLayout`, `BeakFormSections`, `BeakSection`, `BeakCard`, `BeakColumns`,
+- `BeakFormLayout`, `BeakFormSections`, `BeakSection`, `BeakCard`, `BeakRow`,
   `BeakTabs`, `BeakTab`, `BeakWizardStep` describe the configured layout.
 - Typed scalar references expose input helpers; to-many references expose
   `tableForm`, with nested rows, advanced forms and summaries.
@@ -342,7 +348,7 @@ Shelf server. The only package that imports worm.
   `DELETE /<id>`, `POST /<id>/relations/<relationKey>/attach|detach`.
 - Auth (`src/auth/`): `BeakPolicy` (`canView/canCreate/canUpdate/canDelete/
   canDeleteUpload`), `BeakRowPolicy`, `BeakUploadReadPolicy.canViewUpload`,
-  `BeakAllowAllPolicy`, `enforcePolicyDecision`, `BeakPrincipal`,
+  `BeakAllowAllPolicy`, `enforcePolicyDecision`, `BeakPrincipal` (from `beak_core`),
   `BeakAuthGuard`, `TokenSessionAuthGuard`, `BeakAuthSessions`, `BeakUserAccount`,
   `hashBeakPassword`, `BeakAuthHandlers`, `beakAuthRouter`, `TokenSessionStore`,
   `InMemoryTokenSessionStore`, `beakAuthMiddleware`, `beakPrincipal`.
@@ -370,7 +376,7 @@ Shelf server. The only package that imports worm.
   `DoctorCommand`.
 - `BeakFieldSpec` (`{name, kind}`, `parse`, `parseList`, `camelName`),
   `BeakFieldKind` {string,text,integer,decimal,boolean,dateTime} (`parse`).
-- Templates: `generateWormModel`, `generateBeakColumns`, `generateMigration`,
+- Templates: `generateWormModel`, `generateBeakRow`, `generateMigration`,
   `snakeCaseOf`, `tableNameOf`, `camelCaseOf`.
 
 ---

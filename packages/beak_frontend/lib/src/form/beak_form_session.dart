@@ -157,7 +157,21 @@ class BeakDraftRecord implements BeakDraftReader {
   /// Whether the server permits displaying this placement.
   bool visible(BeakFormNode node) {
     final field = _placementField(node);
-    if (field != null && !_capabilities.canRead(field.key)) return false;
+    final readKey = switch (node) {
+      BeakRelationInput(:final field) => switch (field.relation) {
+        BeakBelongsTo(:final foreignKey) => foreignKey,
+        _ => field.key,
+      },
+      _ => field?.key,
+    };
+    // A relation picker is shown unless the server refuses the model: the
+    // foreign key itself is an implementation detail of the relation, so the
+    // column-level allowlist cannot decide it.
+    if (node is! BeakRelationInput &&
+        readKey != null &&
+        !_capabilities.canRead(readKey)) {
+      return false;
+    }
     final dependencies = switch (node) {
       BeakFormSummary(source: final source?) => [source],
       BeakFormSummary(:final lines) => [
@@ -194,11 +208,6 @@ class BeakDraftRecord implements BeakDraftReader {
       )) {
         return false;
       }
-    }
-    if (node case BeakRelationInput(
-      field: BeakToOneField(relation: BeakBelongsTo(:final foreignKey)),
-    )) {
-      if (!_capabilities.canRead(foreignKey)) return false;
     }
     return node.visibleIf?.call(BeakFormReader(this)) ?? true;
   }
@@ -263,7 +272,8 @@ class BeakDraftRecord implements BeakDraftReader {
     _preflightVersion++;
     _preflightTimer?.cancel();
     _preflightTimer = null;
-    if (_remoteKeys.isEmpty ||
+    if (session.loading.value ||
+        _remoteKeys.isEmpty ||
         session.repository.dataSource is! BeakValidationDataSource ||
         session.submitting.value) {
       return;
@@ -304,10 +314,24 @@ class BeakDraftRecord implements BeakDraftReader {
   }
 
   Future<void> _preflight(int version) async {
-    if (_disposed || session.hasUnknown) return;
+    await _capabilityRequest;
+    if (_disposed ||
+        version != _preflightVersion ||
+        session.loading.value ||
+        session.hasUnknown) {
+      return;
+    }
     final source = session.repository.dataSource;
     if (source case final BeakValidationDataSource validationSource) {
-      final keys = _remoteKeys.difference(_deferredReferenceKeys);
+      final keys = _remoteKeys
+          .difference(_deferredReferenceKeys)
+          .where(
+            (key) =>
+                _capabilities.canWrite(key) &&
+                model.behavior.canEdit(key, _initial, isCreate: id == null),
+          )
+          .toSet();
+      if (keys.isEmpty) return;
       final result = await _checkRemote(validationSource);
       if (_disposed ||
           version != _preflightVersion ||
@@ -512,7 +536,11 @@ class BeakDraftRecord implements BeakDraftReader {
           if ((placement.visible(reader) || submitWhenHidden) &&
               all[field.key] != null &&
               _capabilities.canWrite(field.key) &&
-              model.behavior.canEdit(field.key, _initial)) {
+              model.behavior.canEdit(
+                field.key,
+                _initial,
+                isCreate: id == null,
+              )) {
             values[field.key] = all[field.key]!;
           }
         case BeakRelationInput(:final field):
@@ -523,7 +551,7 @@ class BeakDraftRecord implements BeakDraftReader {
             if (all[key] != null &&
                 _capabilities.canWrite(key) &&
                 _capabilities.canWrite(field.key) &&
-                model.behavior.canEdit(key, _initial)) {
+                model.behavior.canEdit(key, _initial, isCreate: id == null)) {
               values[key] = all[key]!;
             }
           }
@@ -545,7 +573,7 @@ class BeakDraftRecord implements BeakDraftReader {
         _capabilities.canRead(key) &&
         _capabilities.canWrite(field.key) &&
         _capabilities.canWrite(key) &&
-        model.behavior.canEdit(key, _initial) &&
+        model.behavior.canEdit(key, _initial, isCreate: id == null) &&
         snapshot[key] != _initial[key];
   }
 
@@ -768,14 +796,18 @@ class BeakDraftRecord implements BeakDraftReader {
     final field = _placementField(node);
     if (field != null &&
         (!_capabilities.canWrite(field.key) ||
-            !model.behavior.canEdit(field.key, _initial))) {
+            !model.behavior.canEdit(
+              field.key,
+              _initial,
+              isCreate: id == null,
+            ))) {
       return false;
     }
     if (node case BeakRelationInput(
       field: BeakToOneField(relation: BeakBelongsTo(:final foreignKey)),
     )) {
       if (!_capabilities.canWrite(foreignKey) ||
-          !model.behavior.canEdit(foreignKey, _initial)) {
+          !model.behavior.canEdit(foreignKey, _initial, isCreate: id == null)) {
         return false;
       }
     }
@@ -1312,7 +1344,11 @@ class BeakDraftRecord implements BeakDraftReader {
     final field = _placementField(node);
     if (field != null &&
         (!_capabilities.canWrite(field.key) ||
-            !model.behavior.canEdit(field.key, _initial))) {
+            !model.behavior.canEdit(
+              field.key,
+              _initial,
+              isCreate: id == null,
+            ))) {
       return false;
     }
     if (field case BeakToOneField(relation: BeakBelongsTo(:final foreignKey))) {
@@ -2375,6 +2411,15 @@ class BeakFormSession {
     }
   }
 
+  void _scheduleLoadedPreflights() {
+    if (!_loaded) return;
+    // Prefill can notify controllers before later batches of record-specific
+    // permissions arrive. Validate only after the entire loaded graph is ready.
+    for (final draft in _allDrafts()) {
+      draft._schedulePreflight();
+    }
+  }
+
   /// Loads an existing record and the relationships required by its layout.
   Future<void> load() async {
     if (recordId == null) {
@@ -2390,6 +2435,7 @@ class BeakFormSession {
       if (_disposed) return;
       _loading.value = false;
       _changed();
+      _scheduleLoadedPreflights();
       return;
     }
     final requestVersion = ++_loadVersion;
@@ -2439,6 +2485,7 @@ class BeakFormSession {
     }
     _loading.value = false;
     _changed();
+    _scheduleLoadedPreflights();
     await _readStoredDraft();
   }
 
@@ -2583,7 +2630,9 @@ class BeakFormSession {
                 ? null
                 : _ref(owner),
             relationKey: relation?.key,
-            expectedUpdatedAt: switch (draft.initialRecord['updated_at']?.raw) {
+            expectedUpdatedAt: switch (draft
+                .initialRecord[draft.model.updatedAtColumnKey]
+                ?.raw) {
               final DateTime value => value,
               _ => null,
             },

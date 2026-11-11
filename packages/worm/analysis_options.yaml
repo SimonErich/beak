@@ -1,8 +1,10 @@
 include: package:lints/recommended.yaml
 
+plugins:
+  worm_lints:
+    path: ../worm_lints
+
 analyzer:
-  plugins:
-    - custom_lint
   exclude:
     - test/lint_fixtures/**
     - test/src/query/descriptor/golden_snapshot_test.dart

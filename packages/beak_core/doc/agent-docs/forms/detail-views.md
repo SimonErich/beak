@@ -122,7 +122,7 @@ BeakTab(
       title: 'Dishes and options',
       children: [
         orderItems(allowEditing: false, compact: true),
-        BeakColumns(
+        BeakRow(
           minColumnWidthInPixels: 220,
           children: [
             orderAllergyNotice(),

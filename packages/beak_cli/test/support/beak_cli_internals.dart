@@ -32,6 +32,7 @@ export 'package:beak_cli/src/project/beak_discovery.dart';
 export 'package:beak_cli/src/project/beak_dotenv.dart';
 export 'package:beak_cli/src/project/beak_emitters.dart';
 export 'package:beak_cli/src/project/beak_project_config.dart';
+export 'package:beak_cli/src/project/beak_theme_preset.dart';
 export 'package:beak_cli/src/schema/beak_drift_migration_emitter.dart';
 export 'package:beak_cli/src/schema/beak_migration_emitter.dart';
 export 'package:beak_cli/src/schema/beak_migration_order.dart';

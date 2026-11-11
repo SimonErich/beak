@@ -239,7 +239,7 @@ import '../models/product.dart';
 /// Shared product layout: core data, organization and pricing.
 BeakFormLayout productForm() => BeakFormLayout(
   children: [
-    BeakColumns(
+    BeakRow(
       children: [
         --8<-- "examples/clean_beak_config/lib/resources/products/screens/product_form.dart:ProductDetailsCard"
         BeakCard(

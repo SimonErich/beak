@@ -41,10 +41,13 @@ final class BeakEnumColumn<T extends Enum> extends BeakColumn
     super.unique,
     super.rules,
     super.semantic,
+    super.translations,
+    super.hints,
     this.defaultValue,
     this.badgeColors = const <Never, BeakColor>{},
     this.labelOf,
     this.labels = const <Never, String>{},
+    this.valueTranslations = const <String, Map<Never, String>>{},
   });
   // --8<-- [end:BeakEnumColumn]
 
@@ -67,9 +70,16 @@ final class BeakEnumColumn<T extends Enum> extends BeakColumn
   /// The badge color configured for [value], or `null` when unmapped.
   BeakColor? badgeColorFor(T value) => badgeColors[value];
 
-  /// The display label: [labelOf], then [labels], then the stored enum name.
+  /// Display labels by language code, written from the project's label files.
+  final Map<String, Map<T, String>> valueTranslations;
+
+  /// The display label: [labelOf], then [valueTranslations] in the panel's
+  /// [BeakLabels.language], then [labels], then the stored enum name.
   String labelFor(T value) =>
-      labelOf?.call(value) ?? labels[value] ?? value.name;
+      labelOf?.call(value) ??
+      valueTranslations[BeakLabels.language]?[value] ??
+      labels[value] ??
+      value.name;
 
   /// Returns the declared value whose `name` matches [name], or `null` when
   /// none does — the one way wire strings (query params, stored rows) decode

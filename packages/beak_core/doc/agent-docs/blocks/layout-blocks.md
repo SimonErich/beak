@@ -20,6 +20,7 @@ BeakScreen layoutBlocksPage() => BeakScreen(
       _tabsSection(),
       _accordionSection(),
       _masonrySection(),
+      _visibilitySection(),
       _escapeHatchSection(),
     ],
   ),
@@ -252,7 +253,7 @@ Use it last. The builder runs under the panel's scopes, so `beakDependencies(con
 - `BeakTabsBlock` with no tabs renders nothing, and an `initialIndex` past the last tab selects the last one. Neither is asserted.
 - `BeakMasonryBlock` asserts `columns >= 1`, a `BeakSpan` asserts `columns >= 1` and `rows >= 1`, and a `BeakRowBlock` or `BeakGridBlock` asserts non-negative `minChildWidthInPixels`.
 - `BeakSectionBlock` puts an 8 pixel gap between its heading and its child. There is no parameter for it.
-- Forms are not made of these blocks. A form layout has its own `BeakCard`, `BeakColumns`, `BeakTabs` and `BeakWizardStep` nodes, which stay connected to the draft. See [The block system](../concepts/the-block-system.md) for why there are two families.
+- Forms are not made of these blocks. A form layout has its own `BeakCard`, `BeakRow`, `BeakTabs` and `BeakWizardStep` nodes, which stay connected to the draft. See [The block system](../concepts/the-block-system.md) for why there are two families.
 - `BeakThreePaneBlock` is a layout too, but it hosts data blocks in every example, so it lives on [Module blocks](module-blocks.md).
 
 ## Verify it

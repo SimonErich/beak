@@ -1,12 +1,11 @@
 @TestOn('vm')
 library;
 
-import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
-import 'package:source_gen/source_gen.dart';
 import 'package:test/test.dart';
 import 'package:worm/worm.dart';
 import 'package:worm_generator/worm_generator.dart';
+
+import 'support/generate_worm.dart';
 
 const String _annotatedSource = '''
 import 'package:worm/annotations.dart';
@@ -85,21 +84,7 @@ void main() {
       'emits annotations mixin wiring @Hidden, @CastAs, @Fillable, @Guarded, '
       'and a describe() override',
       () async {
-        final reader = await PackageAssetReader.currentIsolate();
-        final builder = PartBuilder(const <Generator>[
-          WormTableGenerator(),
-        ], '.worm.dart');
-        final writer = InMemoryAssetWriter();
-        await testBuilder(
-          builder,
-          const <String, String>{'_test|lib/user.dart': _annotatedSource},
-          reader: reader,
-          writer: writer,
-          rootPackage: '_test',
-        );
-        final generated = writer.assets[AssetId('_test', 'lib/user.worm.dart')];
-        expect(generated, isNotNull, reason: 'no .worm.dart output written');
-        final source = String.fromCharCodes(generated!);
+        final source = await generateWormPart('user.dart', _annotatedSource);
 
         // Mixin header.
         expect(source, contains('mixin _\$UserAnnotations on Model {'));
@@ -149,22 +134,7 @@ void main() {
     test(
       'emits a connectionName override for a non-default @Table(connection:)',
       () async {
-        final reader = await PackageAssetReader.currentIsolate();
-        final builder = PartBuilder(const <Generator>[
-          WormTableGenerator(),
-        ], '.worm.dart');
-        final writer = InMemoryAssetWriter();
-        await testBuilder(
-          builder,
-          const <String, String>{'_test|lib/event.dart': _connectionSource},
-          reader: reader,
-          writer: writer,
-          rootPackage: '_test',
-        );
-        final generated =
-            writer.assets[AssetId('_test', 'lib/event.worm.dart')];
-        expect(generated, isNotNull, reason: 'no .worm.dart output written');
-        final source = String.fromCharCodes(generated!);
+        final source = await generateWormPart('event.dart', _connectionSource);
 
         expect(source, contains('mixin _\$EventAnnotations on Model {'));
         expect(source, contains("String get connectionName => 'analytics';"));

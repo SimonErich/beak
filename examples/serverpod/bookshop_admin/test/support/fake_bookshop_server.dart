@@ -1,6 +1,6 @@
 import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_serverpod_flutter/tunnel.dart';
-import 'package:bookshop_beak/bookshop_beak.dart';
+import 'package:bookshop_definitions/bookshop_definitions.dart';
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:worm/worm.dart';
 
@@ -22,7 +22,7 @@ final class FakeBookshopServer {
 
   /// Seeds two authors and three books.
   static Future<FakeBookshopServer> seeded() async {
-    final registry = buildBeakRegistry();
+    final registry = createBookshopRegistry();
     final adapter = _SerialIdAdapter(InMemoryAdapter());
     for (final model in registry.all) {
       await adapter.executeSchema(

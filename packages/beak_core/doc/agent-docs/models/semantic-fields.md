@@ -58,7 +58,7 @@ late final int attachmentLimit;
 And this is all its form says about them. There is no per-type input, because `.input()` reads the column:
 
 ```dart
-BeakColumns(
+BeakRow(
   children: [
     BeakCard(
       title: 'Delivery charges',

@@ -64,7 +64,7 @@ Evidence: `beak introspect <url> --dry-run`, then `beak introspect <url>`, `beak
 Task: add a Beak admin for the Author and Book tables to this Serverpod 4 workspace. Serverpod owns the database, auth and migrations.
 Use the beak-serverpod-setup skill. Read .dart_tool/beak/docs/serverpod/choosing-an-integration.md first and say which path you chose and why.
 Do not start the server; tell me when to run `serverpod start`.
-Scope: a new <name>_beak package, a new <name>_admin app, one gated endpoint and one deny-by-default policy in the server.
+Scope: a definitions package with one definition class per exposed table, a new <name>_admin app and one gated endpoint in the server.
 Evidence: `dart analyze` in the server, `flutter test` in the admin app, and a test that a signed-in user without the beak.admin scope is refused.
 ```
 

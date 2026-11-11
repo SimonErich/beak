@@ -100,10 +100,12 @@ One widget lists the resources and holds the app-wide choices (theme, formatting
 void main() => runApp(
   BeakPanel(
     title: 'Clean Beak Shop',
-    theme: OiThemeData.fromBrand(color: const Color(0xFF315D91)),
-    darkTheme: OiThemeData.fromBrand(
-      color: const Color(0xFF82ACDF),
-      brightness: Brightness.dark,
+    theme: BeakTheme(
+      light: OiThemeData.fromBrand(color: const Color(0xFF315D91)),
+      dark: OiThemeData.fromBrand(
+        color: const Color(0xFF82ACDF),
+        brightness: Brightness.dark,
+      ),
     ),
     locale: const Locale('en'),
     formatting: const BeakFormatting(

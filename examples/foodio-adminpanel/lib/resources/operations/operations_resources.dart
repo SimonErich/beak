@@ -25,7 +25,7 @@ List<BeakResource> operationsResources() => [
         ],
       ),
       supportingForm([
-        BeakColumns(
+        BeakRow(
           children: [
             BeakCard(
               title: 'Delivery window',
@@ -90,7 +90,7 @@ List<BeakResource> operationsResources() => [
         ],
       ),
       supportingForm([
-        BeakColumns(
+        BeakRow(
           children: [
             BeakCard(
               title: 'Customer concern',

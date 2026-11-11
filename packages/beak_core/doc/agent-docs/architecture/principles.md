@@ -102,7 +102,7 @@ There is no use-case layer between these. If you reach for one, the logic belong
 
 ### 6. Authority lives on the server
 
-The panel is a courtesy. `BeakPermissions` on a model hides buttons and inputs, and nothing more. What decides is on the server: a `BeakPolicy` per resource (`BeakPolicies` is the typed rule set, and denies whatever it does not list), row scopes, field policies and action policies, enforced in the handlers and the commit service, with row scopes folded into every query by the authorizer.
+The panel is a courtesy. `BeakPermissions` on a model is data checked against a principal, and in the panel it hides buttons and inputs, nothing more. What decides is on the server: a `BeakPolicy` per resource (`BeakPolicies` is the typed rule set, and denies whatever it does not list), row scopes, field policies and action policies, enforced in the handlers and the commit service, with row scopes folded into every query by the authorizer.
 
 The same holds for logic. Model behavior and record rules run in the panel to give quick feedback and run again on the server, over the stored state plus the proposed writes. A form save is a graph commit, so it is atomic, idempotent and recoverable, and a rule that spans several records cannot be side-stepped by a script that calls the per-record routes, because those routes are closed for the tables that have rules. See [Graph commits](graph-commits.md) and [Where authority lives](../concepts/where-authority-lives.md).
 

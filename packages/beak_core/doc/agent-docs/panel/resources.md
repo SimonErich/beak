@@ -139,6 +139,7 @@ library;
 
 import 'package:beak/panel.dart';
 import 'package:beak/ui.dart';
+
 import '../resources/notes/models/note.dart';
 
 /// The panel configuration for this project.
@@ -192,10 +193,12 @@ The shop registers its resources this way:
 void main() => runApp(
   BeakPanel(
     title: 'Clean Beak Shop',
-    theme: OiThemeData.fromBrand(color: const Color(0xFF315D91)),
-    darkTheme: OiThemeData.fromBrand(
-      color: const Color(0xFF82ACDF),
-      brightness: Brightness.dark,
+    theme: BeakTheme(
+      light: OiThemeData.fromBrand(color: const Color(0xFF315D91)),
+      dark: OiThemeData.fromBrand(
+        color: const Color(0xFF82ACDF),
+        brightness: Brightness.dark,
+      ),
     ),
     locale: const Locale('en'),
     formatting: const BeakFormatting(
@@ -230,7 +233,7 @@ The shop registers 11 resources for 20 models. Related models register themselve
 
 | Option | `BeakPanel(...)` | `BeakPanelConfig` |
 | --- | --- | --- |
-| `title`, `resources`, `pages`, `apiBaseUrl`, `theme`, `darkTheme`, `locale`, `formatting`, `auth`, `navigation`, `refreshPolicy`, `home`, `maintenance`, `mapException` | yes | yes |
+| `title`, `resources`, `pages`, `apiBaseUrl`, `theme`, `locale`, `formatting`, `auth`, `navigation`, `refreshPolicy`, `home`, `maintenance`, `mapException` | yes | yes |
 | `notifications`, `shellActions` | no | yes |
 | `initialThemeMode`, `supportedLocales`, `localizationsDelegates` | no | yes |
 | `sidebarCollapsible`, `sidebarDefaultCollapsed` | no | yes |
@@ -240,8 +243,7 @@ The shop registers 11 resources for 20 models. Related models register themselve
 
 ```dart title="examples/foodio-adminpanel/lib/main.dart"
 title: 'Gabel Admin',
-theme: gabelTheme(),
-darkTheme: gabelTheme(dark: true),
+theme: GabelTheme(),
 apiBaseUrl: apiBaseUrl,
 locale: const Locale('en'),
 formatting: const BeakFormatting(
@@ -327,16 +329,14 @@ A role you leave out falls back to the generated page. The screens themselves ar
 
 Two layers hide UI, and neither one protects data.
 
-`canCreate`, `canEdit` and `canDelete` are per-resource switches. `BeakModel.permissions` is per model, so every resource that uses the model shares it. It maps each `BeakOperation` (`read`, `create`, `update`, `delete`) to a closure that answers for the account signed in right now. A missing rule denies, and a model without a `permissions` getter allows everything.
+`canCreate`, `canEdit` and `canDelete` are per-resource switches. `BeakModel.permissions` is per model, so every resource that uses the model shares it. It is data: a `BeakAccess` for `read` and for `write`, optionally one each for `create`, `update` and `delete` (they default to `write`), and one per named command in `actions`. The panel checks the constant against the principal of the account signed in right now. A server can run the very same check against the principal it resolved (`model.permissions.allows(operation, principal)`), so the panel and the server read one definition. An operation with no access value denies, and a model without a `permissions` getter allows everything (`BeakPermissions.allowAll()`).
 
-A schema class supplies the getter as `static BeakPermissions get permissions` and the generated model forwards it. Here it is on a plain model, from the panel's own tests:
+A schema class supplies the getter as `static BeakPermissions get permissions` and the generated model forwards it. Here it is on a plain model, from the panel's own tests, with the `writer` role as the key to every write:
 
 ```dart title="packages/beak_frontend/test/src/panel/beak_panel_test.dart"
-/// The notes model whose write permissions follow a live check.
+/// The notes model whose writes are open to the `writer` role.
 final class _WriteGatedNoteModel extends BeakModel {
-  const _WriteGatedNoteModel(this.canWrite);
-
-  final bool Function() canWrite;
+  const _WriteGatedNoteModel();
 
   @override
   String get table => 'notes';
@@ -348,21 +348,23 @@ final class _WriteGatedNoteModel extends BeakModel {
   List<BeakColumn> get columns => const NoteModel().columns;
 
   @override
-  BeakPermissions get permissions => BeakPermissions({
-    BeakOperation.read: () => true,
-    BeakOperation.create: canWrite,
-  });
+  BeakPermissions get permissions => const BeakPermissions(
+    read: BeakAccess.anyone,
+    write: BeakAccess.role('writer'),
+  );
 }
 ```
+
+The principal comes from the auth adapter: `BeakAuthIdentity.roles` carries the roles the backend granted, and the built-in session store fills them from the login response. A role change in the adapter's state refreshes the controls without navigation. A panel with no auth configured has no principal, so only `BeakAccess.anyone` admits there.
 
 Three inputs decide each operation. All must say yes:
 
 | Operation | Model transport supports it | Resource switch | `permissions` rule |
 | --- | --- | --- | --- |
 | Read (list, show, sidebar, command bar) | `capabilities` has `read` | none | `read` |
-| Create | `capabilities` has `create`, or a custom create screen exists | `canCreate` | `create` |
-| Edit | `capabilities` has `update`, or a custom edit screen exists | `canEdit` | `update` |
-| Delete | `capabilities` has `delete` | `canDelete` | `delete` |
+| Create | `capabilities` has `create`, or a custom create screen exists | `canCreate` | `create`, else `write` |
+| Edit | `capabilities` has `update`, or a custom edit screen exists | `canEdit` | `update`, else `write` |
+| Delete | `capabilities` has `delete` | `canDelete` | `delete`, else `write` |
 
 Every other operation needs read access first. A resource whose `read` rule says no leaves the sidebar and the command bar, and its routes redirect to `/403`. A `create` or `update` rule that says no does the same for its route and button, and `delete` hides the Delete button. Custom actions need read access and keep their own checks.
 

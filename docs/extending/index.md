@@ -52,7 +52,7 @@ Nothing here needs an entry in a registration list. `beak prepare` reads the pro
 | You are changing | File | Function or class | Starter |
 | --- | --- | --- | --- |
 | The whole panel configuration, and anything registered at startup | `lib/panel.dart` | `beakPanel(BeakPanelConfig defaults)` | `beak eject panel` |
-| The light and dark themes | `lib/theme.dart` | `beakLightTheme()`, `beakDarkTheme()` | `beak eject theme` |
+| The light and dark themes | `lib/theme.dart` | `BeakTheme beakTheme()` | `beak eject theme` |
 | Which auth routes exist and what they call | `lib/auth.dart` | `beakAuth()` | `beak eject auth` |
 | The server: policy, sessions, middleware, routes | `lib/server.dart` | `beakServer(BeakServerDefaults defaults)` | `beak eject server` |
 | The storage drivers a server can resolve | `lib/server.dart` | `beakStorageRegistry()` | by hand |

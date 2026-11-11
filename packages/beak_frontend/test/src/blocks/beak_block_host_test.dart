@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
+import 'package:signals/signals_flutter.dart';
 
 void main() {
   Future<void> pumpBlock(WidgetTester tester, BeakBlock block) async {
@@ -18,6 +19,26 @@ void main() {
   }
 
   group('layout blocks', () {
+    testWidgets(
+      'visibility blocks omit their child and follow reactive permission changes',
+      (tester) async {
+        final visible = signal(false);
+        addTearDown(visible.dispose);
+        final block = BeakVisibilityBlock(
+          visibleWhen: (_) => visible.value,
+          child: const BeakTextBlock('Allowed content'),
+        );
+        await pumpBlock(tester, block);
+        expect(find.text('Allowed content'), findsNothing);
+        visible.value = true;
+        await tester.pumpAndSettle();
+        expect(find.text('Allowed content'), findsOneWidget);
+        visible.value = false;
+        await tester.pumpAndSettle();
+        expect(find.text('Allowed content'), findsNothing);
+      },
+    );
+
     testWidgets('column stacks children onto OiColumn', (tester) async {
       await pumpBlock(
         tester,

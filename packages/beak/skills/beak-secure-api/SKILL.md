@@ -53,9 +53,10 @@ Read first, by path: `.dart_tool/beak/docs/backend/auth-and-policies.md`,
    (`references/field-policy.md`). Reads, filters, sorts, search, aggregates
    and exports then treat the field as absent.
 6. Mirror the rules for presentation only. On the schema class,
-   `static BeakPermissions get permissions => BeakPermissions({...})` hides
-   buttons by operation; `BeakResource(canCreate:, canEdit:, canDelete:)` does
-   the same per resource. Neither protects anything: a client that skips the
+   `static BeakPermissions get permissions => const BeakPermissions(read:
+   BeakAccess.role('staff'), write: BeakAccess.role('manager'))` hides buttons
+   by operation, checked against the roles of the signed-in account;
+   `BeakResource(canCreate:, canEdit:, canDelete:)` does the same per resource. Neither protects anything: a client that skips the
    panel skips them.
 7. Prove it with per-role API tests, denials first: anonymous, a role with too
    little, a role with enough. Cover query, get, create, update, delete, export,

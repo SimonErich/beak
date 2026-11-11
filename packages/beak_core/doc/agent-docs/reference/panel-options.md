@@ -42,7 +42,7 @@ Beak boots a panel two ways. An authored `lib/main.dart` calls `BeakPanel` itsel
 | `apiBaseUrl` | `apiBaseUrl` | `api.baseUrl` in beak.yaml |
 | `pages` | `pages` | every screen discovered under `lib/screens/` |
 | `auth` | `auth` | `beakAuth()` in `lib/auth.dart` |
-| `theme`, `darkTheme` | `theme`, `darkTheme` | `beakLightTheme()`, `beakDarkTheme()` in `lib/theme.dart` |
+| `theme` | `theme` | `theme.preset` in beak.yaml, or `beakTheme()` in `lib/theme.dart` |
 | `sidebarCollapsible`, `sidebarDefaultCollapsed` | none | `theme.sidebar.collapsible`, `theme.sidebar.startCollapsed` in beak.yaml |
 | `locale`, `formatting`, `home`, `navigation`, `refreshPolicy` | same names | `beakPanel(defaults)` in `lib/panel.dart` |
 | `maintenance`, `mapException` | same names | `beakPanel(defaults)` in `lib/panel.dart` |
@@ -60,7 +60,6 @@ The root widget. It builds its own dependency container and router from the conf
     List<BeakResource>? resources,
     this.title,
     this.theme,
-    this.darkTheme,
     this.apiBaseUrl,
     this.pages = const [],
     this.auth,
@@ -84,8 +83,7 @@ The root widget. It builds its own dependency container and router from the conf
 | `config` | `BeakPanelConfig?` | `null` | A complete configuration. Exclusive with `resources`; the constructor asserts. |
 | `resources` | `List<BeakResource>?` | `[]` | The resources of a directly configured panel. |
 | `title` | `String?` | `null` | Application title; `Beak` when null. |
-| `theme` | `OiThemeData?` | `null` | Light theme, `OiThemeData.light()` when null. |
-| `darkTheme` | `OiThemeData?` | `null` | Dark theme, `OiThemeData.dark()` when null. |
+| `theme` | `BeakTheme?` | `null` | Light and dark theme, `BeakTheme.standard()` when null. |
 | `apiBaseUrl` | `String?` | `null` | Backend origin; when null the `BEAK_API_BASE_URL` `--dart-define`, else `http://localhost:8080`. `BeakPanelConfig` does not read the `--dart-define`. |
 | `pages` | `List<BeakScreen>` | `[]` | Custom pages. |
 | `auth` | `BeakAuthConfig?` | `null` | Authentication configuration. |
@@ -126,10 +124,12 @@ The everyday authored form is a title, a formatting policy, pages and resources:
 void main() => runApp(
   BeakPanel(
     title: 'Clean Beak Shop',
-    theme: OiThemeData.fromBrand(color: const Color(0xFF315D91)),
-    darkTheme: OiThemeData.fromBrand(
-      color: const Color(0xFF82ACDF),
-      brightness: Brightness.dark,
+    theme: BeakTheme(
+      light: OiThemeData.fromBrand(color: const Color(0xFF315D91)),
+      dark: OiThemeData.fromBrand(
+        color: const Color(0xFF82ACDF),
+        brightness: Brightness.dark,
+      ),
     ),
     locale: const Locale('en'),
     formatting: const BeakFormatting(
@@ -191,7 +191,6 @@ const BeakPanelConfig({
   this.auth,
   this.maintenance,
   this.theme,
-  this.darkTheme,
   this.initialThemeMode = OiThemeMode.system,
   this.locale,
   this.formatting,
@@ -205,6 +204,7 @@ const BeakPanelConfig({
   this.refreshPolicy,
   this.shellActions,
   this.mapException,
+  this.defaults = const BeakListDefaults(),
 });
 ```
 
@@ -216,13 +216,12 @@ const BeakPanelConfig({
 | `pages` | `List<BeakScreen>` | `const []` | Custom, non-resource screens, in navigation order. |
 | `auth` | `BeakAuthConfig?` | `null` | Authentication routes; `null` mounts only a default `/login`. |
 | `maintenance` | `BeakMaintenanceConfig?` | `null` | Maintenance / coming-soon routes; `null` mounts neither. |
-| `theme` | `OiThemeData?` | `null` | The light theme (defaults to `OiThemeData.light()`). |
-| `darkTheme` | `OiThemeData?` | `null` | The dark theme (defaults to `OiThemeData.dark()`). |
+| `theme` | `BeakTheme?` | `null` | The panel's light and dark themes (defaults to `BeakTheme.standard()`). |
 | `initialThemeMode` | `OiThemeMode` | `OiThemeMode.system` | The theme mode the panel starts in; toggled live from the shell. |
 | `locale` | `Locale?` | `null` | Explicit app locale; `null` follows the platform's supported locale. |
 | `formatting` | `BeakFormatting?` | `null` | Shared date, number and currency display policy. |
 | `supportedLocales` | `Iterable<Locale>` | `BeakLocalizations.supportedLocales` | Locales supported by the panel and its application-owned labels. |
-| `localizationsDelegates` | `Iterable<LocalizationsDelegate<Object?>>` | `const []` | Application translation delegates, installed before Beak's default. Beak always appends its delegate. A custom delegate for `BeakLocalizations` may override that default when translating framework text into another language; application resource labels use their own delegate. |
+| `localizationsDelegates` | `Iterable<LocalizationsDelegate<Object?>>` | `const []` | Application translation delegates, installed before Beak's default. Beak always appends its delegate. A custom delegate for `BeakLocalizations` may override that default when translating framework text into another language. Model and field labels come from the label files, not from a delegate. |
 | `sidebarCollapsible` | `bool` | `true` | Whether the sidebar can collapse to an icon rail. |
 | `sidebarDefaultCollapsed` | `bool` | `false` | Whether the sidebar starts collapsed (an icon-only rail). |
 | `home` | `BeakDestination?` | `null` | Where `/` sends the user when no `BeakScreen` claims it, for example a resource's list page or an overview screen. Sign-in and the error pages' back actions land here. `null` picks the first visible navigation destination. Ignored while its resource is not visible. |
@@ -356,7 +355,7 @@ final class CategoryResource extends BeakResource {
 | `allowsAction(BeakAction)` | `bool` | Live availability of a built-in or configured action; a custom action needs `isVisible` |
 | `copyWith(...)` | `BeakResource` | A copy with the named parts replaced; a `null` argument keeps the current value |
 
-`BeakScreenRole` has four values: `list`, `read`, `create`, `edit`. The permission hooks (`BeakModel.permissions`, a `BeakPermissions`) and the capability switches (`canCreate`, `canEdit`, `canDelete`) only hide routes and buttons. A hidden route redirects to `/403`. Authorization is enforced on the server, see [Auth and policies](../backend/auth-and-policies.md).
+`BeakScreenRole` has four values: `list`, `read`, `create`, `edit`. The permission hooks (`BeakModel.permissions`, a `BeakPermissions` checked against the signed-in principal) and the capability switches (`canCreate`, `canEdit`, `canDelete`) only hide routes and buttons. A hidden route redirects to `/403`. Authorization is enforced on the server, see [Auth and policies](../backend/auth-and-policies.md).
 
 ## BeakScreen
 
@@ -372,6 +371,7 @@ const BeakScreen({
   this.navigationGroup,
   this.showInNav = true,
   this.framed = true,
+  this.canAccess,
 });
 ```
 
@@ -385,6 +385,7 @@ const BeakScreen({
 | `navigationGroup` | `String?` | `null` | Optional sidebar group heading this screen is filed under. |
 | `showInNav` | `bool` | `true` | Whether the screen appears in the sidebar. Set false for detail pages reached only by navigation (e.g. an invoice document). |
 | `framed` | `bool` | `true` | Whether to provide the standard page header, gutters and scrolling. The frame does not add a card or background behind the body: card, chart and table blocks own their surfaces. Wrap the body in a `BeakCardBlock` to deliberately place it on one shared surface. Set false for full-bleed screens like a calendar or kanban board. |
+| `canAccess` | `bool Function()?` | `null` (allowed) | Live presentation permission. Denied pages are removed from navigation and commands, redirect direct routes to `/403`, and do not mount their body. Re-evaluated on rebuild or router refresh. Server policies independently authorize data requests. |
 
 `effectiveNavigationTitle` is `navigationTitle ?? title`, and `location` is `path`. A screen at `/` becomes the landing page. The block reference is [Blocks](blocks.md).
 
@@ -479,26 +480,27 @@ The first visible item of a section is its landing destination.
 An item is a generated resource list or a custom screen. The constructors are named.
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_navigation.dart"
-  const BeakNavigationItem.resource(
-    this.model, {
-    String? label,
-    IconData? icon,
-    this.preset,
-    this.showCount = false,
-    this.recordLabelMonospace = false,
-  }) : screen = null,
-       _label = label,
-       _icon = icon;
+const BeakNavigationItem.resource(
+  this.model, {
+  this._label,
+  this._icon,
+  this.preset,
+  this.showCount = false,
+  this.recordLabelMonospace = false,
+  this.group,
+}) : screen = null;
 ```
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_navigation.dart"
-  const BeakNavigationItem.screen(this.screen, {String? label, IconData? icon})
-    : model = null,
-      preset = null,
-      showCount = false,
-      recordLabelMonospace = false,
-      _label = label,
-      _icon = icon;
+const BeakNavigationItem.screen(
+  this.screen, {
+  this._label,
+  this._icon,
+  this.group,
+}) : model = null,
+     preset = null,
+     showCount = false,
+     recordLabelMonospace = false;
 ```
 
 | Parameter | Constructor | Type | Default | Meaning |
@@ -674,8 +676,7 @@ The bell loads 30 rows, newest first when `timeField` is set, and refetches afte
 
 ```dart title="examples/foodio-adminpanel/lib/main.dart"
 title: 'Gabel Admin',
-theme: gabelTheme(),
-darkTheme: gabelTheme(dark: true),
+theme: GabelTheme(),
 apiBaseUrl: apiBaseUrl,
 locale: const Locale('en'),
 formatting: const BeakFormatting(
@@ -791,18 +792,81 @@ One display policy for tables, forms, summaries and exports. It changes presenta
 | `locale` | Explicit `Locale`; the platform's when null |
 | `supportedLocales` | Defaults to `BeakLocalizations.supportedLocales`, which is `en` and `de` |
 | `localizationsDelegates` | Application delegates installed first; Beak's own delegate is always appended, so a custom `BeakLocalizations` delegate can override framework text |
-| `theme`, `darkTheme` | `OiThemeData`; `OiThemeData.light()` and `OiThemeData.dark()` when null |
-| `initialThemeMode` | `OiThemeMode.system` by default; `light` and `dark` are the others. The shell's toggle changes it live through the registered `BeakThemeController`. |
+| `theme` | `BeakTheme`: a light and a dark `OiThemeData` and the licences they bundle; `BeakTheme.standard()` when null. A built-in one, such as `GabelTheme()`, is [Built-in themes](../theming/built-in-themes.md) |
+| `initialThemeMode` | Fallback when no preference is stored yet (`OiThemeMode.system` by default). The shell's toggle changes the live mode through `BeakThemeController`, which persists the choice locally across reloads. |
 | `sidebarCollapsible` | `true`: the sidebar collapses to an icon rail |
 | `sidebarDefaultCollapsed` | `false`: the sidebar starts expanded |
 | `shellActions` | `List<Widget> Function(BuildContext)`; extra controls in the shell header. When null and `auth` is set, the shell shows the sign-out button instead. |
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_theme_controller.dart"
 final class BeakThemeController extends ValueNotifier<OiThemeMode> {
-  /// Creates a controller starting in the given mode (default: system).
-  BeakThemeController([super.initialMode = OiThemeMode.system]);
-}
+  /// Creates a controller starting in [initialMode], then restoring any
+  /// previously saved preference from local storage.
+  BeakThemeController([OiThemeMode initialMode = OiThemeMode.system])
+    : this._(initialMode, const OiLocalStorageDriver(prefix: 'beak'));
 
+  /// Test and host seam that supplies a custom settings [store].
+  BeakThemeController.withStore(
+    OiSettingsDriver store, {
+    OiThemeMode initialMode = OiThemeMode.system,
+  }) : this._(initialMode, store);
+
+  BeakThemeController._(this.initialMode, this._store) : super(initialMode) {
+    unawaited(restore());
+  }
+
+  /// Fallback mode used when no preference has been saved yet.
+  final OiThemeMode initialMode;
+
+  final OiSettingsDriver _store;
+  int _epoch = 0;
+
+  static const _namespace = 'theme';
+
+  /// Reloads the persisted preference, if any.
+  ///
+  /// A concurrent [value] write wins over an in-flight restore.
+  Future<void> restore() async {
+    final epoch = ++_epoch;
+    final saved = await _load();
+    if (epoch != _epoch || saved == null || saved == value) return;
+    super.value = saved;
+  }
+
+  @override
+  set value(OiThemeMode newValue) {
+    if (newValue == value) return;
+    _epoch++;
+    super.value = newValue;
+    unawaited(_persist(newValue));
+  }
+
+  Future<OiThemeMode?> _load() async {
+    try {
+      final settings = await _store.load(
+        namespace: _namespace,
+        deserialize: _BeakThemeSettings.fromJson,
+      );
+      return settings?.mode;
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<void> _persist(OiThemeMode mode) async {
+    try {
+      final settings = _BeakThemeSettings(mode);
+      await _store.save(
+        namespace: _namespace,
+        data: settings,
+        serialize: (data) => data.toJson(),
+      );
+    } on Object {
+      // Best-effort: missing plugin bindings (e.g. widget tests) must not
+      // break the live theme toggle.
+    }
+  }
+}
 ```
 
 The shell header also carries the command search (Ctrl or Cmd plus K), which lists every visible resource and page and searches `globalSearchSources`. `BeakNavigation` controls its placement and hint.
@@ -874,7 +938,7 @@ container
 | Data source | `BeakDataSource` | A `ModelBeakDataSource` routing each table to its model's own source or the fallback |
 | Model registry | `BeakModelRegistry` | Every resource model and every model they relate to |
 | Panel config | `BeakPanelConfig` | The config in use |
-| Theme controller | `BeakThemeController` | Starts in `initialThemeMode` |
+| Theme controller | `BeakThemeController` | Starts from the saved preference, else `initialThemeMode` |
 | Action runner | `BeakModelActionRunner` | Runs model commands and keeps unresolved ones recoverable |
 
 ## Embedding

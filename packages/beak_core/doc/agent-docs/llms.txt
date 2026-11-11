@@ -33,9 +33,9 @@
 - [Examples](examples/index.md): Five runnable Beak projects compared by domain, models, ports, auth and run command, with a guide to which one to read for what you are building.
 - [Quickstart scaffold](examples/quickstart.md): Tour the project that beak create writes, file by file, and see which files you author, which Beak generates and which Beak writes once.
 - [Clean shop](examples/clean-shop.md): Tour the clean shop, the teaching example: 20 models, exact money, invoice actions, a server-side preparer, custom pages, tests and limits.
-- [Foodio admin](examples/foodio.md): Tour Gabel, the Foodio example: composed order lists, a five-step wizard, named actions, a transactional preparer, durable effects and a custom theme.
+- [Foodio admin](examples/foodio.md): Tour Gabel, the Foodio example: composed order lists, a five-step wizard, named actions, a transactional preparer, durable effects and the Gabel theme.
 - [Showcase](examples/showcase.md): Tour the Aviary, the example that uses every column kind, relationship kind and block type, and the tests that keep it complete when Beak grows.
-- [Serverpod admin](examples/serverpod-admin.md): A card for the Serverpod example: a bookshop workspace whose Beak admin runs behind one gated endpoint, with its tests and its limits.
+- [Serverpod admin app](examples/serverpod-admin.md): The reference Serverpod workspace, whose Beak admin is generated from one definition class per exposed model, with every write through the engine.
 - [Feature map](examples/feature-map.md): Find the example, the file and the docs page for a Beak feature, from column kinds to graph preparers, in one table per area.
 - [Concepts](concepts/index.md): Why Beak is shaped the way it is, in eight short pages on the resource model, the two promises, authority, layers, data flow, blocks and errors.
 - [Declarative resources](concepts/declarative-resources.md): Schema, model, resource, screen and page: what each one decides, what Beak's runtime does with them, and why you write no fetching code.
@@ -63,6 +63,8 @@
 - [The panel](panel/index.md): What a Beak panel stands up on first build, which routes it owns, which file decides what, and which page of this section covers each part.
 - [Resources](panel/resources.md): Declare how a model appears in the panel with a BeakResource, from its title and sidebar group to its screens, filters, search sources and actions.
 - [Navigation](panel/navigation.md): Order the automatic sidebar, replace it with sections and counts, and configure the command bar, notification bell and shell actions.
+- [Defaults, labels and standard resources](panel/defaults-and-labels.md): One conventional resource and one list shape for the whole panel, so a resource declaration stays a few lines.
+- [Labels in every language](panel/labels.md): Name models, fields, relationships, enum values and commands once, in ARB files keyed by Dart names, and let the panel show them in its language.
 - [Tables and filters](panel/tables-and-filters.md): Choose the columns of a resource list, scope and sort its rows, and put typed filters above it. Every change is one server-side query.
 - [Composed lists and query state](panel/composed-lists.md): Share one typed query across preset tabs, staged filters, columns, an overview, saved views and CSV export with a BeakListDefinition.
 - [View modes](panel/view-modes.md): Look at one model as a table, a kanban board, a calendar or a timeline, with the resource list plus data blocks on a BeakScreen.
@@ -92,9 +94,10 @@
 - [Module blocks](blocks/module-blocks.md): Chat, inbox, file manager, media, profile, invoice, pricing and FAQ views bound to your models, and the row limits, read failures and writes they come with.
 - [Charts](blocks/charts.md): Draw a query as a line, bar, pie, donut, area, radar or funnel chart, or as a bubble, candlestick or heat map, by mapping records to typed points.
 - [Maps](blocks/maps.md): Shade countries by a value with the vector map block, or pin rows by latitude and longitude on an OpenStreetMap tile map.
-- [Theming and formatting](theming/index.md): Style the panel with one theme, resolve semantic colors, set type and icons, and choose how numbers, money, dates and built-in text are written.
-- [Theming basics](theming/theming-basics.md): Give the panel a light and a dark theme from one brand color, choose the starting mode, and read theme tokens in your own widgets.
-- [Colors and tokens](theming/colors-and-tokens.md): How the seven BeakColor names resolve to theme colors on badges, buttons, boards and charts, and how to build a full palette from a design system.
+- [Theming and formatting](theming/index.md): Style the panel with one theme or a built-in one, resolve semantic colors, set type and icons, and choose how numbers, money and dates are written.
+- [Theming basics](theming/theming-basics.md): Give the panel a light and a dark theme from one brand color, pick a built-in theme, choose the starting mode, and read theme tokens in your own widgets.
+- [Built-in themes](theming/built-in-themes.md): Select the stock theme or the Gabel design with one line, add the package that ships it, and write a built-in theme of your own.
+- [Colors and tokens](theming/colors-and-tokens.md): How the seven BeakColor names resolve to theme colors on badges, buttons, boards and charts, and how Gabel builds a full palette from a design system.
 - [Typography and icons](theming/typography-and-icons.md): Set the panel's fonts and type ramp, know which text styles Beak's blocks use, and re-skin every icon the framework draws through one theme entry.
 - [Formatting and localization](theming/formatting-and-localization.md): Set number, money and date conventions once, keep CSV exports in step with the screen, and see which built-in strings Beak translates (English and German).
 - [The backend](backend/index.md): See what the generated Shelf server gives you for every registered model, how its three layers are stacked, and which page configures each part.
@@ -141,10 +144,12 @@
 
 - [Serverpod](serverpod/index.md): Two ways to put a Beak panel on a Serverpod 4 project, an admin app in your workspace or a client bridge over your endpoints, and where each one stops.
 - [Choosing an integration](serverpod/choosing-an-integration.md): Compare the admin app, the client bridge and a separate Beak server next to Serverpod, row by row, and pick the one that fits your project.
-- [Admin app in your workspace](serverpod/admin-app/index.md): Add a Beak admin app to a Serverpod 4 workspace, with Beak's API running inside your server, and know what the proof covers and what it leaves out.
+- [Admin app in your workspace](serverpod/admin-app/index.md): Add a Beak admin to a Serverpod 4 workspace - one definition class per exposed model, a configuration-only panel, and Beak's API inside your server.
 - [How the admin app works](serverpod/admin-app/how-it-works.md): Follow one panel request through the gated Serverpod endpoint, Beak's in-process API and the session adapter down to Serverpod's own database.
-- [Setting up the admin app](serverpod/admin-app/setup.md): Add a Beak admin app to a Serverpod 4 workspace, register the gated endpoint on the server, declare two resources and sign in to a running panel.
-- [Limits and next steps](serverpod/admin-app/limits-and-next-steps.md): What the Serverpod admin app proof does not cover yet, why, the workaround that exists today and the tests that show what is proven.
+- [Generating the admin from definition classes](serverpod/admin-app/generate.md): Declare each exposed Serverpod model as a class; beak generate checks it against Serverpod and writes the typed models and server handler bases.
+- [Setting up the admin app](serverpod/admin-app/setup.md): Add the Beak admin to a Serverpod 4 workspace, from the definition classes and their generated models to the gated endpoint and the signed-in panel.
+- [Writes, commands and trees](serverpod/admin-app/write-bindings.md): Open a model's writes as stock, derived or custom, implement the generated handler with your existing use cases, and keep small trees free of cycles.
+- [Limits and next steps](serverpod/admin-app/limits-and-next-steps.md): What the Serverpod admin path covers today, what it leaves out, and the workaround for each gap.
 - [Client bridge](serverpod/bridge/index.md): Put a Beak panel over the typed Serverpod endpoints you already have, with no server change and a smaller feature set, using three packages.
 - [Bridge resources](serverpod/bridge/resources.md): Bind typed Serverpod client calls to a Beak resource with ServerpodResource, and learn exactly which queries, writes and features the bridge refuses.
 - [Generating bridge resources](serverpod/bridge/generator.md): Generate typed bridge resources, field descriptors and codecs from your Serverpod client with beak_serverpod.yaml and one command, and keep them in step.

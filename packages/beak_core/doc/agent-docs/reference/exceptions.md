@@ -39,6 +39,36 @@ sealed class BeakException implements Exception {
   /// Creates an exception carrying a stable [code] and a [message].
   const BeakException({required this.code, required this.message});
 
+  /// The Beak exception for a failure of [category] described by [message].
+  ///
+  /// The mapping seam for a host whose own exceptions carry a category: map
+  /// each to a [BeakErrorCategory] and let Beak pick the type. [field] attaches
+  /// a validation failure to one column key and is ignored for every other
+  /// category. The [message] reaches the caller, so keep internals out of it.
+  ///
+  /// ```dart
+  /// throw BeakException.forCategory(BeakErrorCategory.conflict, 'Taken.');
+  /// ```
+  factory BeakException.forCategory(
+    BeakErrorCategory category,
+    String message, {
+    String? field,
+  }) => switch (category) {
+    BeakErrorCategory.validation => BeakValidationException(
+      message,
+      fieldErrors: field == null
+          ? const {}
+          : {
+              field: [message],
+            },
+    ),
+    BeakErrorCategory.notFound => BeakNotFoundException(message),
+    BeakErrorCategory.unauthenticated => BeakAuthenticationException(message),
+    BeakErrorCategory.forbidden => BeakAuthorizationException(message),
+    BeakErrorCategory.conflict => BeakConflictException(message),
+    BeakErrorCategory.unexpected => BeakInternalException(message),
+  };
+
   /// Stable machine-readable identifier of the failure category.
   final String code;
 
@@ -533,6 +563,127 @@ A `BeakException` becomes a `BeakErr`. Any other `Exception` is offered to `mapE
 `BeakFormSession` exposes the most recent load or save failure as `error` (`ReadonlySignal<BeakException?>`) and the latest receipt as `saveResult` (`ReadonlySignal<BeakSaveResult?>`). `hasUnknown` is `true` while any outcome is `unknown`, and a form with an unknown outcome refuses to save again until `recover()` has resolved it.
 
 `BeakLocalizations.authError(BeakException)` turns an authentication failure into a fixed, localized sentence (English and German) and never shows the backend's message.
+
+## Mapping a host's own failures
+
+A host that has its own exception type, a Serverpod project for one, maps it to Beak's family at the edge. `BeakException.forCategory(category, message, {field})` picks the subtype from a `BeakErrorCategory`, so the mapper never names a Beak exception class:
+
+```dart title="packages/beak_core/lib/src/common/beak_exception.dart"
+enum BeakErrorCategory {
+  /// The input is invalid; becomes a [BeakValidationException].
+  validation,
+
+  /// The record or resource does not exist; becomes a
+  /// [BeakNotFoundException].
+  notFound,
+
+  /// There is no valid identity; becomes a [BeakAuthenticationException].
+  unauthenticated,
+
+  /// The identity may not do this; becomes a [BeakAuthorizationException].
+  forbidden,
+
+  /// The request conflicts with existing state; becomes a
+  /// [BeakConflictException].
+  conflict,
+
+  /// The failure is the server's own; becomes a [BeakInternalException].
+  unexpected,
+}
+```
+
+| Category | Becomes | HTTP |
+| --- | --- | --- |
+| `validation` | `BeakValidationException`, with `fieldErrors: {field: [message]}` when `field` is given | 422 |
+| `notFound` | `BeakNotFoundException` | 404 |
+| `unauthenticated` | `BeakAuthenticationException` | 401 |
+| `forbidden` | `BeakAuthorizationException` | 403 |
+| `conflict` | `BeakConflictException` | 409 |
+| `unexpected` | `BeakInternalException` | 500 |
+
+`field` only applies to `validation` and is ignored for the others. The message reaches the caller, except for `unexpected`, where the server replaces it with the fixed body. The package tests pin every row:
+
+```dart title="packages/beak_core/test/src/common/beak_exception_test.dart"
+group('forCategory', () {
+  test('maps each category to its exception type', () {
+    expect(
+      BeakException.forCategory(BeakErrorCategory.validation, 'Bad.'),
+      isA<BeakValidationException>(),
+    );
+    expect(
+      BeakException.forCategory(BeakErrorCategory.notFound, 'Gone.'),
+      isA<BeakNotFoundException>(),
+    );
+    expect(
+      BeakException.forCategory(BeakErrorCategory.unauthenticated, 'Who?'),
+      isA<BeakAuthenticationException>(),
+    );
+    expect(
+      BeakException.forCategory(BeakErrorCategory.forbidden, 'No.'),
+      isA<BeakAuthorizationException>(),
+    );
+    expect(
+      BeakException.forCategory(BeakErrorCategory.conflict, 'Taken.'),
+      isA<BeakConflictException>(),
+    );
+    expect(
+      BeakException.forCategory(BeakErrorCategory.unexpected, 'Oops.'),
+      isA<BeakInternalException>(),
+    );
+  });
+
+  test('covers every category and keeps the stable codes', () {
+    for (final category in BeakErrorCategory.values) {
+      final exception = BeakException.forCategory(category, 'Message.');
+      expect(exception.message, 'Message.');
+      expect(exception.code, expectedCodeOf(exception));
+    }
+  });
+
+  test('a validation failure attaches the message to the given field', () {
+    final exception = BeakException.forCategory(
+      BeakErrorCategory.validation,
+      'Already taken.',
+      field: 'sku',
+    );
+    expect(
+      exception,
+      isA<BeakValidationException>().having(
+        (error) => error.fieldErrors,
+        'fieldErrors',
+        {
+          'sku': ['Already taken.'],
+        },
+      ),
+    );
+  });
+
+  test('a validation failure without a field has no field errors', () {
+    final exception = BeakException.forCategory(
+      BeakErrorCategory.validation,
+      'Bad.',
+    );
+    expect(
+      exception,
+      isA<BeakValidationException>().having(
+        (error) => error.fieldErrors,
+        'fieldErrors',
+        isEmpty,
+      ),
+    );
+  });
+
+  test('a field on any other category is ignored', () {
+    final exception = BeakException.forCategory(
+      BeakErrorCategory.conflict,
+      'Taken.',
+      field: 'sku',
+    );
+    expect(exception, isA<BeakConflictException>());
+    expect(exception.message, 'Taken.');
+  });
+});
+```
 
 ## Exceptions outside the family
 

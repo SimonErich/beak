@@ -1,9 +1,7 @@
 import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:analyzer/dart/analysis/utilities.dart';
-import 'package:analyzer/dart/ast/ast.dart';
-
+import '../analyzer_syntax.dart';
 import '../field_spec.dart';
 import '../project/beak_discovery.dart';
 import 'beak_reserved_names.dart';
@@ -36,7 +34,7 @@ final class BeakSchemaReader {
     // Enums declared anywhere under lib/. An unresolved parse cannot
     // tell `ProductStatus` from `Uri` by name alone, so collect the real
     // declarations and treat anything else as an error the author can fix.
-    final enums = <String>{};
+    final enums = <String, List<String>>{};
     final root = Directory('${projectRoot.path}/lib');
     if (!root.existsSync()) {
       return (schemas, issues);
@@ -59,14 +57,11 @@ final class BeakSchemaReader {
 
     final units = <(String, CompilationUnit)>[];
     for (final file in files) {
-      final unit = parseString(
-        content: file.readAsStringSync(),
-        throwIfDiagnostics: false,
-      ).unit;
+      final unit = parseDart(file.readAsStringSync());
       units.add((_libRelative(file), unit));
       for (final declaration in unit.declarations) {
         if (declaration is EnumDeclaration) {
-          enums.add(declaration.name.lexeme);
+          enums[declaration.enumName] = declaration.valueNames;
         }
       }
     }
@@ -169,12 +164,11 @@ final class BeakSchemaReader {
       final String partName = BeakSchemaEmitter.partFileNameOf(
         schema.libraryPath,
       );
-      final unit = parseString(
-        content: File(
+      final unit = parseDart(
+        File(
           '${projectRoot.path}/lib/${schema.libraryPath}',
         ).readAsStringSync(),
-        throwIfDiagnostics: false,
-      ).unit;
+      );
       final bool declared = unit.directives.whereType<PartDirective>().any(
         (directive) => directive.uri.stringValue == partName,
       );
@@ -210,12 +204,17 @@ final class BeakSchemaReader {
           displayColumnKey: schema.displayColumnKey,
           softDeletes: schema.softDeletes,
           timestamps: schema.timestamps,
+          createdAtColumnKey: schema.createdAtColumnKey,
+          updatedAtColumnKey: schema.updatedAtColumnKey,
+          deletedAtColumnKey: schema.deletedAtColumnKey,
+          isDeletedColumnKey: schema.isDeletedColumnKey,
           managesSchema: schema.managesSchema,
           hasValidationRules: schema.hasValidationRules,
           hasBehavior: schema.hasBehavior,
           hasPermissions: schema.hasPermissions,
           hasCapabilities: schema.hasCapabilities,
           docComment: schema.docComment,
+          labelKey: schema.labelKey,
         ),
     ];
   }
@@ -242,6 +241,7 @@ final class BeakSchemaReader {
         kind: identity.kind,
         isRequired: relation.isRequired,
         enumTypeName: identity.enumTypeName,
+        enumValueNames: identity.enumValueNames,
         declaredValueType: identity.declaredValueType,
         arguments: column.arguments,
         docComment: column.docComment,
@@ -255,10 +255,10 @@ final class BeakSchemaReader {
     ClassDeclaration declaration,
     Annotation resource,
     String path,
-    Set<String> enums,
+    Map<String, List<String>> enums,
   ) {
     final issues = <BeakDiscoveryIssue>[];
-    final String className = declaration.name.lexeme;
+    final String className = declaration.className;
     final Map<String, String> options = _namedArguments(resource);
     if (BeakReservedNames.generatedCodeTypes.contains(className)) {
       issues.add(
@@ -290,7 +290,7 @@ final class BeakSchemaReader {
     final displayFields = <String>[];
     String? displayColumnKey;
 
-    for (final member in declaration.members) {
+    for (final member in declaration.classMembers) {
       if (member is! FieldDeclaration || member.isStatic) {
         continue;
       }
@@ -359,12 +359,24 @@ final class BeakSchemaReader {
       );
     }
 
+    final createdAtKey =
+        _unquote(options['createdAtColumnKey']) ?? 'created_at';
+    final updatedAtKey =
+        _unquote(options['updatedAtColumnKey']) ?? 'updated_at';
+    final deletedAtKey =
+        _unquote(options['deletedAtColumnKey']) ?? 'deleted_at';
+    final isDeletedKey = _unquote(options['isDeletedColumnKey']);
     final bool timestamps = options['timestamps'] == 'true';
     final bool softDeletes = options['softDeletes'] == 'true';
     for (final column in columns) {
       final String? annotation = switch (column.columnKey) {
-        'created_at' || 'updated_at' when timestamps => 'timestamps: true',
-        'deleted_at' when softDeletes => 'softDeletes: true',
+        'created_at' || 'updated_at'
+            when timestamps &&
+                createdAtKey == 'created_at' &&
+                updatedAtKey == 'updated_at' =>
+          'timestamps: true',
+        'deleted_at' when softDeletes && deletedAtKey == 'deleted_at' =>
+          'softDeletes: true',
         _ => null,
       };
       if (annotation != null) {
@@ -410,39 +422,60 @@ final class BeakSchemaReader {
             arguments: const {'visibleOn': '{BeakContext.form}'},
             docComment: 'Foreign key backing [${relation.fieldName}].',
           ),
-      if (timestamps) ...const [
-        BeakColumnIr(
-          fieldName: 'createdAt',
-          columnKey: 'created_at',
-          label: 'Created',
-          kind: BeakColumnKind.dateTime,
-          isRequired: false,
-          arguments: {'sortable': 'true', 'visibleOn': '{BeakContext.detail}'},
-          docComment: 'When the record was created.',
-        ),
-        BeakColumnIr(
-          fieldName: 'updatedAt',
-          columnKey: 'updated_at',
-          label: 'Updated',
-          kind: BeakColumnKind.dateTime,
-          isRequired: false,
-          arguments: {
-            'sortable': 'true',
-            'format': 'BeakDateFormat.relative',
-            'visibleOn': '{BeakContext.table, BeakContext.detail}',
-          },
-          docComment: 'When the record was last updated.',
-        ),
+      if (timestamps) ...[
+        if (!columns.any((column) => column.columnKey == createdAtKey))
+          BeakColumnIr(
+            fieldName: 'createdAt',
+            columnKey: createdAtKey,
+            label: 'Created',
+            kind: BeakColumnKind.dateTime,
+            isRequired: false,
+            arguments: {
+              'sortable': 'true',
+              'visibleOn': '{BeakContext.detail}',
+            },
+            docComment: 'When the record was created.',
+          ),
+        if (!columns.any((column) => column.columnKey == updatedAtKey))
+          BeakColumnIr(
+            fieldName: 'updatedAt',
+            columnKey: updatedAtKey,
+            label: 'Updated',
+            kind: BeakColumnKind.dateTime,
+            isRequired: false,
+            arguments: {
+              'sortable': 'true',
+              'format': 'BeakDateFormat.relative',
+              'visibleOn': '{BeakContext.table, BeakContext.detail}',
+            },
+            docComment: 'When the record was last updated.',
+          ),
       ],
-      if (softDeletes)
-        const BeakColumnIr(
+      if (softDeletes &&
+          !columns.any((column) => column.columnKey == deletedAtKey))
+        BeakColumnIr(
           fieldName: 'deletedAt',
-          columnKey: 'deleted_at',
+          columnKey: deletedAtKey,
           label: 'Deleted',
           kind: BeakColumnKind.dateTime,
           isRequired: false,
           arguments: {'visibleOn': '{BeakContext.detail}'},
           docComment: 'When the record was soft-deleted, if it was.',
+        ),
+      if (softDeletes &&
+          isDeletedKey != null &&
+          !columns.any((column) => column.columnKey == isDeletedKey))
+        BeakColumnIr(
+          fieldName: 'isDeleted',
+          columnKey: isDeletedKey,
+          label: 'Deleted',
+          kind: BeakColumnKind.boolean,
+          isRequired: false,
+          arguments: const {
+            'visibleOn': '{BeakContext.detail}',
+            'defaultValue': 'false',
+          },
+          docComment: 'Whether the record is soft-deleted.',
         ),
     ];
 
@@ -484,7 +517,12 @@ final class BeakSchemaReader {
 
     // Only worth saying when nothing else already explains the emptiness:
     // a field that failed to map has already been reported by name.
-    if (displayColumnKey == null && columns.isEmpty && issues.isEmpty) {
+    if (displayColumnKey == null &&
+        columns.isEmpty &&
+        !relations.any(
+          (relation) => relation.kind == BeakRelationKind.belongsTo,
+        ) &&
+        issues.isEmpty) {
       issues.add(
         BeakDiscoveryIssue(
           path: 'lib/$path',
@@ -499,6 +537,7 @@ final class BeakSchemaReader {
     return (
       BeakSchemaIr(
         className: className,
+        labelKey: _unquote(options['labelKey']),
         table: table,
         libraryPath: path,
         columns: allColumns,
@@ -506,6 +545,10 @@ final class BeakSchemaReader {
         displayColumnKey: display,
         softDeletes: softDeletes,
         timestamps: timestamps,
+        createdAtColumnKey: createdAtKey,
+        updatedAtColumnKey: updatedAtKey,
+        deletedAtColumnKey: deletedAtKey,
+        isDeletedColumnKey: isDeletedKey,
         managesSchema: options['managesSchema'] != 'false',
         hasValidationRules: _declaresStaticGetter(
           declaration,
@@ -525,7 +568,7 @@ final class BeakSchemaReader {
   static bool _declaresStaticGetter(
     ClassDeclaration declaration,
     String name,
-  ) => declaration.members.whereType<MethodDeclaration>().any(
+  ) => declaration.classMembers.whereType<MethodDeclaration>().any(
     (member) =>
         member.isStatic && member.isGetter && member.name.lexeme == name,
   );
@@ -539,7 +582,7 @@ final class BeakSchemaReader {
     required NamedType type,
     required NodeList<Annotation> metadata,
     required String? docComment,
-    required Set<String> enums,
+    required Map<String, List<String>> enums,
   }) {
     final String typeName = type.name.lexeme;
     final bool nullable = type.question != null;
@@ -603,7 +646,7 @@ final class BeakSchemaReader {
         : (primitiveType == null
                   ? BeakColumnKind.ofType(typeName)
                   : BeakColumnKind.json) ??
-              (enums.contains(typeName) ? BeakColumnKind.enumeration : null);
+              (enums.containsKey(typeName) ? BeakColumnKind.enumeration : null);
 
     if (kind == null) {
       return _FieldIssue(
@@ -760,6 +803,9 @@ final class BeakSchemaReader {
         kind: kind,
         isRequired: !nullable,
         enumTypeName: kind == BeakColumnKind.enumeration ? typeName : null,
+        enumValueNames: kind == BeakColumnKind.enumeration
+            ? enums[typeName] ?? const []
+            : const [],
         declaredValueType: semanticType,
         arguments: arguments,
         docComment: docComment,
@@ -1060,19 +1106,19 @@ final class BeakSchemaReader {
   /// Named arguments as source text, keyed by parameter name.
   Map<String, String> _namedArguments(Annotation annotation) => {
     for (final argument in _argumentsOf(annotation))
-      if (argument is NamedExpression)
-        argument.name.label.name: argument.expression.toSource(),
+      if (argument.argumentName case final String name)
+        name: argument.argumentExpression.toSource(),
   };
 
   /// The annotation's argument expressions, or none when it takes no
   /// arguments.
-  List<Expression> _argumentsOf(Annotation annotation) =>
-      annotation.arguments?.arguments.toList() ?? const <Expression>[];
+  List<Argument> _argumentsOf(Annotation annotation) =>
+      annotation.arguments?.arguments.toList() ?? const <Argument>[];
 
   /// Positional arguments as source text.
   List<String> _positionalArguments(Annotation annotation) => [
     for (final argument in _argumentsOf(annotation))
-      if (argument is! NamedExpression) argument.toSource(),
+      if (argument.argumentName == null) argument.toSource(),
   ];
 
   /// The doc comment text of [node], without the `///` markers.

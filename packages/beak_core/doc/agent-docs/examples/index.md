@@ -10,7 +10,7 @@ The repository ships five projects you can run. Every code snippet in this docum
 | --- | --- | --- | --- | --- | --- | --- |
 | [Quickstart scaffold](quickstart.md) | Notes | 1 | 8080, chosen by `flutter run` | None | The output of `beak create`, with generated wiring and a generated panel | `beak migrate`, `beak dev` |
 | [Clean shop](clean-shop.md) | Catalog, orders, invoices | 20 (11 resources) | 8080, 3000 | None | Exact money, named invoice actions, wizards from shared sections, a server-side preparer, custom pages | `beak migrate`, `beak seed`, `beak dev` |
-| [Foodio admin](foodio.md) | Company food ordering | 26 (15 resources) | 8081, 3002 | None | Composed lists, saved views, a five-step wizard, durable effects, a custom theme, 48,213 orders | `cp .env.example .env`, then as the shop |
+| [Foodio admin](foodio.md) | Company food ordering | 26 (15 resources) | 8081, 3002 | None | Composed lists, saved views, a five-step wizard, durable effects, the Gabel theme, 48,213 orders | `cp .env.example .env`, then as the shop |
 | [Showcase](showcase.md) | An aviary | 14 (4 resources, 12 pages) | 8082, 3003 | None | All 13 column kinds, all 4 relationship kinds, every block type, exhaustiveness tests | `beak migrate`, `beak seed`, `beak dev` |
 | [Serverpod admin](serverpod-admin.md) | A bookshop | 2 tables | 8080, 8095 | Serverpod email sign-in and scopes | An admin app inside a Serverpod 4 workspace, one gated endpoint, deny-by-default policy | The README's steps |
 
@@ -53,7 +53,7 @@ Numbers on the tour pages (models, resources, tests) were counted against the wo
 | --- | --- | --- |
 | See what `beak create` writes and which files you own | [Quickstart scaffold](quickstart.md) | One model, file by file, with real command output |
 | Read the teaching example end to end | [Clean shop](clean-shop.md) | Exact money, invoice actions, forms as wizards and tabs, a preparer, custom pages, tests |
-| See a designed application with real business rules | [Foodio admin](foodio.md) | Composed lists, a wizard, named actions, durable effects, a custom theme |
+| See a designed application with real business rules | [Foodio admin](foodio.md) | Composed lists, a wizard, named actions, durable effects, the Gabel theme |
 | Find a working example of a column, relationship or block kind | [Showcase](showcase.md) | The 13 column kinds, 4 relationship kinds, every block and the tests that keep them complete |
 | Run Beak inside a Serverpod 4 workspace | [Serverpod admin](serverpod-admin.md) | A short card: the gated endpoint, the policy, the tests, the limits |
 | Look up which file demonstrates a feature | [Feature map](feature-map.md) | 106 rows: feature, example, file and docs page |

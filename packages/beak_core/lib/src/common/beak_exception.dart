@@ -31,6 +31,36 @@ sealed class BeakException implements Exception {
   /// Creates an exception carrying a stable [code] and a [message].
   const BeakException({required this.code, required this.message});
 
+  /// The Beak exception for a failure of [category] described by [message].
+  ///
+  /// The mapping seam for a host whose own exceptions carry a category: map
+  /// each to a [BeakErrorCategory] and let Beak pick the type. [field] attaches
+  /// a validation failure to one column key and is ignored for every other
+  /// category. The [message] reaches the caller, so keep internals out of it.
+  ///
+  /// ```dart
+  /// throw BeakException.forCategory(BeakErrorCategory.conflict, 'Taken.');
+  /// ```
+  factory BeakException.forCategory(
+    BeakErrorCategory category,
+    String message, {
+    String? field,
+  }) => switch (category) {
+    BeakErrorCategory.validation => BeakValidationException(
+      message,
+      fieldErrors: field == null
+          ? const {}
+          : {
+              field: [message],
+            },
+    ),
+    BeakErrorCategory.notFound => BeakNotFoundException(message),
+    BeakErrorCategory.unauthenticated => BeakAuthenticationException(message),
+    BeakErrorCategory.forbidden => BeakAuthorizationException(message),
+    BeakErrorCategory.conflict => BeakConflictException(message),
+    BeakErrorCategory.unexpected => BeakInternalException(message),
+  };
+
   /// Stable machine-readable identifier of the failure category.
   final String code;
 
@@ -41,6 +71,35 @@ sealed class BeakException implements Exception {
   String toString() => '$runtimeType($code): $message';
 }
 // --8<-- [end:BeakException]
+
+/// The kinds of failure a host reports when it maps its own exceptions to
+/// Beak's, through [BeakException.forCategory].
+///
+/// A deliberately small set: what a caller can act on, plus [unexpected] for
+/// everything else.
+// --8<-- [start:BeakErrorCategory]
+enum BeakErrorCategory {
+  /// The input is invalid; becomes a [BeakValidationException].
+  validation,
+
+  /// The record or resource does not exist; becomes a
+  /// [BeakNotFoundException].
+  notFound,
+
+  /// There is no valid identity; becomes a [BeakAuthenticationException].
+  unauthenticated,
+
+  /// The identity may not do this; becomes a [BeakAuthorizationException].
+  forbidden,
+
+  /// The request conflicts with existing state; becomes a
+  /// [BeakConflictException].
+  conflict,
+
+  /// The failure is the server's own; becomes a [BeakInternalException].
+  unexpected,
+}
+// --8<-- [end:BeakErrorCategory]
 
 // --8<-- [start:BeakValidationException]
 /// Raised when user-supplied data violates one or more column rules.

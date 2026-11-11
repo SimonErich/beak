@@ -66,7 +66,7 @@ BeakWizardStep paymentAndVouchersStep() => BeakWizardStep(
             ),
           ),
         ),
-        BeakColumns(
+        BeakRow(
           children: [
             // --8<-- [start:costCentreSelect]
             BeakInput<String>(

@@ -80,6 +80,19 @@ BeakModelBehavior _behavior() => BeakModelBehavior(
 
 void main() {
   test(
+    'creation bypasses record edit locks but retains server-owned fields',
+    () {
+      final behavior = _behavior();
+      final locked = BeakRecord.fromRow({'state': 'issued'});
+      expect(behavior.canEdit('quantity', locked), isFalse);
+      expect(behavior.canEdit('quantity', locked, isCreate: true), isTrue);
+      for (final key in ['total', 'snapshot', 'state']) {
+        expect(behavior.canEdit(key, locked, isCreate: true), isFalse);
+      }
+    },
+  );
+
+  test(
     'dependency order, initial defaults, suggestions, and read-only derivation',
     () {
       final behavior = _behavior();
@@ -451,6 +464,106 @@ void main() {
     fields['price'] = const BeakIntValue(9);
     expect(plan.arguments['price']?.raw, 5);
   });
+
+  // --8<-- [start:builtInRowsTests]
+  group('builtInRows', () {
+    BeakRecord row(Object? flag, {String name = 'Admin'}) =>
+        BeakRecord.fromRow({'id': 'r', 'name': name, 'is_system': flag});
+
+    test('refuses to delete a built-in row and allows any other', () {
+      final behavior = BeakModelBehavior.builtInRows(_isSystem);
+      expect(behavior.deletableWhen?.call(row(true)), isFalse);
+      expect(behavior.deletableWhen?.call(row(false)), isTrue);
+      expect(behavior.deletableWhen?.call(row(null)), isTrue);
+    });
+
+    test('leaves edits open unless lockEdits is set', () {
+      expect(BeakModelBehavior.builtInRows(_isSystem).editableWhen, isNull);
+      final locked = BeakModelBehavior.builtInRows(_isSystem, lockEdits: true);
+      expect(locked.editableWhen?.call(row(true)), isFalse);
+      expect(locked.editableWhen?.call(row(false)), isTrue);
+    });
+
+    test('reads the flag the way a SQLite-backed row holds it', () {
+      final behavior = BeakModelBehavior.builtInRows(_isSystem);
+      expect(behavior.deletableWhen?.call(row(1)), isFalse);
+      expect(behavior.deletableWhen?.call(row(0)), isTrue);
+    });
+
+    test('is a real behavior: it needs graph preparation and validates', () {
+      final behavior = BeakModelBehavior.builtInRows(
+        _isSystem,
+        lockEdits: true,
+      );
+      expect(behavior.isEmpty, isFalse);
+      behavior.validate(const _Lookup());
+    });
+
+    test('derives the flag from the stored row, never from the client', () {
+      final behavior = BeakModelBehavior.builtInRows(_isSystem);
+
+      final forged = behavior.apply(
+        row(true, name: 'Custom'),
+        initial: row(false),
+      );
+      final demoted = behavior.apply(row(false), initial: row(true));
+      final created = behavior.apply(
+        BeakRecord.fromRow({'name': 'New', 'is_system': true}),
+      );
+
+      expect(_isSystem.readFrom(forged), isFalse);
+      expect(_isSystem.readFrom(demoted), isTrue);
+      expect(_isSystem.readFrom(created), isFalse);
+    });
+
+    test('does not let the flag be authored while the row is edited', () {
+      final behavior = BeakModelBehavior.builtInRows(_isSystem);
+
+      expect(
+        behavior.canEdit('is_system', row(false), isCreate: true),
+        isFalse,
+      );
+      expect(behavior.canEdit('name', row(false)), isTrue);
+    });
+
+    test('a field that is not a boolean column is a configuration error', () {
+      expect(
+        () => BeakModelBehavior.builtInRows(
+          const BeakScalarField<bool>(
+            model: _Lookup(),
+            column: BeakStringColumn(key: 'kind', label: 'Kind'),
+          ),
+        ),
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (error) => error.message,
+            'message',
+            contains('kind'),
+          ),
+        ),
+      );
+    });
+  });
+  // --8<-- [end:builtInRowsTests]
+}
+
+const _isSystem = BeakScalarField<bool>(
+  model: _Lookup(),
+  column: BeakBoolColumn(key: 'is_system', label: 'System'),
+);
+
+final class _Lookup extends BeakModel {
+  const _Lookup();
+  @override
+  String get table => 'lookups';
+  @override
+  String get displayColumnKey => 'name';
+  @override
+  List<BeakColumn> get columns => const [
+    BeakStringColumn(key: 'id', label: 'Id'),
+    BeakStringColumn(key: 'name', label: 'Name'),
+    BeakBoolColumn(key: 'is_system', label: 'System'),
+  ];
 }
 
 final class _Other extends BeakModel {

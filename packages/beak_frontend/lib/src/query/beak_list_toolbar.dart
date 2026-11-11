@@ -74,7 +74,8 @@ class BeakListToolbar extends HookWidget {
         description: definition.filterDescription,
         advancedDescription: definition.advancedFilterDescription,
         advancedColumns: definition.advancedFilterColumns,
-        recordNoun: definition.recordNoun,
+        recordNoun:
+            definition.recordNoun ?? BeakLocalizations.of(context).recordNoun,
         onClose: close,
       ),
     );
@@ -95,191 +96,195 @@ class BeakListToolbar extends HookWidget {
       }),
       [controller, search],
     );
-    return Watch((context) {
-      final state = controller.state.value;
-      final active = controller.effectiveFilters(state);
-      final quickFilters =
-          controller.presets
-              .where((preset) => preset.key == state.preset)
-              .firstOrNull
-              ?.quickFilters ??
-          definition.quickFilters;
-      return Padding(
-        padding: EdgeInsets.only(
-          bottom: region == BeakListToolbarRegion.presets ? 12 : 16,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (region != BeakListToolbarRegion.controls &&
-                definition.presets.isNotEmpty)
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final tabs = _PresetTabs(
-                    controller: controller,
-                    source: source,
-                    showCount: definition.showPresetCounts,
-                    loadCounts:
-                        definition.showPresetCounts ||
-                        definition.subtitleBuilder != null,
-                  );
-                  final toggle =
-                      definition.showHeaderToggle &&
-                          onHeaderVisibleChanged != null
-                      ? OiSwitch(
-                          label: BeakLocalizations.of(context).showCharts,
-                          labelLeading: true,
-                          value: headerVisible,
-                          onChanged: onHeaderVisibleChanged,
-                        )
-                      : null;
-                  if (constraints.maxWidth < 500 && toggle != null) {
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return SignalBuilder(
+      builder: (context) {
+        final state = controller.state.value;
+        final active = controller.effectiveFilters(state);
+        final quickFilters =
+            controller.presets
+                .where((preset) => preset.key == state.preset)
+                .firstOrNull
+                ?.quickFilters ??
+            definition.quickFilters;
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: region == BeakListToolbarRegion.presets ? 12 : 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (region != BeakListToolbarRegion.controls &&
+                  definition.presets.isNotEmpty)
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final tabs = _PresetTabs(
+                      controller: controller,
+                      source: source,
+                      showCount: definition.showPresetCounts,
+                      loadCounts:
+                          definition.showPresetCounts ||
+                          definition.subtitleBuilder != null,
+                    );
+                    final toggle =
+                        definition.showHeaderToggle &&
+                            onHeaderVisibleChanged != null
+                        ? OiSwitch(
+                            label: BeakLocalizations.of(context).showCharts,
+                            labelLeading: true,
+                            value: headerVisible,
+                            onChanged: onHeaderVisibleChanged,
+                          )
+                        : null;
+                    if (constraints.maxWidth < 500 && toggle != null) {
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          tabs,
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: AlignmentDirectional.centerEnd,
+                            child: toggle,
+                          ),
+                        ],
+                      );
+                    }
+                    return Row(
                       children: [
-                        tabs,
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: AlignmentDirectional.centerEnd,
-                          child: toggle,
-                        ),
+                        Expanded(child: tabs),
+                        ?toggle,
                       ],
                     );
-                  }
-                  return Row(
-                    children: [
-                      Expanded(child: tabs),
-                      ?toggle,
-                    ],
-                  );
-                },
-              ),
-            if (region != BeakListToolbarRegion.presets) ...[
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final controls = <Widget>[
-                    if (filters.isNotEmpty || definition.savedViews != null)
-                      OiButton.secondary(
-                        size: OiButtonSize.small,
-                        label: BeakLocalizations.of(context).allFilters,
-                        icon: OiIcons.slidersHorizontal,
-                        onTap: () => _edit(context, filters),
-                      ),
-                    if (controller.availableColumns.isNotEmpty)
-                      OiButton.secondary(
-                        size: OiButtonSize.small,
-                        label: BeakLocalizations.of(context).tableColumns,
-                        icon: OiIcons.columns3,
-                        onTap: () => OiSheet.showAsync<void>(
-                          context,
+                  },
+                ),
+              if (region != BeakListToolbarRegion.presets) ...[
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final controls = <Widget>[
+                      if (filters.isNotEmpty || definition.savedViews != null)
+                        OiButton.secondary(
+                          size: OiButtonSize.small,
+                          label: BeakLocalizations.of(context).allFilters,
+                          icon: OiIcons.slidersHorizontal,
+                          onTap: () => _edit(context, filters),
+                        ),
+                      if (controller.availableColumns.isNotEmpty)
+                        OiButton.secondary(
+                          size: OiButtonSize.small,
                           label: BeakLocalizations.of(context).tableColumns,
-                          side: OiPanelSide.right,
-                          size: 360,
-                          builder: (close) => _ColumnEditor(
-                            controller: controller,
-                            close: () => close(),
+                          icon: OiIcons.columns3,
+                          onTap: () => OiSheet.showAsync<void>(
+                            context,
+                            label: BeakLocalizations.of(context).tableColumns,
+                            side: OiPanelSide.right,
+                            size: 360,
+                            builder: (close) => _ColumnEditor(
+                              controller: controller,
+                              close: () => close(),
+                            ),
                           ),
                         ),
-                      ),
-                  ];
-                  final searchInput = Semantics(
-                    label: BeakLocalizations.of(context).search,
-                    child: OiThemeScope(
-                      data: context.theme.copyWith(
-                        components: context.components.copyWith(
-                          textInput:
-                              (context.components.textInput ??
-                                      const OiTextInputThemeData())
-                                  .copyWith(
-                                    height: context.theme.componentSizes.small,
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
+                    ];
+                    final searchInput = Semantics(
+                      label: BeakLocalizations.of(context).search,
+                      child: OiThemeScope(
+                        data: context.theme.copyWith(
+                          components: context.components.copyWith(
+                            textInput:
+                                (context.components.textInput ??
+                                        const OiTextInputThemeData())
+                                    .copyWith(
+                                      height:
+                                          context.theme.componentSizes.small,
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 6,
+                                          ),
                                     ),
-                                  ),
+                          ),
+                        ),
+                        child: OiTextInput.search(
+                          placeholder:
+                              definition.searchPlaceholder ??
+                              BeakLocalizations.of(context).searchPlaceholder,
+                          controller: search,
+                          onChanged: controller.setSearch,
                         ),
                       ),
-                      child: OiTextInput.search(
-                        placeholder:
-                            definition.searchPlaceholder ??
-                            BeakLocalizations.of(context).searchPlaceholder,
-                        controller: search,
-                        onChanged: controller.setSearch,
-                      ),
-                    ),
-                  );
-                  return constraints.maxWidth >= 650
-                      ? Row(
-                          children: [
-                            if (definition.showSearch)
-                              SizedBox(width: 360, child: searchInput),
-                            const Spacer(),
-                            for (final control in controls)
-                              Padding(
-                                padding: const EdgeInsets.only(left: 8),
-                                child: control,
-                              ),
-                          ],
-                        )
-                      : Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            if (definition.showSearch)
-                              SizedBox(
-                                width: constraints.maxWidth,
-                                child: searchInput,
-                              ),
-                            ...controls,
-                          ],
-                        );
-                },
-              ),
-              if (quickFilters.isNotEmpty ||
-                  state.filters.isNotEmpty ||
-                  state.search.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      for (final filter in quickFilters)
-                        OiFilterChip(
-                          label:
-                              definition.quickFilterLabels[filter] ??
-                              filter.label,
-                          value: active[filter.key] == null
-                              ? null
-                              : beakFilterSummary(
-                                  context,
-                                  filter,
-                                  active[filter.key]!,
+                    );
+                    return constraints.maxWidth >= 650
+                        ? Row(
+                            children: [
+                              if (definition.showSearch)
+                                SizedBox(width: 360, child: searchInput),
+                              const Spacer(),
+                              for (final control in controls)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 8),
+                                  child: control,
                                 ),
-                          selected: active.containsKey(filter.key),
-                          onTap: () => _edit(context, [filter]),
-                          onRemove: active.containsKey(filter.key)
-                              ? () => controller.removeFilter(filter.key)
-                              : null,
-                        ),
-                      if (active.isNotEmpty || state.search.isNotEmpty)
-                        OiButton.ghost(
-                          size: OiButtonSize.small,
-                          label: BeakLocalizations.of(context).clearAll,
-                          onTap: controller.clearFilters,
-                        ),
-                    ],
-                  ),
+                            ],
+                          )
+                        : Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              if (definition.showSearch)
+                                SizedBox(
+                                  width: constraints.maxWidth,
+                                  child: searchInput,
+                                ),
+                              ...controls,
+                            ],
+                          );
+                  },
                 ),
+                if (quickFilters.isNotEmpty ||
+                    state.filters.isNotEmpty ||
+                    state.search.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        for (final filter in quickFilters)
+                          OiFilterChip(
+                            label:
+                                definition.quickFilterLabels[filter] ??
+                                filter.label,
+                            value: active[filter.key] == null
+                                ? null
+                                : beakFilterSummary(
+                                    context,
+                                    filter,
+                                    active[filter.key]!,
+                                  ),
+                            selected: active.containsKey(filter.key),
+                            onTap: () => _edit(context, [filter]),
+                            onRemove: active.containsKey(filter.key)
+                                ? () => controller.removeFilter(filter.key)
+                                : null,
+                          ),
+                        if (active.isNotEmpty || state.search.isNotEmpty)
+                          OiButton.ghost(
+                            size: OiButtonSize.small,
+                            label: BeakLocalizations.of(context).clearAll,
+                            onTap: controller.clearFilters,
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
             ],
-          ],
-        ),
-      );
-    });
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -313,8 +318,8 @@ class _PresetTabs extends HookWidget {
       return '${preset.label} · $formatted';
     }
 
-    return Watch(
-      (context) => OiTabs(
+    return SignalBuilder(
+      builder: (context) => OiTabs(
         scrollable: true,
         tabs: [
           for (final preset in controller.presets)

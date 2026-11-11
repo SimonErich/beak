@@ -168,6 +168,7 @@ return await worm.adapter.transaction((adapter) async {
   transactional = WormDataSource(
     registry,
     adapter: adapter,
+    now: _now,
     authorizeRead: (ref) async {
       await _read(ref, const {}, transactional, principal);
     },
@@ -202,6 +203,7 @@ return await worm.adapter.transaction((adapter) async {
       ids,
       transactional,
       principal,
+      plan: prepared,
       input: plan.operations
           .where((input) => input.id == op.id)
           .firstOrNull,
@@ -322,6 +324,117 @@ typedef BeakSavePlanFinalizer =
       WormDataSource transaction,
       BeakPrincipal? principal,
     );
+
+/// Delegates an authorized operation to an existing domain use case.
+///
+/// Runs only in the graph transaction, after policy, scope, field validation and
+/// revision checks. Return null to use ordinary persistence. A handled write
+/// skips ordinary SQL and remains subject to final graph validation and receipts.
+/// Network effects must be queued for after commit rather than performed here.
+typedef BeakSaveOperationExecutor =
+    Future<BeakSaveOperationWrite?> Function(BeakSaveOperationContext context);
+
+/// Context for one authorized, resolved operation inside its save transaction.
+final class BeakSaveOperationContext {
+  /// Supplies the operation and its resolved transaction-local data.
+  const BeakSaveOperationContext({
+    required this.plan,
+    required this.operation,
+    required this.model,
+    required this.values,
+    required this.existing,
+    required this.id,
+    required this.transaction,
+    required this.principal,
+  });
+
+  /// Prepared plan, including its named action when present.
+  final BeakSavePlan plan;
+
+  /// Operation being executed; use [values] for resolved foreign keys.
+  final BeakSaveOperation operation;
+
+  /// Authoritative metadata for the target model.
+  final BeakModel model;
+
+  /// Validated input with defaults, identities and references resolved.
+  final BeakRecord values;
+
+  /// Stored record before this operation, or null for a create.
+  final BeakRecord? existing;
+
+  /// Resolved target identity, or null for a create.
+  final Object? id;
+
+  /// Source bound to the same transaction as the graph and receipt.
+  final WormDataSource transaction;
+
+  /// Authenticated caller accepted by the server policy.
+  final BeakPrincipal? principal;
+
+  /// The record as this operation leaves it: the stored [existing] values with
+  /// the validated input [values] laid over them.
+  ///
+  /// What a domain write usually wants to read, so it sees the fields the
+  /// client did not send as well as the ones it did.
+  BeakRecord get merged => BeakRecord(
+    values: {...?existing?.values, ...values.values},
+    relations: existing?.relations ?? const {},
+  );
+
+  /// Refuses the operation unless it is a bare command: the only operation of
+  /// its plan, an update, and carrying no values and no references.
+  ///
+  /// A command such as "cancel the order" has one effect, the one its domain
+  /// write performs. Call this first so a client cannot attach changes to
+  /// other fields to it. Throws a [BeakValidationException].
+  void requireCommandOnly() {
+    if (plan.operations.length != 1 ||
+        operation.kind != BeakSaveOperationKind.update ||
+        operation.values.values.isNotEmpty ||
+        operation.references.isNotEmpty) {
+      throw const BeakValidationException(
+        'This command cannot change other values.',
+      );
+    }
+  }
+}
+
+/// A completed domain write, or trusted scalar derivations for stock persistence.
+final class BeakSaveOperationWrite {
+  /// [record] is required for create/update and carries the persisted identity.
+  /// Deletes and link writes need no record.
+  const BeakSaveOperationWrite({this.record})
+    : values = null,
+      persistedId = null;
+
+  /// Merges trusted, registered scalar values into the authorized input before
+  /// ordinary persistence. Values are validated and cannot replace identity.
+  /// Use this for server-owned bookkeeping without duplicating stock writes.
+  const BeakSaveOperationWrite.withValues(this.values)
+    : record = null,
+      persistedId = null;
+
+  /// A domain write that persisted the record with primary key [id].
+  ///
+  /// The service reads the stored row in the same transaction and returns it,
+  /// so the use case needs no record to hand back, only the identity it
+  /// created or changed (a `UuidValue` is read as its text). An update must
+  /// name the operation's own target.
+  const BeakSaveOperationWrite.persisted(Object id)
+    : persistedId = id,
+      record = null,
+      values = null;
+
+  /// Persisted record; the service rereads it before accepting the write.
+  final BeakRecord? record;
+
+  /// Primary key of the record a domain write persisted, or `null`.
+  final Object? persistedId;
+
+  /// Server-derived fields, or null when the domain write already persisted.
+  final BeakRecord? values;
+}
 ```
 
 Field policies apply to what the client sent. Operations a preparer adds skip that one check, because a server-derived column is often one the client may not write, and every other check (table policy, ownership, validation, final graph) still applies to them. [Transactional business rules](../backend/graph-business-rules.md) shows a preparer in use.
@@ -334,7 +447,9 @@ A rule enforced in a graph is worthless if `PATCH /api/orders/<id>` writes aroun
 final graphOnlyTables = {
   for (final model in graphOnly) registry.byTableOrThrow(model.table).table,
 };
-if ((preparePlan != null || finalizePlan != null) &&
+if ((preparePlan != null ||
+        finalizePlan != null ||
+        executeOperation != null) &&
     dataSource is! WormDataSource) {
   throw const BeakConfigurationException(
     'Graph preparation requires a Worm data source.',
@@ -362,7 +477,7 @@ An update or delete can carry `expectedUpdatedAt`, the `updated_at` the editor l
 
 ```dart title="packages/beak_backend/lib/src/service/beak_graph_commit_service.dart"
 final current = await data.getOne(model.table, id);
-final stored = switch (current?['updated_at']) {
+final stored = switch (current?[model.updatedAtColumnKey]) {
   BeakDateTimeValue(:final value) => value,
   _ => null,
 };
@@ -379,7 +494,7 @@ The first read gives a clean error and the stored stamp. The mutation itself the
 ```dart title="packages/beak_backend/lib/src/service/beak_graph_commit_service.dart"
 // A no-op still checks the exact revision in SQL, so a concurrent change
 // rejects the graph. Retaining the stamp avoids invalidating other editors.
-values['updated_at'] = unchanged
+values[model.updatedAtColumnKey] = unchanged
     ? stored
     : beakRevisionTimestamp(_now(), previous: stored);
 final affected = await data.adapter.update(
@@ -388,7 +503,7 @@ final affected = await data.adapter.update(
     values: values,
     where: Field<Object>(
       model.primaryKey.key,
-    ).eq(id).and(const Field<DateTime>('updated_at').eq(stored)),
+    ).eq(id).and(Field<DateTime>(model.updatedAtColumnKey).eq(stored)),
   ),
 );
 ```

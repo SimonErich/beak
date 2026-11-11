@@ -3,8 +3,11 @@ import 'dart:io';
 import 'package:yaml/yaml.dart';
 
 import '../agents/beak_skill_installer.dart';
+import '../labels/label_settings.dart';
+import '../serverpod/generate_settings.dart';
 import 'beak_discovery.dart';
 import 'beak_emitters.dart' show BeakEmitters;
+import 'beak_theme_preset.dart';
 
 /// Thrown when `beak.yaml` cannot be understood.
 ///
@@ -121,6 +124,7 @@ final class BeakAgentSettings {
     this.instructions = BeakAgentInstructions.all,
     this.docs = true,
     this.skills,
+    this.skillDirectories = const [],
   });
 
   /// Which `AGENTS.md` files Beak keeps its block in.
@@ -133,6 +137,10 @@ final class BeakAgentSettings {
   /// The folders `beak agents` installs skills into, or `null` to use the
   /// agent folders the workspace already has. An empty list installs none.
   final List<BeakSkillTarget>? skills;
+
+  /// Extra skill folders named by path in `agents.skills`, relative to the
+  /// workspace root (`.blueprints/skills`, for example).
+  final List<String> skillDirectories;
 }
 
 /// Per-resource presentation the panel reads before falling back to defaults.
@@ -181,6 +189,10 @@ final class BeakProjectConfig {
     this.resources = const {},
     this.sidebarCollapsible = true,
     this.sidebarStartCollapsed = false,
+    this.themePreset = BeakThemePreset.standard,
+    this.serverpod,
+    this.generate,
+    this.labels,
   });
 
   /// The defaults applied when a project has no `beak.yaml` at all.
@@ -213,6 +225,9 @@ final class BeakProjectConfig {
       'agents',
       'theme',
       'resources',
+      'serverpod',
+      'generate',
+      'labels',
     }, '');
 
     final YamlMap? api = _optionalMap(root['api'], 'api');
@@ -237,7 +252,7 @@ final class BeakProjectConfig {
     }
     final YamlMap? theme = _optionalMap(root['theme'], 'theme');
     if (theme != null) {
-      _rejectUnknownKeys(theme, const {'sidebar'}, 'theme.');
+      _rejectUnknownKeys(theme, const {'preset', 'sidebar'}, 'theme.');
     }
     final YamlMap? sidebar = _optionalMap(theme?['sidebar'], 'theme.sidebar');
     if (sidebar != null) {
@@ -247,6 +262,9 @@ final class BeakProjectConfig {
       }, 'theme.sidebar.');
     }
     // --8<-- [end:beakYamlKeys]
+    final BeakServerpodSettings? serverpodSettings = parseServerpodSettings(
+      root['serverpod'],
+    );
 
     final resources = <String, BeakResourceOverride>{};
     final YamlMap? declared = _optionalMap(root['resources'], 'resources');
@@ -301,6 +319,7 @@ final class BeakProjectConfig {
         instructions: _instructionsOf(agents?['instructions']),
         docs: _optionalBool(agents?['docs'], 'agents.docs') ?? true,
         skills: _skillTargetsOf(agents?['skills']),
+        skillDirectories: _skillDirectoriesOf(agents?['skills']),
       ),
       resources: resources,
       sidebarCollapsible:
@@ -312,6 +331,13 @@ final class BeakProjectConfig {
             'theme.sidebar.startCollapsed',
           ) ??
           false,
+      themePreset: _themePresetOf(theme?['preset']),
+      serverpod: serverpodSettings,
+      generate: parseGenerateSettings(
+        root['generate'],
+        hasServerpod: serverpodSettings != null,
+      ),
+      labels: _labelsOf(root['labels']),
     );
   }
 
@@ -353,6 +379,21 @@ final class BeakProjectConfig {
 
   /// Whether the sidebar starts collapsed.
   final bool sidebarStartCollapsed;
+
+  /// The built-in look the panel uses (`theme.preset`).
+  final BeakThemePreset themePreset;
+
+  /// Where the Serverpod models are (`serverpod:`), or `null` when the project
+  /// does not import a Serverpod server.
+  final BeakServerpodSettings? serverpod;
+
+  /// What `beak generate` writes (`generate:`), or `null` when the project
+  /// has no generated schema package.
+  final BeakGenerateSettings? generate;
+
+  /// Where the model, field, enum and action labels are (`labels:`), or
+  /// `null` when the models keep their generated labels.
+  final BeakLabelSettings? labels;
 
   /// [yamlSource] as a YAML document.
   ///
@@ -455,6 +496,31 @@ final class BeakProjectConfig {
   }
 
   /// The `agents.instructions` choice; `all` when it is not written.
+  static BeakLabelSettings? _labelsOf(Object? value) {
+    try {
+      return BeakLabelSettings.parse(value);
+    } on FormatException catch (error) {
+      throw BeakProjectConfigException(error.message);
+    }
+  }
+
+  static BeakThemePreset _themePresetOf(Object? value) {
+    final Object? raw = value is YamlNode ? value.value : value;
+    if (raw == null) {
+      return BeakThemePreset.standard;
+    }
+    for (final choice in BeakThemePreset.values) {
+      if (raw == choice.name) {
+        return choice;
+      }
+    }
+    throw BeakProjectConfigException(
+      'theme.preset must be one of: '
+      '${BeakThemePreset.values.map((choice) => choice.name).join(', ')} '
+      '(got "$raw").',
+    );
+  }
+
   static BeakAgentInstructions _instructionsOf(Object? value) {
     final Object? raw = value is YamlNode ? value.value : value;
     if (raw == null) {
@@ -470,6 +536,15 @@ final class BeakProjectConfig {
       '${BeakAgentInstructions.values.map((choice) => choice.name).join(', ')} '
       '(got "$raw").',
     );
+  }
+
+  /// The `agents.skills` entries that are folder paths.
+  static List<String> _skillDirectoriesOf(Object? value) {
+    if (value is! YamlList) return const [];
+    return [
+      for (final entry in value)
+        if (entry is String && entry.contains('/')) entry,
+    ];
   }
 
   /// The `agents.skills` targets, or `null` when the key is not written.
@@ -489,7 +564,8 @@ final class BeakProjectConfig {
           : null;
       if (target == null) {
         throw BeakProjectConfigException(
-          'agents.skills has "$entry"; expected claude, agents or cursor.',
+          'agents.skills has "$entry"; expected claude, agents, cursor or a '
+          'folder path.',
         );
       }
       if (!targets.contains(target)) {

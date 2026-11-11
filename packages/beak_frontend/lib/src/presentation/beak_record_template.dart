@@ -336,14 +336,15 @@ final class BeakTableColumn {
   // --8<-- [start:BeakTableColumn]
   const BeakTableColumn({
     required this.key,
-    required this.label,
+    required String this._label,
     required BeakRecordTemplate this.template,
     this.sortBy,
     this.widthInPixels,
     this.minWidthInPixels = 160,
     this.textAlign = TextAlign.start,
     this.cellPadding,
-  }) : actionSelector = null,
+  }) : _labelField = null,
+       actionSelector = null,
        actionChoices = const {},
        fallbackAction = null;
 
@@ -351,7 +352,7 @@ final class BeakTableColumn {
   /// Unavailable actions remain absent; presentation never grants permission.
   const BeakTableColumn.action({
     required this.key,
-    required this.label,
+    required String this._label,
     required BeakValueBinding<String> selector,
     required Map<String, BeakActionPresentation> choices,
     BeakActionPresentation? fallback,
@@ -359,11 +360,26 @@ final class BeakTableColumn {
     this.minWidthInPixels = 160,
     this.textAlign = TextAlign.start,
     this.cellPadding,
-  }) : actionSelector = selector,
+  }) : _labelField = null,
+       actionSelector = selector,
        actionChoices = choices,
        fallbackAction = fallback,
        template = null,
        sortBy = null;
+
+  BeakTableColumn._({
+    required this.key,
+    required BeakFieldRef<Object> this._labelField,
+    required BeakRecordTemplate this.template,
+    this.sortBy,
+    this.widthInPixels,
+    this.minWidthInPixels = 160,
+    this.textAlign = TextAlign.start,
+    this.cellPadding,
+  }) : _label = null,
+       actionSelector = null,
+       actionChoices = const {},
+       fallbackAction = null;
   // --8<-- [end:BeakTableColumn]
 
   /// Optional record-dependent action selector.
@@ -389,9 +405,9 @@ final class BeakTableColumn {
     double minWidthInPixels = 160,
     TextAlign textAlign = TextAlign.start,
     EdgeInsetsGeometry? cellPadding,
-  }) => BeakTableColumn(
+  }) => BeakTableColumn._(
     key: field.qualifiedKey,
-    label: field.label,
+    labelField: field,
     template: BeakRecordTemplate.fields(title: field),
     sortBy: field,
     widthInPixels: widthInPixels,
@@ -404,8 +420,13 @@ final class BeakTableColumn {
   /// Stable presentation identity, not a database column name.
   final String key;
 
-  /// Column heading.
-  final String label;
+  final String? _label;
+
+  final BeakFieldRef<Object>? _labelField;
+
+  /// Column heading. A field column reads its field's label when shown, so it
+  /// follows the panel's language.
+  String get label => _labelField?.label ?? _label ?? '';
 
   /// Record presentation used for each cell.
   final BeakRecordTemplate? template;
@@ -494,7 +515,7 @@ class BeakRecordTemplateView extends StatelessWidget {
   final BeakDraftRecord? draft;
 
   @override
-  Widget build(BuildContext context) => Watch.builder(
+  Widget build(BuildContext context) => SignalBuilder(
     builder: (context) {
       final row = draft?.snapshot ?? record!;
       final reader = draft ?? _RecordReader(row);

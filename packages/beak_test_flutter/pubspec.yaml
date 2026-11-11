@@ -1,0 +1,35 @@
+name: beak_test_flutter
+description: >-
+  Flutter-side testing helpers for Beak: the route sweep that mounts a panel
+  and visits every visible screen at phone and desktop widths.
+version: 0.9.0
+publish_to: none
+repository: https://github.com/SimonErich/beak/tree/main/packages/beak_test_flutter
+homepage: https://github.com/SimonErich/beak
+issue_tracker: https://github.com/SimonErich/beak/issues
+topics: [admin-panel, testing, flutter]
+
+environment:
+  sdk: ^3.11.0
+  flutter: '>=3.41.0'
+
+dependencies:
+  beak_core:
+    path: ../beak_core
+  beak_frontend:
+    path: ../beak_frontend
+  beak_test:
+    path: ../beak_test
+  flutter:
+    sdk: flutter
+  flutter_test:
+    sdk: flutter
+  go_router: ^18.1.1
+  obers_ui:
+    git:
+      url: https://github.com/SimonErich/obers_ui
+      ref: 2cecec0f724cfc0b2cdd36aae46396960008f80e
+  signals: ^7.1.0
+
+dev_dependencies:
+  lints: ^6.0.0

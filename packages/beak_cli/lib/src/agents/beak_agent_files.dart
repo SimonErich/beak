@@ -252,7 +252,10 @@ final class BeakAgentReport {
         if (counts.containsKey(BeakSkillOutcome.unchanged))
           '${counts[BeakSkillOutcome.unchanged]} up to date',
       ].join(', ');
-      lines.add('  skills   ${target.directoryName}/skills: $summary');
+      lines.add(
+        '  skills   ${target.isDirectory ? target.label : '${target.directoryName}/skills'}: '
+        '$summary',
+      );
     }
     for (final warning in report.warnings) {
       lines.add('  ! $warning');
@@ -565,12 +568,17 @@ final class _Writing extends _Editor {
     if (options.print) {
       return block;
     }
-    upsert(
-      file: File(p.join(projectRoot.path, 'AGENTS.md')),
-      block: block,
-      title: BeakProjectConfig.titleCase(packageName),
-    );
-    _pair(projectRoot, block);
+    final agents = File(p.join(projectRoot.path, 'AGENTS.md'));
+    if (_keepsOwnAdminInstructions(agents)) {
+      notes.add('AGENTS.md documents this admin; left alone.');
+    } else {
+      upsert(
+        file: agents,
+        block: block,
+        title: BeakProjectConfig.titleCase(packageName),
+      );
+      _pair(projectRoot, block);
+    }
     if (workspace.isWorkspaceMember && _scope == BeakAgentInstructions.all) {
       final Directory root = workspace.workspaceRoot;
       final String rootBlock = _render(
@@ -590,6 +598,24 @@ final class _Writing extends _Editor {
       _pair(root, rootBlock);
     }
     return block;
+  }
+
+  /// Whether [file] is an admin's own instructions rather than Beak's.
+  ///
+  /// A Serverpod admin that ships a hand-written `AGENTS.md` documents its
+  /// definition classes and screens there. Appending Beak's generic block
+  /// would duplicate that and create a competing `CLAUDE.md`, so Beak leaves
+  /// the file alone until its author adds the managed markers.
+  bool _keepsOwnAdminInstructions(File file) {
+    if (kind != BeakProjectKind.serverpodAdmin ||
+        !file.existsSync() ||
+        FileSystemEntity.isLinkSync(file.path)) {
+      return false;
+    }
+    final String? text = read(file);
+    return text != null &&
+        text.trim().isNotEmpty &&
+        BeakManagedBlock.find(text) is BeakBlockMissing;
   }
 
   /// Pairs the `AGENTS.md` of [directory], whose block is [block], with a
@@ -697,12 +723,24 @@ final class _Writing extends _Editor {
                     .firstOrNull ??
                 '${base}_client'
           : null,
-      schemaPkg: isServerpod
-          ? dependencies.where((name) => name.endsWith('_beak')).firstOrNull ??
-                '${base}_beak'
-          : null,
+      schemaPkg: isServerpod ? _definitionsPackage(base) : null,
       mainIsGenerated: _mainIsGenerated(),
     );
+  }
+
+  /// The name of the `generate.definitions` package, or the conventional
+  /// `<base>_definitions` before it exists.
+  String _definitionsPackage(String base) {
+    final folder = config.generate?.definitions ?? 'definitions';
+    final pubspec = File(p.join(projectRoot.path, folder, 'pubspec.yaml'));
+    if (pubspec.existsSync()) {
+      final match = RegExp(
+        r'^name:\s*(\S+)',
+        multiLine: true,
+      ).firstMatch(pubspec.readAsStringSync());
+      if (match != null) return match.group(1)!;
+    }
+    return '${base}_definitions';
   }
 
   /// Where the schema classes are, from where the reader found them.

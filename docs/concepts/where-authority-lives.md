@@ -93,8 +93,8 @@ The panel sends a `BeakQuerySpec`, and the server treats every part of it as unt
 
 `BeakPolicies` is a typed rule set. Everything you don't list is denied, and a model with no rule is invisible: its endpoints answer 401 to an anonymous request and 403 to anyone else. This is the whole policy of the Serverpod bookshop:
 
-```dart title="examples/serverpod/bookshop_server/lib/src/beak/bookshop_policy.dart"
---8<-- "examples/serverpod/bookshop_server/lib/src/beak/bookshop_policy.dart:bookshopPolicy"
+```dart title="examples/serverpod/bookshop_server/lib/src/beak/bookshop_beak_engine.dart"
+--8<-- "examples/serverpod/bookshop_server/lib/src/beak/bookshop_beak_engine.dart:bookshopBeak"
 ```
 
 Nobody can delete, because nobody was given `delete`. `BeakModelRules` also takes `rowScope`, `hiddenFields`, `readOnlyFields` and `actions`, each written with typed references, never a column name.
@@ -110,7 +110,7 @@ Anonymous, no token, deleted. That is right for a first run and wrong for a serv
 
 ### Hiding is presentation
 
-`BeakModel.permissions` is the panel's own switch, and its documentation says so plainly:
+`BeakModel.permissions` is constant data. The panel reads it to switch controls, and its documentation says plainly that this is all the panel does with it:
 
 ```dart title="packages/beak_core/lib/src/model/beak_permissions.dart"
 --8<-- "packages/beak_core/lib/src/model/beak_permissions.dart:BeakPermissions"

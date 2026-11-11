@@ -957,4 +957,53 @@ void main() {
       expect(result.parameters, <Object?>[5]);
     });
   });
+
+  group('PostgresCompiler — row locks', () {
+    test('a locking select ends in FOR UPDATE after the ordering', () {
+      final result = compiler.compileSelect(
+        const QueryDescriptor(
+          table: 'nodes',
+          columns: ['id'],
+          orderBy: [SortClause('id')],
+          lock: true,
+        ),
+      );
+
+      expect(
+        result.sql,
+        'SELECT "id" FROM "nodes" ORDER BY "id" ASC FOR UPDATE',
+      );
+    });
+
+    test('an unlocked select stays free of the clause', () {
+      final result = compiler.compileSelect(
+        const QueryDescriptor(table: 'nodes'),
+      );
+
+      expect(result.sql, isNot(contains('FOR UPDATE')));
+    });
+
+    test('DISTINCT, GROUP BY and HAVING refuse a lock', () {
+      for (final descriptor in [
+        const QueryDescriptor(table: 'nodes', distinct: true, lock: true),
+        const QueryDescriptor(table: 'nodes', groupBy: ['id'], lock: true),
+        const QueryDescriptor(
+          table: 'nodes',
+          having: [
+            HavingClause(
+              expression: 'COUNT(*)',
+              operator: Operator.gt,
+              value: 1,
+            ),
+          ],
+          lock: true,
+        ),
+      ]) {
+        expect(
+          () => compiler.compileSelect(descriptor),
+          throwsA(isA<QueryException>()),
+        );
+      }
+    });
+  });
 }

@@ -249,7 +249,7 @@ nav:
           - "Clean shop": examples/clean-shop.md
           - "Foodio admin": examples/foodio.md
           - "Showcase": examples/showcase.md
-          - "Serverpod admin": examples/serverpod-admin.md
+          - "Serverpod admin app": examples/serverpod-admin.md
           - "Feature map": examples/feature-map.md
       - "Concepts":
           - concepts/index.md
@@ -278,6 +278,8 @@ nav:
           - panel/index.md
           - "Resources": panel/resources.md
           - "Navigation": panel/navigation.md
+          - "Defaults, labels and standard resources": panel/defaults-and-labels.md
+          - "Labels in every language": panel/labels.md
           - "Tables and filters": panel/tables-and-filters.md
           - "Composed lists and query state": panel/composed-lists.md
           - "View modes": panel/view-modes.md
@@ -312,6 +314,7 @@ nav:
       - "Theming and formatting":
           - theming/index.md
           - "Theming basics": theming/theming-basics.md
+          - "Built-in themes": theming/built-in-themes.md
           - "Colors and tokens": theming/colors-and-tokens.md
           - "Typography and icons": theming/typography-and-icons.md
           - "Formatting and localization": theming/formatting-and-localization.md
@@ -364,7 +367,9 @@ nav:
       - "Admin app in your workspace":
           - serverpod/admin-app/index.md
           - "How the admin app works": serverpod/admin-app/how-it-works.md
+          - "Generating the admin from definition classes": serverpod/admin-app/generate.md
           - "Setting up the admin app": serverpod/admin-app/setup.md
+          - "Writes, commands and trees": serverpod/admin-app/write-bindings.md
           - "Limits and next steps": serverpod/admin-app/limits-and-next-steps.md
       - "Client bridge":
           - serverpod/bridge/index.md

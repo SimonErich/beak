@@ -261,6 +261,7 @@ const BeakTableBlock({
   this.title,
   this.columns,
   this.fields,
+  this.tableColumns,
   this.enableDelete = true,
   this.initialSpec,
   this.baseFilter,

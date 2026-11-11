@@ -495,9 +495,12 @@ registerBeakCommitRoutes(
   BeakGraphCommitService(
     registry: registry,
     source: dataSource,
-    policy: policy,
+    policy: enforced,
     preparePlan: preparePlan,
     finalizePlan: finalizePlan,
+    executeOperation: executeOperation,
+    trees: trees,
+    mapException: mapException,
     receipts: commitReceipts,
     maxStagedReceipts:
         maxStagedReceipts ?? BeakGraphCommitService.defaultMaxStagedReceipts,

@@ -21,10 +21,12 @@ final class BeakHasOne extends BeakRelationship {
   const BeakHasOne({
     required super.key,
     required super.label,
+    super.translations,
     required super.relatedTable,
     required super.displayColumnKey,
     required this.foreignKey,
     super.searchColumnKeys,
+    super.displayTranslation,
     this.owned = false,
   });
 

@@ -168,6 +168,7 @@ that returns `null` propagates unchanged. An `Error` is never caught.
 | `BeakTunnelFault`, `BeakTunnelHttpFault`, `BeakTunnelNetworkFault` | How a transport failure is described to the HTTP caller. |
 | `ServerpodResource` | A `BeakModel` bound to typed client callbacks. |
 | `ServerpodModel` | Columns, primary key and display column for a resource. |
+| `@ServerpodModel`, `@CommandInput`, `@ReadOnly`, `@Hidden`, `BeakHandling` | The annotations of an admin's definition classes, in `package:beak_serverpod/schema.dart` (a separate library from the bridge's `ServerpodModel`). `beak generate` reads them. |
 | `ServerpodField`, `ServerpodRelationField` | A generated, typed property reference, `.column(label, options:)` and `.read(record)`. |
 | `ServerpodColumnOptions` | Where a column shows (`visibleOn`, detail-only by default), and whether it sorts, searches and filters. |
 | `ServerpodCodecs`, `ServerpodCodec`, `ServerpodValueCodec` | Strict value conversion: `string`, `integer`, `decimal`, `boolean`, `dateTime`, `uuid`, `uri`, `enumeration(values)`, each with `.nullable`, `.list` and `.set`. |

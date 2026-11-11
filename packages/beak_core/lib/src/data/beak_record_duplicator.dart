@@ -117,9 +117,10 @@ final class BeakRecordDuplicator {
       final model = node.model;
       final reset = {
         model.primaryKey.key,
-        'created_at',
-        'updated_at',
-        'deleted_at',
+        model.createdAtColumnKey,
+        model.updatedAtColumnKey,
+        model.deletedAtColumnKey,
+        ?model.isDeletedColumnKey,
         for (final column in model.columns)
           if (column.unique ||
               column.semantic.kind == BeakSemanticKind.password)

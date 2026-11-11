@@ -7,7 +7,6 @@ import 'package:shelf_router/shelf_router.dart';
 
 import '../server/middleware/auth_middleware.dart';
 import '../server/middleware/json_middleware.dart';
-import 'beak_auth_guard.dart';
 import 'token_session_store.dart';
 
 /// Hashes [password] with HMAC-SHA256 under [secret] — what

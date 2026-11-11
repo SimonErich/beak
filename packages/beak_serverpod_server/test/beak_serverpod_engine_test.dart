@@ -169,6 +169,80 @@ void main() {
   });
 
   group('who may call', () {
+    test(
+      'live admission works without the stock scope and runs on every call',
+      () async {
+        var allowed = true;
+        var admissions = 0;
+        var resolved = 0;
+        engine = BeakServerpodEngine(
+          registry: createBookshopRegistry(),
+          policy: _policy(),
+          adapter: adapter,
+          admit: (session, auth) async {
+            admissions++;
+            return allowed;
+          },
+          principal: (session, auth) {
+            resolved++;
+            return BeakServerpodPrincipal.fromScopes(session, auth);
+          },
+        );
+        final member = FakeSession(authenticated: signedIn({_staff}));
+        expect(
+          (await call(
+            'POST',
+            '/api/book',
+            as: member,
+            body: {'title': 'Allowed', 'priceInCents': 1200},
+          )).status,
+          201,
+        );
+        allowed = false;
+        expect((await call('GET', '/api/book/b1', as: member)).status, 403);
+        expect(admissions, 2);
+        expect(resolved, 1);
+      },
+    );
+
+    test(
+      'admission errors are opaque and reach the configured logger',
+      () async {
+        final failures = <Object>[];
+        engine = BeakServerpodEngine(
+          registry: createBookshopRegistry(),
+          policy: _policy(),
+          adapter: adapter,
+          admit: (session, auth) => throw StateError('private failure'),
+          onUnexpectedError: (error, stack) => failures.add(error),
+        );
+        final response = await call('GET', '/api/book/b1');
+        expect(response.status, 500);
+        expect(response.body, isNot(contains('private failure')));
+        expect(failures.single, isA<StateError>());
+      },
+    );
+
+    test('identity and request logging use the configured seams', () async {
+      final entries = <BeakRequestLogEntry>[];
+      engine = BeakServerpodEngine(
+        registry: createBookshopRegistry(),
+        policy: _policy(),
+        adapter: adapter,
+        generateId: () => 'custom-uuid',
+        onRequest: entries.add,
+      );
+      final response = await call(
+        'POST',
+        '/api/book',
+        body: {'title': 'Custom', 'priceInCents': 1200},
+      );
+      expect(response.status, 201);
+      expect(BeakRecord.fromJson(_json(response))['id']?.raw, 'custom-uuid');
+      expect(entries.single.statusCode, 201);
+      expect(staff.logs, isEmpty);
+    });
+
     test('an anonymous session is a 401 before Beak runs', () async {
       final response = await call(
         'GET',
@@ -509,7 +583,7 @@ void main() {
       expect(seen.toSet(), {'alice', 'bob'});
       expect(
         slow.logs.map((log) => log.message).join(),
-        isNot(contains('b1')),
+        isNot(contains('/api/book/b1')),
         reason: 'each request logs on its own session',
       );
     });
@@ -568,4 +642,34 @@ void main() {
     expect(engine.frameworkTables.outbox.availableAtColumn, 'availableAt');
     expect(engine.registry.byTable('book'), isNotNull);
   });
+
+  test(
+    'maintenance prunes only receipts older than the supplied cutoff',
+    () async {
+      final cutoff = DateTime.utc(2026, 10, 1);
+      for (final (key, createdAt) in [
+        ('old', cutoff.subtract(const Duration(days: 1))),
+        ('at-cutoff', cutoff),
+        ('new', cutoff.add(const Duration(days: 1))),
+      ]) {
+        await adapter.insert(
+          InsertDescriptor(
+            table: 'beak_commit_receipt',
+            values: {
+              'receiptKey': key,
+              'requestHash': key,
+              'requestJson': '{}',
+              'resultJson': '{}',
+              'createdAt': createdAt,
+            },
+          ),
+        );
+      }
+      expect(await engine.pruneReceipts(FakeSession(), olderThan: cutoff), 1);
+      final kept = await adapter.select(
+        const QueryDescriptor(table: 'beak_commit_receipt'),
+      );
+      expect(kept.map((row) => row['receiptKey']), ['at-cutoff', 'new']);
+    },
+  );
 }

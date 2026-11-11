@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:beak_core/beak_core.dart';
 import 'package:shelf/shelf.dart';
 
-import '../auth/beak_auth_guard.dart';
 import '../auth/beak_policy.dart';
 import '../auth/beak_field_policy.dart';
 import '../auth/beak_query_authorizer.dart';

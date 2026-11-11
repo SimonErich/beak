@@ -68,6 +68,57 @@ BeakSchemaIr schemaNamed(List<BeakSchemaIr> schemas, String name) =>
     schemas.firstWhere((schema) => schema.className == name);
 
 void main() {
+  test(
+    'custom lifecycle keys reuse existing columns and generate model overrides',
+    () {
+      final (schemas, issues) = readSchemas({
+        'record.dart': """
+@Resource(timestamps: true, softDeletes: true, managesSchema: false,
+  createdAtColumnKey: 'createdAt', updatedAtColumnKey: 'updatedAt',
+  deletedAtColumnKey: 'deletedAt', isDeletedColumnKey: 'isDeleted')
+final class Record extends BeakSchema {
+  @Display() late final String name;
+  @Column(columnName: 'createdAt') late final DateTime createdAt;
+  @Column(columnName: 'updatedAt') late final DateTime updatedAt;
+  @Column(columnName: 'deletedAt') late final DateTime? deletedAt;
+  @Column(columnName: 'isDeleted') late final bool isDeleted;
+}
+""",
+      });
+      expect(issues, isEmpty);
+      final schema = schemas.single;
+      expect(schema.createdAtColumnKey, 'createdAt');
+      expect(schema.updatedAtColumnKey, 'updatedAt');
+      expect(schema.deletedAtColumnKey, 'deletedAt');
+      expect(schema.isDeletedColumnKey, 'isDeleted');
+      expect(schema.columns.map((column) => column.columnKey), [
+        'id',
+        'name',
+        'createdAt',
+        'updatedAt',
+        'deletedAt',
+        'isDeleted',
+      ]);
+      final emitted = BeakSchemaEmitter.emit(schema, schemas);
+      expect(
+        emitted,
+        contains("String get createdAtColumnKey => 'createdAt';"),
+      );
+      expect(
+        emitted,
+        contains("String get updatedAtColumnKey => 'updatedAt';"),
+      );
+      expect(
+        emitted,
+        contains("String get deletedAtColumnKey => 'deletedAt';"),
+      );
+      expect(
+        emitted,
+        contains("String get isDeletedColumnKey => 'isDeleted';"),
+      );
+    },
+  );
+
   test('the fields class initializes its private fields without a named '
       'parameter that repeats their name', () {
     // At Dart 3.12 `{BeakModel model}` feeding `_model` is a
@@ -367,9 +418,70 @@ final class Order extends BeakSchema {
       expect(relation.relatedSchema, 'Category');
       expect(relation.foreignKey, 'category_id');
     });
+
+    test('belongs-to-only input schemas have a real foreign-key field', () {
+      final (schemas, issues) = readSchemas({
+        'category.dart': categorySchema,
+        'command.dart': '''
+import 'package:beak_core/beak_core.dart';
+import 'package:beak_core/schema.dart';
+import 'category.dart';
+part 'command.beak.dart';
+@Resource(managesSchema: false)
+final class Command extends BeakSchema {
+  @BelongsTo(foreignKey: 'categoryId')
+  late final Category category;
+}
+''',
+      });
+      expect(issues, isEmpty);
+      final command = schemaNamed(schemas, 'Command');
+      expect(command.columns.map((column) => column.columnKey), [
+        'id',
+        'categoryId',
+      ]);
+      expect(
+        BeakSchemaEmitter.emit(command, schemas),
+        contains('get categoryId'),
+      );
+    });
   });
 
   group('issues', () {
+    test(
+      'an intentional empty string default remains valid and nonnullable',
+      () {
+        final (schemas, issues) = readSchemas({
+          'defaults.dart': '''
+import 'package:beak_core/beak_core.dart';
+import 'package:beak_core/schema.dart';
+part 'defaults.beak.dart';
+@Resource()
+final class Defaults extends BeakSchema {
+  @Column(defaultValue: '')
+  late final String singleQuoted;
+  @Column(defaultValue: "")
+  late final String doubleQuoted;
+  late final String requiredName;
+}
+''',
+        });
+        expect(issues, isEmpty);
+        final emitted = BeakSchemaEmitter.emit(schemas.single, schemas);
+        expect(
+          'BeakRequired(allowEmpty: true)'.allMatches(emitted),
+          hasLength(2),
+        );
+        expect('BeakRequired()'.allMatches(emitted), hasLength(1));
+        expect(
+          schemas.single.columns
+              .where((column) => column.fieldName.endsWith('Quoted'))
+              .every((column) => column.isRequired),
+          isTrue,
+        );
+      },
+    );
+
     test('a relationship to an unknown schema is reported', () {
       final (_, issues) = readSchemas({'product.dart': productSchema});
       expect(issues, hasLength(1));

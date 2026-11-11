@@ -253,7 +253,7 @@ refuses: `lib/main.dart` is the app's own.
 | `main` | `lib/main.dart`, as an authored `BeakPanel(resources: [...])` listing what the generated panel showed. |
 | `resource <table>` | `lib/resources/<table>/<name>_resource.dart`, a `BeakResource` seeded from the table's `beak.yaml` icon, label and section. Refuses a table marked `hidden: true`. |
 | `panel` | `lib/panel.dart`, the last word on the whole panel config. |
-| `theme` | `lib/theme.dart`, the light and dark themes. |
+| `theme` | `lib/theme.dart`, the panel's `BeakTheme`. |
 | `auth` | `lib/auth.dart`, which auth routes exist and what they call. |
 | `server` | `lib/server.dart`, with every hook `defaults.build` accepts. |
 
@@ -339,6 +339,7 @@ Every key is optional, and an unknown key is an error that names it.
 | `agents.instructions` | `all`, `package` or `none`: which `AGENTS.md` files Beak keeps its block in. |
 | `agents.docs` | Whether `prepare` copies the docs to `.dart_tool/beak/docs`. Default `true`. |
 | `agents.skills` | A list of `claude`, `agents` and `cursor`; `[]` installs none. |
+| `theme.preset` | `standard` or `gabel`: the built-in theme the generated panel uses. `gabel` needs `beak_theme_gabel` in the pubspec. |
 | `theme.sidebar.collapsible`, `theme.sidebar.startCollapsed` | Sidebar behavior. |
 | `resources.<table>.icon`, `.label`, `.section`, `.hidden` | Presentation of a generated default resource. |
 

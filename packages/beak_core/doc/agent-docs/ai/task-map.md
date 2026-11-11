@@ -72,6 +72,7 @@ For coding agents. Humans: see [Recipes](../recipes/index.md). Find your task, r
 | Put your own widget on a page | [Custom blocks and widgets](../extending/custom-blocks-and-widgets.md) | `examples/clean_beak_config/lib/widgets/receivables_card.dart` | Reference test `examples/clean_beak_config/test/custom_shop_test.dart` |
 | Add sign-in and an idle lock to the panel | [Auth and idle-lock](../panel/auth-and-idle-lock.md) | `examples/serverpod/bookshop_admin/lib/src/bookshop_admin.dart` | Reference test `examples/serverpod/bookshop_admin/test/admin_login_test.dart` |
 | Set the theme | [Theming basics](../theming/theming-basics.md) | `examples/clean_beak_config/lib/main.dart` | `flutter test`, open the panel in light and dark |
+| Select the Gabel theme | [Built-in themes](../theming/built-in-themes.md) | `examples/foodio-adminpanel/lib/main.dart` | Reference test `packages/beak_theme_gabel/test/gabel_theme_test.dart`, then open the panel in light and dark |
 | Set locale, currency and date formats | [Formatting and localization](../theming/formatting-and-localization.md) | `examples/clean_beak_config/lib/main.dart` | Reference test `packages/beak_core/test/src/columns/beak_format_policy_test.dart`, then a widget test finds the formatted text |
 | Show a maintenance or coming-soon page | [Maintenance and coming soon](../panel/maintenance-and-coming-soon.md) | `packages/beak_frontend/lib/src/panel/beak_maintenance_config.dart` | The package tests under `packages/beak_frontend/test/src/panel/` |
 
@@ -93,7 +94,7 @@ For coding agents. Humans: see [Recipes](../recipes/index.md). Find your task, r
 
 | Task | Read | Open | Verify |
 | --- | --- | --- | --- |
-| Decide who may read and write what | [Auth and policies](../backend/auth-and-policies.md) | `examples/serverpod/bookshop_server/lib/src/beak/bookshop_policy.dart` | A per-role API test. Reference test `packages/beak_backend/test/src/auth/beak_policies_handlers_test.dart` |
+| Decide who may read and write what | [Auth and policies](../backend/auth-and-policies.md) | `examples/serverpod/bookshop_server/lib/src/beak/bookshop_beak_engine.dart` | A per-role API test. Reference test `packages/beak_backend/test/src/auth/beak_policies_handlers_test.dart` |
 | Run a rule inside the save transaction | [Transactional business rules](../backend/graph-business-rules.md) | `examples/clean_beak_config/lib/domain/shop_graph_preparer.dart` | Reference test `examples/clean_beak_config/test/shop_api_test.dart` |
 | Force a model's writes through those rules | [Transactional business rules](../backend/graph-business-rules.md) | `examples/clean_beak_config/lib/server.dart` | A per-record `PATCH` from a caller the policy allows answers `422` |
 | Send an email or call a provider after a save | [Durable effects](../backend/durable-effects.md) | `examples/foodio-adminpanel/lib/domain/foodio_effects.dart` | Reference test `examples/foodio-adminpanel/test/foodio_api_test.dart` |

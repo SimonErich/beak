@@ -1,0 +1,15 @@
+name: bookshop_definitions
+description: The bookshop admin's definition classes and their generated models.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: '>=3.12.0 <4.0.0'
+
+resolution: workspace
+
+dependencies:
+  beak_core:
+    path: ../../../../packages/beak_core
+  beak_serverpod:
+    path: ../../../../packages/beak_serverpod

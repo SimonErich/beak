@@ -234,11 +234,6 @@ void main() {
           auth.snapshot.value = const BeakAuthAuthenticated(
             _Permissions(write: true),
           );
-          bool canWrite() => switch (auth.snapshot.value) {
-            BeakAuthAuthenticated(identity: _Permissions(:final write)) =>
-              write,
-            _ => false,
-          };
           dataSource = FakeDataSource(
             records: {
               'notes': {
@@ -251,9 +246,9 @@ void main() {
             config(
               auth: BeakAuthConfig(adapter: auth),
               resources: [
-                BeakResource(
-                  model: _WriteGatedNoteModel(canWrite),
-                  icon: const BeakIconToken(OiIcons.file),
+                const BeakResource(
+                  model: _WriteGatedNoteModel(),
+                  icon: BeakIconToken(OiIcons.file),
                 ),
               ],
             ),
@@ -508,9 +503,10 @@ void main() {
   });
 }
 
+/// An account that holds the `writer` role, or does not.
 class _Permissions extends BeakAuthIdentity {
-  const _Permissions({required this.write}) : super(id: 'test');
-  final bool write;
+  const _Permissions({required bool write})
+    : super(id: 'test', roles: write ? const {'writer'} : const {});
 }
 
 class _TestAuth extends FakeAuthAdapter {
@@ -534,11 +530,9 @@ class _TestAuth extends FakeAuthAdapter {
   }
 }
 
-/// The notes model whose write permissions follow a live account check.
+/// The notes model whose writes are open to the `writer` role.
 final class _WriteGatedNoteModel extends BeakModel {
-  const _WriteGatedNoteModel(this.canWrite);
-
-  final bool Function() canWrite;
+  const _WriteGatedNoteModel();
 
   @override
   String get table => 'notes';
@@ -553,10 +547,8 @@ final class _WriteGatedNoteModel extends BeakModel {
   ];
 
   @override
-  BeakPermissions get permissions => BeakPermissions({
-    BeakOperation.read: () => true,
-    BeakOperation.create: canWrite,
-    BeakOperation.update: canWrite,
-    BeakOperation.delete: canWrite,
-  });
+  BeakPermissions get permissions => const BeakPermissions(
+    read: BeakAccess.anyone,
+    write: BeakAccess.role('writer'),
+  );
 }

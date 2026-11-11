@@ -66,6 +66,7 @@ You name a model or a screen object, never a route. `BeakNavigationItem.resource
 | Parameter | Applies to | Effect |
 | --- | --- | --- |
 | `label`, `icon` | both | Override the resource's or screen's own |
+| `group` | both | Sidebar group heading (`OiNavItem.section`); items with the same value sit under one label |
 | `preset` | resource | Opens the list on one of its `BeakQueryPreset` objects. The item is active only while that preset is selected |
 | `showCount` | resource | Shows a live record count as the item's badge |
 | `recordLabelMonospace` | resource | Draws the current record's label in the code font, for identifiers such as order numbers |

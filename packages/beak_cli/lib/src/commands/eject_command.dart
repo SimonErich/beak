@@ -33,7 +33,7 @@ enum BeakEjectTarget {
     'lib/resources/<table>/<name>_resource.dart (takes a table name)',
   ),
 
-  /// `lib/theme.dart` — the light and dark themes.
+  /// `lib/theme.dart` — the panel's `BeakTheme`.
   theme('theme', 'lib/theme.dart'),
 
   /// `lib/auth.dart` — which auth routes exist and what they call.
@@ -437,13 +437,15 @@ BeakPanelConfig beakPanel(BeakPanelConfig defaults) => defaults;
 ''';
 
   static const String _theme = '''
-import 'package:beak/ui.dart';
+import 'package:beak/panel.dart';
 
-/// The theme the panel uses in light mode.
-OiThemeData beakLightTheme() => OiThemeData.light();
-
-/// The theme the panel uses in dark mode.
-OiThemeData beakDarkTheme() => OiThemeData.dark();
+/// The light and dark theme the panel uses.
+///
+/// [BeakTheme.standard] is the stock obers_ui look. Build your own with
+/// `BeakTheme(light: ..., dark: ...)` (import `package:beak/ui.dart` for
+/// `OiThemeData`), or return a built-in one, such as `GabelTheme()` from
+/// `package:beak_theme_gabel`.
+BeakTheme beakTheme() => BeakTheme.standard();
 ''';
 
   static const String _auth = '''

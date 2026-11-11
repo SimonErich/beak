@@ -66,7 +66,7 @@ Authentication is one interface, called by the auth middleware on every request:
 --8<-- "packages/beak_backend/lib/src/auth/beak_auth_guard.dart:BeakAuthGuard"
 ```
 
-`null` means anonymous. Credentials that are present and wrong must throw a `BeakAuthenticationException`, never return `null`, so a forged token is a `401` and never quietly becomes an anonymous request. A `BeakPrincipal` is an `id` and a set of `roles`, which are plain strings.
+`null` means anonymous. Credentials that are present and wrong must throw a `BeakAuthenticationException`, never return `null`, so a forged token is a `401` and never quietly becomes an anonymous request. A `BeakPrincipal` is an `id` and a set of `roles`, which are plain strings. `BeakPrincipal` and `BeakAccess` are defined in `beak_core`, so the panel checks the same values, and `package:beak/server.dart` still exports both.
 
 ### Built-in sessions
 
@@ -128,6 +128,22 @@ A model with no rule is invisible. Its routes answer `401` to an anonymous reque
 ```
 
 `BeakModelRules` throws a `BeakConfigurationException` at startup for a `readOnlyFields` or `hiddenFields` entry that is not a field of the model, an `actions` key the model does not declare, and a second rule for the same model. A rule that could never apply is a mistake worth failing on.
+
+### Permissions on the model
+
+A `BeakModelRules` lives in server code. When the rule should be one constant the panel and the server both read, put it on the model: `BeakModel.permissions` is a `BeakPermissions`, a `BeakAccess` for `read` and for `write`, optionally one each for `create`, `update` and `delete`, and one per named command. `allows(operation, principal)` answers for a principal, and `null` is the anonymous request:
+
+```dart title="packages/beak_core/test/src/model/beak_permissions_test.dart"
+--8<-- "packages/beak_core/test/src/model/beak_permissions_test.dart:permissionsRoleAccess"
+```
+
+Nothing is granted by default. An operation whose access value is missing is denied, `BeakPermissions()` closes a model completely, and only `BeakPermissions.allowAll()` (the default of a model that sets nothing) opens it. `create`, `update` and `delete` fall back to `write`, so most models name two values. A command uses its own entry in `actions`, keyed by the command's `name`, and falls back to `update`, then `write`. Registering a model whose `actions` name a command its behavior does not declare throws a `BeakConfigurationException`:
+
+```dart title="packages/beak_core/test/src/model/beak_permissions_test.dart"
+--8<-- "packages/beak_core/test/src/model/beak_permissions_test.dart:permissionsActions"
+```
+
+`BeakPolicies` does not read these values on its own. In the panel they decide which routes and buttons exist, see [Resources](../panel/resources.md#who-may-see-and-change-it).
 
 ### What a refusal looks like
 
@@ -274,7 +290,8 @@ In code, the two fixtures quoted above are the pattern: build the real router wi
 ## Reference
 
 - `packages/beak_backend/lib/src/auth/beak_policies.dart`: `BeakPolicies`, `BeakModelRules`.
-- `packages/beak_backend/lib/src/auth/beak_access.dart`: `BeakAccess`.
+- `packages/beak_core/lib/src/auth/beak_access.dart` and `packages/beak_core/lib/src/auth/beak_principal.dart`: `BeakAccess`, `BeakPrincipal`.
+- `packages/beak_core/lib/src/model/beak_permissions.dart`: `BeakPermissions`, `BeakOperation`.
 - `packages/beak_backend/lib/src/auth/beak_policy.dart`: `BeakPolicy`, `BeakRowPolicy`, `BeakAllowAllPolicy`, `BeakUploadReadPolicy`, `enforcePolicyDecision`.
 - `packages/beak_backend/lib/src/auth/beak_field_policy.dart`: `BeakFieldPolicy`, `BeakReadOnlyFieldPolicy`, `BeakFieldAccess`.
 - `packages/beak_backend/lib/src/auth/beak_action_policy.dart`: `BeakActionPolicy`.

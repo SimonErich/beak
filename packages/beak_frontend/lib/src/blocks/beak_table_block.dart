@@ -34,6 +34,7 @@ final class BeakTableBlock extends BeakBlock {
     this.title,
     this.columns,
     this.fields,
+    this.tableColumns,
     this.enableDelete = true,
     this.initialSpec,
     this.baseFilter,
@@ -65,6 +66,10 @@ final class BeakTableBlock extends BeakBlock {
   /// Takes precedence over [columns] and suppresses automatic relation columns.
   final List<BeakScalarField<Object>>? fields;
 
+  /// Reusable presentation columns with labels, templates and inferred loads.
+  /// Takes precedence over [fields] and [columns].
+  final List<BeakTableColumn>? tableColumns;
+
   /// Adds the built-in delete action. Disable for read-only embedded listings.
   /// Custom [actions] remain available independently.
   final bool enableDelete;
@@ -79,5 +84,8 @@ final class BeakTableBlock extends BeakBlock {
   final List<BeakTableAction> actions;
 
   /// Invoked when a row is tapped.
-  final void Function(BeakRecord record)? onRowTap;
+  ///
+  /// Defaults to opening the record's show page, which is the useful action
+  /// for an embedded list. Return an explicit callback to navigate elsewhere.
+  final void Function(BuildContext context, BeakRecord record)? onRowTap;
 }

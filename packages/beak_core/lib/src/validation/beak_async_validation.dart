@@ -22,11 +22,14 @@ final class BeakAsyncValidation {
 
   /// Checks trusted model rules and unique column metadata on a full candidate.
   /// [query] must enforce the same row policy as ordinary resource reads.
+  /// [initial] is the trusted persisted baseline; unchanged implicit foreign
+  /// keys need no target read. Explicit existence rules still run in full.
   Future<BeakValidationReport> validate(
     BeakModel model,
     BeakRecord record, {
     required BeakValidationQuery query,
     Object? recordId,
+    BeakRecord? initial,
     BeakModelRegistry? registry,
   }) async {
     final errors = <String, List<String>>{};
@@ -77,6 +80,11 @@ final class BeakAsyncValidation {
     for (final relation in model.relationships.whereType<BeakBelongsTo>()) {
       final value = record[relation.foreignKey]?.raw;
       if (value == null) continue;
+      // Existing links were already validated when authored. Editing a record
+      // must not require read access to every unchanged related resource.
+      if (initial != null && initial[relation.foreignKey]?.raw == value) {
+        continue;
+      }
       final target =
           registry?.byTable(relation.relatedTable) ??
           model.relatedModels

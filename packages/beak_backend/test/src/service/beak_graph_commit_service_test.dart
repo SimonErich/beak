@@ -130,6 +130,109 @@ void main() {
   tearDown(Worm.reset);
 
   test(
+    'operation executor delegates create without stale SQL and replays once',
+    () async {
+      var calls = 0;
+      service = BeakGraphCommitService(
+        registry: createApiRegistry(),
+        source: source,
+        executeOperation: (context) async {
+          if (context.model is! NoteModel) return null;
+          calls++;
+          expect(context.operation.kind, BeakSaveOperationKind.create);
+          expect(context.id, isNull);
+          final record = await context.transaction.create(
+            'notes',
+            BeakRecord.fromRow({'id': 'domain-id', 'title': 'Domain title'}),
+          );
+          return BeakSaveOperationWrite(record: record);
+        },
+      );
+      final result = await service.commit(_plan());
+      expect(result.complete, isTrue);
+      expect(result.identities['note'], 'domain-id');
+      expect(
+        (await source.getOne('notes', 'domain-id'))?['title']?.raw,
+        'Domain title',
+      );
+      expect(
+        (await source.getOne(
+          'comments',
+          result.identities['comment']!,
+        ))?['note_id']?.raw,
+        'domain-id',
+      );
+      expect((await service.commit(_plan())).toJson(), result.toJson());
+      expect(calls, 1);
+    },
+  );
+
+  test(
+    'operation executor waits for authorization and scalar validation',
+    () async {
+      var calls = 0;
+      service = BeakGraphCommitService(
+        registry: createApiRegistry(),
+        source: source,
+        policy: const _DenyComments(),
+        executeOperation: (context) async {
+          calls++;
+          return null;
+        },
+      );
+      expect((await service.commit(_plan())).complete, isFalse);
+      expect(calls, 0);
+      service = BeakGraphCommitService(
+        registry: createApiRegistry(),
+        source: source,
+        executeOperation: (context) async {
+          calls++;
+          return null;
+        },
+      );
+      expect(
+        (await service.commit(
+          BeakSavePlan(
+            saveId: 'invalid',
+            root: const BeakRecordRef.draft('notes', 'n'),
+            operations: [
+              BeakSaveOperation(
+                id: 'n',
+                kind: BeakSaveOperationKind.create,
+                target: const BeakRecordRef.draft('notes', 'n'),
+                values: BeakRecord.fromRow({'title': 42}),
+              ),
+            ],
+          ),
+        )).complete,
+        isFalse,
+      );
+      expect(calls, 0);
+    },
+  );
+
+  test('later rejection rolls back the delegated domain write', () async {
+    service = BeakGraphCommitService(
+      registry: createApiRegistry(),
+      source: source,
+      executeOperation: (context) async {
+        if (context.model is CommentModel) {
+          throw const BeakValidationException('Domain refusal');
+        }
+        final record = await context.transaction.create(
+          'notes',
+          BeakRecord.fromRow({'id': 'domain-id', 'title': 'Domain title'}),
+        );
+        return BeakSaveOperationWrite(record: record);
+      },
+    );
+    final result = await service.commit(_plan());
+    expect(result.complete, isFalse);
+    expect(result.hasUnknown, isFalse);
+    expect(await source.getOne('notes', 'domain-id'), isNull);
+  });
+
+  test(
     'finalizer receives persisted identities and effects replay only once',
     () async {
       await const BeakOutboxMigration().up(adapter);

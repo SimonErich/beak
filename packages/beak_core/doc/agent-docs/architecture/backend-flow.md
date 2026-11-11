@@ -233,7 +233,13 @@ Future<BeakRecord> create(
   final prepared = prepareCreate(input);
   _requireWithinScope(prepared, scope);
   await validateCandidate(prepared, validationQuery: validationQuery);
-  return dataSource.create(model.table, prepared);
+  return await beakRestoreSoftDeleted(
+        model,
+        dataSource,
+        prepared,
+        now: _now,
+      ) ??
+      await dataSource.create(model.table, prepared);
 }
 ```
 

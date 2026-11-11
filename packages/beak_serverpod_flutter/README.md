@@ -29,8 +29,8 @@ says which path fits.
 
 | Part | Version |
 | --- | --- |
-| `serverpod_auth_core_flutter`, `serverpod_auth_idp_client`, `serverpod_client` | `>=4.0.3 <5.0.0` declared, 4.0.3 tested |
-| Flutter | `>=3.41.0` declared. Serverpod 4.0.3 itself needs Dart 3.12.2 and Flutter 3.44.4 |
+| `serverpod_auth_core_flutter`, `serverpod_auth_idp_client`, `serverpod_client` | `>=4.0.3 <5.0.0` declared, 4.0.4 tested |
+| Flutter | `>=3.44.0` declared. Serverpod 4.0.4 itself needs Dart 3.12.2 and Flutter 3.44.4 |
 
 Earlier Beak builds pinned `4.0.0-beta.0`, and this package does not resolve
 against it. Between the beta and 4.0.x, `ServerpodClientException` became sealed
@@ -206,7 +206,7 @@ types without Flutter, for Dart VM tools and tests.
 - Every panel call is a Serverpod call, so the server's `maxRequestSize` caps it
   (512 KiB in the template) and the client's `connectionTimeout` applies. A CSV
   export is buffered and rides the tunnel too.
-- Beak's constraints allow any 4.x from 4.0.3. Only 4.0.3 is tested, and the
+- Beak's constraints allow any 4.x from 4.0.3. Only 4.0.4 is tested, and the
   matching pins in the client, server and app are yours to keep.
 
 ## Continue reading

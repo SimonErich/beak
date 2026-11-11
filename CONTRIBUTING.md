@@ -9,7 +9,7 @@ Coding agents: [AGENTS.md](AGENTS.md) is the short version of these rules, plus 
 
 ## Prerequisites
 
-- **Dart** `^3.11` and **Flutter** (stable channel).
+- **Dart** `^3.12` and **Flutter** 3.44 or newer (stable channel).
 - **Docker** + Docker Compose (for the Postgres + MinIO integration/E2E tests).
 - **Melos `6.3.3`** — pinned. Install exactly this version:
   ```bash

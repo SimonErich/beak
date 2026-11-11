@@ -42,14 +42,97 @@ Future<void> _pump(
   WidgetTester tester,
   Widget child, {
   double width = 1440,
+  double height = 900,
 }) async {
-  await tester.binding.setSurfaceSize(Size(width, 900));
+  await tester.binding.setSurfaceSize(Size(width, height));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(OiApp(theme: OiThemeData.light(), home: child));
   await tester.pumpAndSettle();
 }
 
 void main() {
+  testWidgets('tall owned-row editors scroll while keeping actions visible', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(375, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _pump(
+      tester,
+      BeakConfiguredForm(
+        model: const _Basket(),
+        dataSource: _source(),
+        layout: BeakFormLayout(
+          children: [
+            _lines.tableForm(
+              label: 'Lines',
+              children: [_quantity.inputNumber()],
+              advancedForm: BeakFormLayout(
+                children: [
+                  BeakFormNotice(
+                    message: (_) =>
+                        List.filled(80, 'Options for preparation.').join('\n'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      width: 375,
+      height: 600,
+    );
+    await tester.tap(find.widgetWithText(OiButton, 'Add Lines'));
+    await tester.pumpAndSettle();
+    final apply = find.widgetWithText(OiButton, 'Apply');
+    expect(tester.getBottomLeft(apply).dy, lessThanOrEqualTo(600));
+    final scroll = find.descendant(
+      of: find.byType(OiDialog),
+      matching: find.byType(SingleChildScrollView),
+    );
+    expect(scroll, findsOneWidget);
+    await tester.drag(scroll, const Offset(0, -500));
+    await tester.pumpAndSettle();
+    expect(tester.getBottomLeft(apply).dy, lessThanOrEqualTo(600));
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.widgetWithText(OiButton, 'Cancel'));
+    await tester.pumpAndSettle();
+    expect(apply, findsNothing);
+  });
+
+  testWidgets(
+    'unmounting an owned-row dialog never restores a disposed draft',
+    (tester) async {
+      final source = _source();
+      await _pump(
+        tester,
+        BeakConfiguredForm(
+          model: const _Basket(),
+          dataSource: source,
+          layout: BeakFormLayout(
+            children: [
+              _lines.tableForm(
+                label: 'Lines',
+                children: const [],
+                advancedForm: BeakFormLayout(
+                  children: [_quantity.inputNumber()],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.tap(find.widgetWithText(OiButton, 'Add Lines'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(OiButton, 'Apply'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      expect(source.createCalls, isEmpty);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final sample in [
     ('none', const _Basket()),
     ('unavailable', const _ActionBasket()),
@@ -2441,12 +2524,8 @@ void main() {
       );
       expect(find.widgetWithText(OiButton, 'Edit'), findsOneWidget);
       expect(find.text('Pin'), findsOneWidget);
-      await tester.tap(find.text('More actions'));
-      await tester.pumpAndSettle();
-      expect(find.text('Archive'), findsOneWidget);
-      expect(find.text('Pin'), findsOneWidget);
-      await tester.tap(find.text('More actions'));
-      await tester.pumpAndSettle();
+      expect(find.widgetWithText(OiButton, 'Archive'), findsOneWidget);
+      expect(find.text('More actions'), findsNothing);
       await tester.tap(find.text('Edit'));
       await tester.pumpAndSettle();
       expect(find.widgetWithText(OiButton, 'Save'), findsOneWidget);
@@ -2461,6 +2540,7 @@ void main() {
         OiButtonVariant.outline,
       );
       expect(find.text('More actions'), findsNothing);
+      expect(find.widgetWithText(OiButton, 'Archive'), findsNothing);
       await tester.enterText(find.byType(EditableText), 'Changed');
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
@@ -2469,11 +2549,49 @@ void main() {
       expect(session.root.read(_title), 'Original');
       expect(find.byType(EditableText), findsNothing);
       expect(find.widgetWithText(OiButton, 'Edit'), findsOneWidget);
-      expect(find.text('More actions'), findsOneWidget);
+      expect(find.widgetWithText(OiButton, 'Archive'), findsOneWidget);
       expect(source.updateCalls, isEmpty);
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('page-placed form actions appear in the page frame', (
+    tester,
+  ) async {
+    final source = FakeDataSource(
+      models: const [_ActionBasket(), _Item(), _Line()],
+      records: {
+        'baskets': {
+          'b1': BeakRecord.fromRow({'id': 'b1', 'title': 'Original'}),
+        },
+      },
+    );
+    await _pump(
+      tester,
+      BeakConfiguredForm(
+        model: const _ActionBasket(),
+        dataSource: source,
+        recordId: 'b1',
+        mode: BeakFormMode.read,
+        layout: BeakFormLayout(
+          children: [
+            _title.input(),
+            const BeakFormActions(page: true, actions: [_ActionBasket.pin]),
+          ],
+        ),
+        frameBuilder: (_, _, _, actions, child) => Column(
+          children: [
+            actions,
+            Expanded(child: child),
+          ],
+        ),
+      ),
+    );
+    expect(find.widgetWithText(OiButton, 'Pin'), findsOneWidget);
+    expect(find.widgetWithText(OiButton, 'Archive'), findsOneWidget);
+    expect(find.text('More actions'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'switching record identity observes the new session loading signals',
