@@ -677,8 +677,13 @@ abstract final class BeakSchemaEmitter {
     buffer
       ..writeln("    relatedTable: '${related.table}',")
       ..writeln("    displayColumnKey: '${related.displayColumnKey}',");
-    if (related.displayTranslationRelation != null) {
-      buffer.writeln('    displayValue: ${related.modelClass}.displayOf,');
+    if (related.displayTranslationRelation case final String relation) {
+      buffer
+        ..writeln('    displayTranslation: const BeakTranslationDisplay(')
+        ..writeln("      relationKey: '$relation',")
+        ..writeln("      columnKey: '${related.displayTranslationColumn}',")
+        ..writeln("      localeKey: '${related.displayTranslationLocale}',")
+        ..writeln('    ),');
     }
     for (final entry in arguments.entries) {
       buffer.writeln('    ${entry.key}: ${entry.value},');

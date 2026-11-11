@@ -330,7 +330,10 @@ final class Product extends BeakSchema {
     final product = fixture.read(
       'definitions/lib/src/catalog/product.beak.dart',
     );
-    expect(product, contains('displayValue: CategoryModel.displayOf'));
+    expect(
+      product,
+      contains('displayTranslation: const BeakTranslationDisplay('),
+    );
   });
 
   test('a stock-only project gets a handler aggregate without arguments', () {
