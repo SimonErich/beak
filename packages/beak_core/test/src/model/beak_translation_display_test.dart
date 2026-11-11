@@ -34,6 +34,30 @@ void main() {
     expect(display.labelOf(record()), 'Drinks');
   });
 
+  test('a model reads its display column without a translation display', () {
+    final record = BeakRecord.fromRow({'name': 'Plain'});
+
+    expect(const _PlainModel().displayValueOf(record), 'Plain');
+    expect(
+      const _PlainModel().displayValueOf(const BeakRecord(values: {})),
+      '',
+    );
+  });
+
+  test('a model with a translation display reads it instead of the column', () {
+    BeakLabels.language = 'de';
+
+    expect(
+      const _DisplayModel(
+        translation: BeakTranslationDisplay(
+          relationKey: 'translations',
+          columnKey: 'name',
+        ),
+      ).displayValueOf(record()),
+      'Getränke',
+    );
+  });
+
   test('is empty without loaded translations', () {
     const display = BeakTranslationDisplay(
       relationKey: 'translations',
@@ -42,4 +66,35 @@ void main() {
 
     expect(display.labelOf(const BeakRecord(values: {})), '');
   });
+}
+
+final class _PlainModel extends BeakModel {
+  const _PlainModel();
+
+  @override
+  String get table => 'plain_model';
+
+  @override
+  String get displayColumnKey => 'name';
+
+  @override
+  List<BeakColumn> get columns => const [];
+}
+
+final class _DisplayModel extends BeakModel {
+  const _DisplayModel({this.translation});
+
+  final BeakTranslationDisplay? translation;
+
+  @override
+  String get table => 'display_model';
+
+  @override
+  String get displayColumnKey => 'name';
+
+  @override
+  List<BeakColumn> get columns => const [];
+
+  @override
+  BeakTranslationDisplay? get translationDisplay => translation;
 }
