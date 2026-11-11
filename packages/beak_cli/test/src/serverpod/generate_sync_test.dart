@@ -44,7 +44,7 @@ final class Product extends BeakSchema {
         'definitions/lib/src/generated/models/catalog/product.beak.dart',
       ),
       startsWith(
-        "${beakGeneratedHeader}\n\npart of 'package:shop_definitions/src/catalog/product.dart';",
+        "$beakGeneratedHeader\n\npart of 'package:shop_definitions/src/catalog/product.dart';",
       ),
     );
     final models = fixture.read('definitions/lib/src/generated/models.dart');
@@ -103,7 +103,7 @@ final class Product extends BeakSchema {
       fixture
           .read('definitions/lib/src/catalog/product.dart')
           .replaceFirst(
-            "part '../generated/models/catalog/product.beak.dart';",
+            "part 'package:shop_definitions/src/generated/models/catalog/product.beak.dart';",
             '',
           )
           .replaceFirst(
@@ -120,7 +120,7 @@ final class Product extends BeakSchema {
           'messages',
           containsAll([
             contains(
-              "add `part '../generated/models/catalog/product.beak.dart';`",
+              "add `part 'package:shop_definitions/src/generated/models/catalog/product.beak.dart';`",
             ),
             contains(
               "add `import 'package:shop_definitions/src/generated/definitions_support.dart';`",

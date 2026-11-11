@@ -88,11 +88,8 @@ ${handlers == null ? '' : '  handlers: $handlers\n'}  prefix: Shop
     List<String> imports = const [],
   }) {
     final folder = p.posix.basename(p.posix.dirname(library));
-    final part = definitionPartUri(
-      area: folder,
-      name: p.basename(library),
-      library: 'src/$library.dart',
-    );
+    final part =
+        'package:shop_definitions/${definitionPartPath(area: folder, name: p.basename(library))}';
     const support =
         'package:shop_definitions/src/generated/definitions_support.dart';
     final uris = <String>{

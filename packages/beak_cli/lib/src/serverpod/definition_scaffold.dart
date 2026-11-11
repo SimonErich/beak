@@ -52,7 +52,7 @@ String scaffoldDefinition(
   buffer
     ..writeln()
     ..writeln(
-      "part '${definitionPartUri(area: area, name: spy.name, library: 'src/$area/${definitionFileStem(spy.name)}.dart')}';",
+      "part 'package:$package/${definitionPartPath(area: area, name: spy.name)}';",
     )
     ..writeln();
   if (classDoc == null || classDoc.trim().isEmpty) {

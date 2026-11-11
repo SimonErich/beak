@@ -50,7 +50,7 @@ the allowlist: a Serverpod field the class leaves out is never read or
 written.
 
 ```dart title="examples/serverpod/bookshop_admin/definitions/lib/src/catalog/book.dart"
-part '../generated/models/catalog/book.beak.dart';
+part 'package:bookshop_definitions/src/generated/models/catalog/book.beak.dart';
 
 /// A title the shop stocks. Staff create and edit books; nobody deletes
 /// one, so removing a book is a deliberate server change.
@@ -125,7 +125,7 @@ server/lib/src/admin/generated/   # generate.handlers
 
 A definition library imports
 `generated/definitions_support.dart` when it declares an enum field or writes,
-and it has its `part '../generated/models/<area>/<file>.beak.dart';`. The package barrel exports
+and it has its `part 'package:<definitions>/src/generated/models/<area>/<file>.beak.dart';`. The package barrel exports
 `src/generated/models.dart`. The server handlers are described in
 [Writes, commands and trees](write-bindings.md).
 

@@ -57,7 +57,9 @@ final class Author extends BeakSchema {
     );
     expect(
       source,
-      contains("part '../generated/models/catalog/book.beak.dart';"),
+      contains(
+        "part 'package:shop_definitions/src/generated/models/catalog/book.beak.dart';",
+      ),
     );
     expect(source, contains('@BelongsTo()'));
     expect(source, contains('late final Author? author;'));

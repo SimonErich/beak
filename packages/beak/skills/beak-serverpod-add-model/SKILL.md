@@ -42,7 +42,7 @@ import 'package:beak_serverpod/schema.dart';
 import 'package:shop_definitions/src/catalog/product_category.dart';
 import 'package:shop_definitions/src/generated/definitions_support.dart';
 
-part '../generated/models/catalog/product.beak.dart';
+part 'package:shop_definitions/src/generated/models/catalog/product.beak.dart';
 
 /// A sellable product.
 @Resource()

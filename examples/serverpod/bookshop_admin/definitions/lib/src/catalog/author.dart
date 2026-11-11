@@ -2,7 +2,7 @@ import 'package:beak_core/beak_core.dart';
 import 'package:beak_serverpod/schema.dart';
 import '../generated/definitions_support.dart';
 
-part '../generated/models/catalog/author.beak.dart';
+part 'package:bookshop_definitions/src/generated/models/catalog/author.beak.dart';
 
 /// Someone whose books the shop sells.
 @Resource()

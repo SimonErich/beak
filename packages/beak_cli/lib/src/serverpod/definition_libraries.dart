@@ -31,11 +31,12 @@ void checkDefinitionLibraries(
       continue;
     }
     byLibrary[definition.library] = definition.name;
-    if (!definition.parts.contains(definition.partFile)) {
+    final part = 'package:$package/${definition.partPath}';
+    if (!definition.parts.contains(part)) {
       issues.add(
         path,
-        "add `part '${definition.partFile}';` so ${definition.name}'s "
-        'generated model belongs to the library.',
+        "add `part '$part';` so ${definition.name}'s generated model belongs "
+        'to the library.',
       );
     }
     final usesEnums = definition.fields.any(
