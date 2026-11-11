@@ -28,7 +28,7 @@ fields:
       ])
       ..define('catalog/product', '''
 @Resource()
-${annotation.isEmpty ? "@ServerpodModel(area: 'catalog', reason: 'Closed.')" : annotation}
+${annotation.isEmpty ? "@ServerpodAdminModel(area: 'catalog', reason: 'Closed.')" : annotation}
 final class Product extends BeakSchema {
   @Display()
   late final String name;
@@ -91,7 +91,7 @@ final class Product extends BeakSchema {
   });
 
   test('names the missing part and write import', () {
-    product(annotation: "@ServerpodModel.editable(area: 'catalog')");
+    product(annotation: "@ServerpodAdminModel.editable(area: 'catalog')");
     fixture.write(
       'definitions/lib/src/catalog/product.dart',
       fixture
@@ -145,7 +145,7 @@ fields:
       ])
       ..define('catalog/product', '''
 @Resource()
-@ServerpodModel.editable(area: 'catalog')
+@ServerpodAdminModel.editable(area: 'catalog')
 final class Product extends BeakSchema {
   late final Status status;
 }''', writes: true);
@@ -162,7 +162,7 @@ final class Product extends BeakSchema {
   test('custom code needs generate.handlers', () {
     product(
       annotation:
-          "@ServerpodModel(area: 'catalog', create: BeakHandling.custom)",
+          "@ServerpodAdminModel(area: 'catalog', create: BeakHandling.custom)",
     );
 
     expect(
@@ -181,7 +181,7 @@ final class Product extends BeakSchema {
     product(
       handlers: 'server/lib/src/admin',
       annotation:
-          "@ServerpodModel(area: 'catalog', create: BeakHandling.custom, "
+          "@ServerpodAdminModel(area: 'catalog', create: BeakHandling.custom, "
           "update: BeakHandling.derived, commands: [BeakCommand('archive')])",
     );
     runServerpodGenerate(fixture.env());
@@ -234,7 +234,7 @@ final class RoleCommand extends BeakSchema {
 }''')
       ..define('catalog/product', '''
 @Resource()
-@ServerpodModel(
+@ServerpodAdminModel(
   area: 'catalog',
   commands: [BeakCommand('assign', input: RoleCommand)],
 )
@@ -253,10 +253,90 @@ final class Product extends BeakSchema {
     );
   });
 
+  test('emits a translation display and its relation resolver', () {
+    fixture
+      ..project()
+      ..model('category', '''
+class: Category
+table: category
+fields:
+  id: UuidValue
+  translations: List<CategoryTranslation>?, relation
+''')
+      ..model('category_translation', '''
+class: CategoryTranslation
+table: category_translation
+fields:
+  id: UuidValue
+  locale: String
+  name: String
+''')
+      ..model('product', '''
+class: Product
+table: product
+fields:
+  id: UuidValue
+  category: Category?, relation(field=categoryId)
+''')
+      ..database([
+        ServerpodFixture.table('category', ['id']),
+        ServerpodFixture.table('category_translation', [
+          'id',
+          'locale',
+          'name',
+          '_categoryTranslationsCategoryId',
+        ]),
+        ServerpodFixture.table('product', ['id', 'categoryId']),
+      ])
+      ..define(
+        'catalog/category',
+        '''
+@Resource()
+@ServerpodAdminModel(area: 'catalog', reason: 'Closed.')
+final class Category extends BeakSchema {
+  @Display()
+  @HasMany(owned: true)
+  late final List<CategoryTranslation> translations;
+}''',
+        imports: [
+          'package:shop_definitions/src/catalog/category_translation.dart',
+        ],
+      )
+      ..define('catalog/category_translation', '''
+@Resource()
+@ServerpodAdminModel(area: 'catalog', reason: 'Closed.')
+final class CategoryTranslation extends BeakSchema {
+  late final String locale;
+
+  @Display()
+  late final String name;
+}''')
+      ..define(
+        'catalog/product',
+        '''
+@Resource()
+@ServerpodAdminModel(area: 'catalog', reason: 'Closed.')
+final class Product extends BeakSchema {
+  @BelongsTo()
+  late final Category? category;
+}''',
+        imports: ['package:shop_definitions/src/catalog/category.dart'],
+      );
+
+    runServerpodGenerate(fixture.env());
+
+    final part = fixture.read('definitions/lib/src/catalog/category.beak.dart');
+    expect(part, contains('BeakTranslationDisplay? get translationDisplay'));
+    final product = fixture.read(
+      'definitions/lib/src/catalog/product.beak.dart',
+    );
+    expect(product, contains('displayValue: CategoryModel.displayOf'));
+  });
+
   test('a stock-only project gets a handler aggregate without arguments', () {
     product(
       handlers: 'server/lib/src/admin',
-      annotation: "@ServerpodModel.editable(area: 'catalog')",
+      annotation: "@ServerpodAdminModel.editable(area: 'catalog')",
     );
     runServerpodGenerate(fixture.env());
 

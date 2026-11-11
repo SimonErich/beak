@@ -27,6 +27,7 @@ final class BeakBelongsTo extends BeakRelationship {
     required super.displayColumnKey,
     required this.foreignKey,
     super.searchColumnKeys,
+    super.displayValue,
     this.onDelete = BeakOnDelete.setNull,
   });
 

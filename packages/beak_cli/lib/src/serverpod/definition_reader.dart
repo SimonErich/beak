@@ -75,19 +75,19 @@ DefinitionClass? _readClass(
 }) {
   final name = declaration.className;
   final model =
-      annotationOf(declaration.metadata, 'ServerpodModel') ??
-      annotationOf(declaration.metadata, 'ServerpodModel.editable');
+      annotationOf(declaration.metadata, 'ServerpodAdminModel') ??
+      annotationOf(declaration.metadata, 'ServerpodAdminModel.editable');
   final input = annotationOf(declaration.metadata, 'CommandInput');
   if (model == null && input == null) {
     issues.add(
       path,
-      '$name is a @Resource without @ServerpodModel or @CommandInput. Add '
-      '@ServerpodModel() to expose the Serverpod model $name (read only), or '
+      '$name is a @Resource without @ServerpodAdminModel or @CommandInput. Add '
+      '@ServerpodAdminModel() to expose the Serverpod model $name (read only), or '
       '@CommandInput() for a command input.',
     );
     return null;
   }
-  final editable = model?.name.name == 'ServerpodModel.editable';
+  final editable = model?.name.name == 'ServerpodAdminModel.editable';
   final args = model == null
       ? const <String, Expression>{}
       : namedArguments(model);

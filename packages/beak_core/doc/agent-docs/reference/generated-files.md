@@ -194,7 +194,7 @@ abstract final class NoteColumns {
 
 ### XRelations
 
-One `static const` per relationship, named after the field, of the `BeakBelongsTo`, `BeakHasOne`, `BeakHasMany` or `BeakBelongsToMany` class. It carries the related table, the related display column, the foreign key or pivot names, and the picker's `searchColumnKeys`. The other side is generated too: a `@BelongsTo` on `Book` adds `AuthorRelations.books`, a has-many named after the plural table. A `@HasMany` or `@HasOne` adds a belongs-to named after the singular table, and a `@BelongsToMany` is mirrored. The inverse is skipped when the far class already declares any relationship to the owner, or when the annotation says `inverse: false`.
+One `static const` per relationship, named after the field, of the `BeakBelongsTo`, `BeakHasOne`, `BeakHasMany` or `BeakBelongsToMany` class. It carries the related table, the related display column, the foreign key or pivot names, the picker's `searchColumnKeys`, and a display resolver when the related row takes its text from translations. The other side is generated too: a `@BelongsTo` on `Book` adds `AuthorRelations.books`, a has-many named after the plural table. A `@HasMany` or `@HasOne` adds a belongs-to named after the singular table, and a `@BelongsToMany` is mirrored. The inverse is skipped when the far class already declares any relationship to the owner, or when the annotation says `inverse: false`.
 
 ```dart title="packages/beak_core/lib/src/relations/beak_has_many.dart"
 const BeakHasMany({
@@ -205,6 +205,7 @@ const BeakHasMany({
   required super.displayColumnKey,
   required this.foreignKey,
   super.searchColumnKeys,
+  super.displayValue,
   this.onDelete = BeakOnDelete.restrict,
   this.owned = false,
 });

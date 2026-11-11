@@ -30,7 +30,7 @@ void checkDefinitionArea(
   if (!definition.writes && (definition.reason?.trim().isEmpty ?? true)) {
     issues.add(
       definition.path,
-      '${definition.name} opens no writes, so @ServerpodModel(reason:) says '
+      '${definition.name} opens no writes, so @ServerpodAdminModel(reason:) says '
       'why.',
     );
   }

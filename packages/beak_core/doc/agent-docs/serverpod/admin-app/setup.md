@@ -41,7 +41,7 @@ folder inside the server.
 ```dart title="examples/serverpod/bookshop_admin/definitions/lib/src/catalog/author.dart"
 /// Someone whose books the shop sells.
 @Resource()
-@ServerpodModel(
+@ServerpodAdminModel(
   area: 'catalog',
   create: BeakHandling.stock,
   update: BeakHandling.stock,

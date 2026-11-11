@@ -32,7 +32,7 @@ enum BeakHandling {
 ///
 /// ```dart
 /// @Resource()
-/// @ServerpodModel(area: 'catalog', update: BeakHandling.custom)
+/// @ServerpodAdminModel(area: 'catalog', update: BeakHandling.custom)
 /// final class Product extends BeakSchema {
 ///   @Display()
 ///   @Column(searchable: true, sortable: true)
@@ -46,10 +46,10 @@ enum BeakHandling {
 /// Every write is [BeakHandling.off] until opened, so a new model is read
 /// only. A model with closed writes names its [reason].
 @immutable
-final class ServerpodModel {
+final class ServerpodAdminModel {
   /// Exposes the Serverpod model of the class's name, with the operations
   /// given.
-  const ServerpodModel({
+  const ServerpodAdminModel({
     this.area,
     this.list = BeakHandling.stock,
     this.create = BeakHandling.off,
@@ -62,7 +62,7 @@ final class ServerpodModel {
   });
 
   /// Exposes the model with stock create, update and delete.
-  const ServerpodModel.editable({
+  const ServerpodAdminModel.editable({
     this.area,
     this.access = const {},
     this.restoreKey,

@@ -49,6 +49,7 @@ export 'src/query/beak_pagination.dart';
 export 'src/query/beak_search_filter.dart';
 export 'src/query/beak_query_spec.dart';
 export 'src/query/beak_record.dart';
+export 'src/model/beak_translation_display.dart';
 export 'src/query/beak_relation_load.dart';
 export 'src/query/beak_sort.dart';
 export 'src/query/beak_table_ref.dart';

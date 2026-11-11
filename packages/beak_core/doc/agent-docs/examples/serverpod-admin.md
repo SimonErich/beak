@@ -72,7 +72,7 @@ Uploads, an outbox worker, custom handlers and row scopes are not used here; see
 
 ```dart title="examples/serverpod/bookshop_admin/definitions/lib/src/catalog/book.dart"
 @Resource()
-@ServerpodModel(
+@ServerpodAdminModel(
   area: 'catalog',
   create: BeakHandling.stock,
   update: BeakHandling.stock,

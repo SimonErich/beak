@@ -62,7 +62,7 @@ String scaffoldDefinition(
   }
   buffer
     ..writeln('@Resource()')
-    ..writeln('@ServerpodModel(')
+    ..writeln('@ServerpodAdminModel(')
     ..writeln("  area: '${_escape(area)}',")
     ..writeln("  reason: 'Read-only until its admin writes are opened.',")
     ..writeln(')')

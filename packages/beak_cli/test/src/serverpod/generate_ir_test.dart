@@ -44,7 +44,7 @@ $fields
     sample('  title: String');
     fixture.define('sample', '''
 @Resource()
-@ServerpodModel(create: BeakHandling.stock)
+@ServerpodAdminModel(create: BeakHandling.stock)
 final class Sample extends BeakSchema {
   late final String title;
 }''');
@@ -56,12 +56,12 @@ final class Sample extends BeakSchema {
     sample('  title: String');
     fixture.define('sample', '''
 @Resource()
-@ServerpodModel(area: 'catalog')
+@ServerpodAdminModel(area: 'catalog')
 final class Sample extends BeakSchema {
   late final String title;
 }''');
 
-    expect(fixture.ir, failsWith('@ServerpodModel(reason:) says why'));
+    expect(fixture.ir, failsWith('@ServerpodAdminModel(reason:) says why'));
   });
 
   test('audit columns stay, undeclared fields and secrets never enter', () {
@@ -100,7 +100,7 @@ fields:
       ])
       ..define('sample', '''
 @Resource()
-@ServerpodModel(
+@ServerpodAdminModel(
   area: 'catalog',
   create: BeakHandling.stock,
   update: BeakHandling.stock,
@@ -131,7 +131,7 @@ final class Sample extends BeakSchema {
     sample('  passwordToken: String?');
     fixture.define('sample', '''
 @Resource()
-@ServerpodModel(area: 'catalog', reason: 'Closed.')
+@ServerpodAdminModel(area: 'catalog', reason: 'Closed.')
 final class Sample extends BeakSchema {
   late final String? passwordToken;
 }''');
@@ -143,7 +143,7 @@ final class Sample extends BeakSchema {
     sample('  title: String\n  count: int');
     fixture.define('sample', '''
 @Resource()
-@ServerpodModel(area: 'catalog', reason: 'Closed.')
+@ServerpodAdminModel(area: 'catalog', reason: 'Closed.')
 final class Sample extends BeakSchema {
   late final String? title;
   late final String count;
@@ -180,7 +180,7 @@ fields:
       ])
       ..define('account', '''
 @Resource()
-@ServerpodModel(area: 'catalog', reason: 'Closed.')
+@ServerpodAdminModel(area: 'catalog', reason: 'Closed.')
 final class Account extends BeakSchema {
   late final String authUserId;
 }''');
@@ -192,7 +192,7 @@ final class Account extends BeakSchema {
     sample('  title: String\n  code: String');
     fixture.define('sample', '''
 @Resource()
-@ServerpodModel(area: 'catalog', create: BeakHandling.stock)
+@ServerpodAdminModel(area: 'catalog', create: BeakHandling.stock)
 final class Sample extends BeakSchema {
   late final String title;
 }''', writes: true);
@@ -204,7 +204,7 @@ final class Sample extends BeakSchema {
     sample('  title: String\n  version: int, default=1\n  locks: List<String>');
     fixture.define('sample', '''
 @Resource()
-@ServerpodModel(
+@ServerpodAdminModel(
   area: 'catalog',
   create: BeakHandling.stock,
   update: BeakHandling.stock,
@@ -239,7 +239,7 @@ final class Sample extends BeakSchema {
     sample('  title: String');
     fixture.define('sample', '''
 @Resource()
-@ServerpodModel(area: 'catalog', commands: [BeakCommand('archive')])
+@ServerpodAdminModel(area: 'catalog', commands: [BeakCommand('archive')])
 final class Sample extends BeakSchema {
   static BeakModelBehavior get behavior => const BeakModelBehavior();
 
@@ -279,7 +279,7 @@ fields:
       ])
       ..define('owner', '''
 @Resource()
-@ServerpodModel(area: 'catalog', reason: 'Closed.')
+@ServerpodAdminModel(area: 'catalog', reason: 'Closed.')
 final class Owner extends BeakSchema {
   late final String title;
 
@@ -288,7 +288,7 @@ final class Owner extends BeakSchema {
 }''')
       ..define('child', '''
 @Resource()
-@ServerpodModel(area: 'catalog', reason: 'Closed.')
+@ServerpodAdminModel(area: 'catalog', reason: 'Closed.')
 final class Child extends BeakSchema {
   late final String title;
 
@@ -326,13 +326,13 @@ fields:
       ])
       ..define('owner', '''
 @Resource()
-@ServerpodModel(area: 'catalog', reason: 'Closed.')
+@ServerpodAdminModel(area: 'catalog', reason: 'Closed.')
 final class Owner extends BeakSchema {
   late final String title;
 }''')
       ..define('child', '''
 @Resource()
-@ServerpodModel(area: 'catalog', reason: 'Closed.')
+@ServerpodAdminModel(area: 'catalog', reason: 'Closed.')
 final class Child extends BeakSchema {
   @HasOne()
   late final Owner? owner;
@@ -373,7 +373,7 @@ fields:
       ])
       ..define('parent', '''
 @Resource()
-@ServerpodModel(area: 'catalog', reason: 'Closed.')
+@ServerpodAdminModel(area: 'catalog', reason: 'Closed.')
 final class Parent extends BeakSchema {
   late final String name;
 
@@ -382,7 +382,7 @@ final class Parent extends BeakSchema {
 }''')
       ..define('variant', '''
 @Resource()
-@ServerpodModel.editable(area: 'catalog')
+@ServerpodAdminModel.editable(area: 'catalog')
 final class Variant extends BeakSchema {
   late final String name;
 }''', writes: true);
@@ -396,6 +396,64 @@ final class Variant extends BeakSchema {
     );
     // The key the parent stores is written with the variant.
     expect(variant.admission.writable, ['name', 'parentId']);
+  });
+
+  test('a display taken from translations reaches the model', () {
+    fixture
+      ..model('category', '''
+class: Category
+table: category
+fields:
+  id: UuidValue
+  translations: List<CategoryTranslation>?, relation
+''')
+      ..model('category_translation', '''
+class: CategoryTranslation
+table: category_translation
+fields:
+  id: UuidValue
+  locale: String
+  name: String
+''')
+      ..database([
+        ServerpodFixture.table('category', ['id']),
+        ServerpodFixture.table('category_translation', [
+          'id',
+          'locale',
+          'name',
+          '_categoryTranslationsCategoryId',
+        ]),
+      ])
+      ..define(
+        'catalog/category',
+        '''
+@Resource()
+@ServerpodAdminModel(area: 'catalog', reason: 'Closed.')
+final class Category extends BeakSchema {
+  @Display()
+  @HasMany(owned: true)
+  late final List<CategoryTranslation> translations;
+}''',
+        imports: [
+          'package:shop_definitions/src/catalog/category_translation.dart',
+        ],
+      )
+      ..define('catalog/category_translation', '''
+@Resource()
+@ServerpodAdminModel(area: 'catalog', reason: 'Closed.')
+final class CategoryTranslation extends BeakSchema {
+  late final String locale;
+
+  @Display()
+  late final String name;
+}''');
+
+    final model = fixture.ir().models.firstWhere(
+      (model) => model.schema.className == 'Category',
+    );
+    expect(model.schema.displayTranslationRelation, 'translations');
+    expect(model.schema.displayTranslationColumn, 'name');
+    expect(model.schema.displayTranslationLocale, 'locale');
   });
 
   test('a foreign key without its relation stays a scalar column', () {
@@ -413,7 +471,7 @@ fields:
       ])
       ..define('account', '''
 @Resource()
-@ServerpodModel(area: 'catalog', reason: 'Closed.')
+@ServerpodAdminModel(area: 'catalog', reason: 'Closed.')
 final class Account extends BeakSchema {
   late final String? firstName;
 
@@ -450,7 +508,7 @@ fields:
       ])
       ..define('sample', '''
 @Resource()
-@ServerpodModel(area: 'catalog', reason: 'Closed.')
+@ServerpodAdminModel(area: 'catalog', reason: 'Closed.')
 final class Sample extends BeakSchema {
   late final State state;
 }''');
@@ -499,7 +557,7 @@ fields:
       ])
       ..define('product', '''
 @Resource()
-@ServerpodModel(area: 'catalog', reason: 'Closed.')
+@ServerpodAdminModel(area: 'catalog', reason: 'Closed.')
 final class Product extends BeakSchema {
   late final String name;
 
@@ -508,7 +566,7 @@ final class Product extends BeakSchema {
 }''')
       ..define('product_translation', '''
 @Resource()
-@ServerpodModel(area: 'catalog', update: BeakHandling.stock)
+@ServerpodAdminModel(area: 'catalog', update: BeakHandling.stock)
 final class ProductTranslation extends BeakSchema {
   @ReadOnly()
   late final String locale;

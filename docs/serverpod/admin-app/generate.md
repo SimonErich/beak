@@ -55,7 +55,7 @@ part 'book.beak.dart';
 /// A title the shop stocks. Staff create and edit books; nobody deletes
 /// one, so removing a book is a deliberate server change.
 @Resource()
-@ServerpodModel(
+@ServerpodAdminModel(
   area: 'catalog',
   create: BeakHandling.stock,
   update: BeakHandling.stock,
@@ -80,7 +80,7 @@ final class Book extends BeakSchema {
 ```
 
 - Every operation is `BeakHandling.off` until the class opens it, so a new
-  model is read only and names its `reason:`. `@ServerpodModel.editable()`
+  model is read only and names its `reason:`. `@ServerpodAdminModel.editable()`
   opens stock create, update and delete.
 - A `UuidValue` field is declared `String`, a Serverpod enum by its own name,
   a list or other JSON value as `BeakJson`; `?` matches Serverpod's.
@@ -89,6 +89,7 @@ final class Book extends BeakSchema {
   declared without its relation (`late final String? publishedById;`) stays a
   plain key column, which is how a relation to a model the admin does not
   expose is kept.
+- `@Display()` on a translations `@HasMany` uses the target's display field in the panel language; mark the target's `name` (or other text) `@Display()` too.
 - `@ReadOnly()` shows a field and never writes it; `@Hidden(defaultValue:)`
   keeps it on the server and gives a create its value; `@Column(...)` lays its
   arguments over the ones Beak derives.

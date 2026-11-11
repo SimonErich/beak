@@ -26,6 +26,7 @@ final class BeakHasMany extends BeakRelationship {
     required super.displayColumnKey,
     required this.foreignKey,
     super.searchColumnKeys,
+    super.displayValue,
     this.onDelete = BeakOnDelete.restrict,
     this.owned = false,
   });

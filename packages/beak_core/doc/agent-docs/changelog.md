@@ -724,7 +724,15 @@ migration table at the end collects the common ones.
 
 ### Changed
 
-- Breaking: `@ServerpodModel(commands:)` is a `List<BeakCommand>`, not a
+- Breaking: the definition annotation `ServerpodModel` is
+  `ServerpodAdminModel`, leaving the bridge model `ServerpodModel` as the only
+  type with that name. `ServerpodAdminModel.editable()` replaces
+  `ServerpodModel.editable()`.
+- `@Display()` on a translations `@HasMany` reads the target's `@Display` field
+  in the panel language. The generated relation carries the resolver, so a
+  category picker no longer shows `createdAt` for a row whose text lives in
+  `product_category_translation`.
+- Breaking: `@ServerpodAdminModel(commands:)` is a `List<BeakCommand>`, not a
   `List<String>`. `BeakCommand('cancelOrder')` keeps a command without input;
   `BeakCommand('addRole', input: AccountRoleCommand)` links a `@CommandInput`
   and gives the generated handler a typed `AccountRoleCommandWrite` with

@@ -37,7 +37,7 @@ Answer them in order and stop at the first row that applies.
 
 ## Take the admin app
 
-You add two packages to the pub workspace: a pure Dart definitions package with one definition class per exposed Serverpod model (`@Resource` + `@ServerpodModel`; Serverpod stays the schema owner, and `beak generate` checks every class against it), and a Flutter web `<name>_admin` app with a `BeakPanel`. On the server you add one gated endpoint, the engine with its generated handlers, and a receipts model.
+You add two packages to the pub workspace: a pure Dart definitions package with one definition class per exposed Serverpod model (`@Resource` + `@ServerpodAdminModel`; Serverpod stays the schema owner, and `beak generate` checks every class against it), and a Flutter web `<name>_admin` app with a `BeakPanel`. On the server you add one gated endpoint, the engine with its generated handlers, and a receipts model.
 
 Versions are strict: Serverpod exactly `4.0.4`, Dart `3.12.2` or newer, Flutter `3.44.4` or newer, and one Beak ref on every Beak package. Beak is not on pub.dev, so each package is a git or path dependency. Until `v0.9.0` is tagged the ref is a branch or a path; [Installation](../installation.md#the-release-is-not-tagged-yet) explains why.
 

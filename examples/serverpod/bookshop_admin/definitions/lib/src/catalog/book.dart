@@ -8,7 +8,7 @@ part 'book.beak.dart';
 /// A title the shop stocks. Staff create and edit books; nobody deletes
 /// one, so removing a book is a deliberate server change.
 @Resource()
-@ServerpodModel(
+@ServerpodAdminModel(
   area: 'catalog',
   create: BeakHandling.stock,
   update: BeakHandling.stock,

@@ -23,6 +23,7 @@ import 'beak_admission.dart';
 import 'beak_field_ref.dart';
 import 'beak_field_value.dart';
 import 'beak_permissions.dart';
+import 'beak_translation_display.dart';
 import '../validation/beak_record_rule.dart';
 
 /// ORM-agnostic metadata describing one admin resource: its table, columns,
@@ -62,6 +63,19 @@ abstract base class BeakModel {
 
   /// Key of the column that represents a record in pickers and links.
   String get displayColumnKey;
+
+  /// Where the display text comes from when it is not a column on this row,
+  /// or `null` to read [displayColumnKey].
+  BeakTranslationDisplay? get translationDisplay => null;
+
+  /// The label of [record] in pickers, links and relation cells.
+  ///
+  /// Reads [translationDisplay] when the model has one, otherwise the raw
+  /// value of [displayColumnKey].
+  String displayValueOf(BeakRecord record) =>
+      translationDisplay?.labelOf(record) ??
+      record[displayColumnKey]?.raw?.toString() ??
+      '';
 
   /// The columns of this model, in display order.
   List<BeakColumn> get columns;

@@ -26,6 +26,7 @@ final class BeakHasOne extends BeakRelationship {
     required super.displayColumnKey,
     required this.foreignKey,
     super.searchColumnKeys,
+    super.displayValue,
     this.owned = false,
   });
 

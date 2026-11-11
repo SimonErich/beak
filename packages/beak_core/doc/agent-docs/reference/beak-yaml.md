@@ -270,7 +270,7 @@ generate:
 ```
 
 - `definitions` is the pure-Dart package of definition classes, one
-  `@Resource` + `@ServerpodModel` class per exposed model (default
+  `@Resource` + `@ServerpodAdminModel` class per exposed model (default
   `definitions`). `beak generate` writes a `*.beak.dart` part next to each
   class and the support libraries into its `lib/src/generated/`.
 - `handlers` is the folder in the Serverpod server the handler base classes

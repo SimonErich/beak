@@ -46,7 +46,7 @@ part 'product.beak.dart';
 
 /// A sellable product.
 @Resource()
-@ServerpodModel(
+@ServerpodAdminModel(
   area: 'catalog',
   create: BeakHandling.stock,
   update: BeakHandling.derived,
@@ -83,9 +83,11 @@ final class Product extends BeakSchema {
 - Leave out what the admin must not read or write. Keys, timestamps and soft
   delete are exposed anyway.
 - Every operation is `off` until opened; a read-only model names `reason:`.
-  `@ServerpodModel.editable()` opens stock create, update and delete.
+  `@ServerpodAdminModel.editable()` opens stock create, update and delete.
 - `access:` overrides the area's roles for one operation.
 - A foreign key declared without its relation stays a plain key column.
+- A row with no text column puts `@Display()` on its translations relation;
+  pickers read the target's `@Display` field in the panel language.
 - Rules and commands: `static get validationRules`, `static get behavior`.
 
 When `beak.yaml` has `labels:`, add the model's names to each

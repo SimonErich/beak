@@ -49,7 +49,7 @@ values:
         'catalog/product',
         '''
 @Resource()
-@ServerpodModel(area: 'catalog', reason: 'Closed.')
+@ServerpodAdminModel(area: 'catalog', reason: 'Closed.')
 final class Product extends BeakSchema {
   late final String name;
 

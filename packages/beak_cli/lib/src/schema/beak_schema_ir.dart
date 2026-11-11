@@ -254,6 +254,9 @@ final class BeakSchemaIr {
     required this.columns,
     required this.relations,
     required this.displayColumnKey,
+    this.displayTranslationRelation,
+    this.displayTranslationColumn,
+    this.displayTranslationLocale,
     required this.softDeletes,
     required this.timestamps,
     required this.managesSchema,
@@ -290,6 +293,17 @@ final class BeakSchemaIr {
 
   /// Key of the column representing a record.
   final String displayColumnKey;
+
+  /// The translation relation whose row names a record, or `null`.
+  final String? displayTranslationRelation;
+
+  /// The translation column with the text, when [displayTranslationRelation]
+  /// is set.
+  final String? displayTranslationColumn;
+
+  /// The translation column with the locale, when [displayTranslationRelation]
+  /// is set.
+  final String? displayTranslationLocale;
 
   /// Whether deletes write a marker.
   final bool softDeletes;

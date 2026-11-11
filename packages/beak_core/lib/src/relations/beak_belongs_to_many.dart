@@ -32,6 +32,7 @@ final class BeakBelongsToMany extends BeakRelationship {
     required this.foreignPivotKey,
     required this.relatedPivotKey,
     super.searchColumnKeys,
+    super.displayValue,
     this.allowCreate = false,
     this.maxAllowed,
     this.onDelete = BeakOnDelete.cascade,

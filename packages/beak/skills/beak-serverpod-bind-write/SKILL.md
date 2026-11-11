@@ -16,7 +16,7 @@ allow.
 
 ```dart
 @Resource()
-@ServerpodModel(
+@ServerpodAdminModel(
   area: 'sales',
   create: BeakHandling.custom,
   commands: [BeakCommand('cancelOrder')],

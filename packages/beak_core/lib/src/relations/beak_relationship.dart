@@ -38,6 +38,7 @@ sealed class BeakRelationship {
     required this.relatedTable,
     required this.displayColumnKey,
     this.searchColumnKeys = const [],
+    this.displayValue,
   }) : _label = label;
 
   /// Relation name; matches the relation name on the backing ORM model.
@@ -62,6 +63,10 @@ sealed class BeakRelationship {
   /// Keys of related-model columns searched when picking a record.
   final List<String> searchColumnKeys;
 
+  /// Resolves the display text from the whole related record, when the
+  /// related model's text comes from a translation row.
+  final String Function(BeakRecord record)? displayValue;
+
   /// The keys pickers actually search: [searchColumnKeys], falling back to
   /// the display column when none are declared.
   List<String> get effectiveSearchColumnKeys =>
@@ -70,7 +75,9 @@ sealed class BeakRelationship {
   /// The display label of a related [record] (its display column's value,
   /// empty when absent).
   String displayLabelOf(BeakRecord record) =>
-      record[displayColumnKey]?.raw?.toString() ?? '';
+      displayValue?.call(record) ??
+      record[displayColumnKey]?.raw?.toString() ??
+      '';
 
   /// The per-context render configuration of this relationship.
   BeakRenderConfig get renderConfig;

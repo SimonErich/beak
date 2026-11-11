@@ -55,6 +55,10 @@ DefinitionSet definitionSetOf(
       database,
       settings,
       names,
+      {
+        for (final other in classes)
+          if (!other.input) other.name: other,
+      },
       issues,
     );
     if (resource != null) resources[definition.name] = resource;
@@ -80,6 +84,7 @@ DefinitionResource? _resource(
   DatabaseDefinition database,
   BeakGenerateSettings settings,
   Set<String> names,
+  Map<String, DefinitionClass> byName,
   BeakIssueSink issues,
 ) {
   final path = definition.path;
@@ -141,11 +146,17 @@ DefinitionResource? _resource(
   checkDefinitionArea(definition, settings, issues);
   final display = [
     for (final field in definition.fields)
-      if (field.display) field.name,
+      if (field.display && field.relation == null) field.name,
   ];
   if (display.length > 1) {
     issues.add(path, '$name marks ${display.join(', ')} @Display; keep one.');
   }
+  final displayTranslation = _displayTranslationOf(
+    definition,
+    byName,
+    path,
+    issues,
+  );
   return DefinitionResource(
     name: name,
     path: path,
@@ -162,6 +173,7 @@ DefinitionResource? _resource(
     ],
     scalarRelations: scalarRelations,
     display: display.firstOrNull,
+    displayTranslation: displayTranslation,
     exclude: exclude,
     hidden: [
       for (final field in definition.fields)
@@ -189,5 +201,37 @@ DefinitionResource? _resource(
     hasValidationRules: definition.hasValidationRules,
     hasPermissions: definition.hasPermissions,
     docComment: definition.docComment,
+  );
+}
+
+DefinitionTranslationDisplay? _displayTranslationOf(
+  DefinitionClass definition,
+  Map<String, DefinitionClass> byName,
+  String path,
+  BeakIssueSink issues,
+) {
+  final field = definition.fields
+      .where((field) => field.display && field.relation != null)
+      .firstOrNull;
+  if (field == null) return null;
+  final target = byName[field.relation!.target];
+  final column = target?.fields
+      .where((field) => field.display && field.relation == null)
+      .firstOrNull;
+  final locale = target?.fields
+      .where((field) => field.name == 'locale')
+      .firstOrNull;
+  if (column == null || locale == null) {
+    issues.add(
+      path,
+      '${definition.name}.${field.name} is @Display but '
+      '${field.relation!.target} needs a @Display field and a locale field.',
+    );
+    return null;
+  }
+  return DefinitionTranslationDisplay(
+    relationKey: field.name,
+    columnKey: column.name,
+    localeKey: locale.name,
   );
 }

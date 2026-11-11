@@ -2,7 +2,7 @@ import '../analyzer_syntax.dart';
 import 'definition_model.dart';
 import 'generate_issue.dart';
 
-/// The annotation called [name] (`Resource`, `ServerpodModel.editable`).
+/// The annotation called [name] (`Resource`, `ServerpodAdminModel.editable`).
 Annotation? annotationOf(NodeList<Annotation> metadata, String name) {
   for (final annotation in metadata) {
     if (annotation.name.name == name) return annotation;

@@ -39,7 +39,7 @@ fields:
       ])
       ..define('catalog/author', '''
 @Resource()
-@ServerpodModel(area: 'catalog', reason: 'Closed.')
+@ServerpodAdminModel(area: 'catalog', reason: 'Closed.')
 final class Author extends BeakSchema {
   late final String name;
 }''');

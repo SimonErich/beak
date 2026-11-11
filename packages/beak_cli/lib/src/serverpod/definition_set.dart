@@ -45,6 +45,7 @@ final class DefinitionResource {
     this.ownedRelations = const [],
     this.scalarRelations = const [],
     this.display,
+    this.displayTranslation,
     this.exclude = const [],
     this.hidden = const [],
     this.defaults = const {},
@@ -88,6 +89,9 @@ final class DefinitionResource {
 
   /// The display field.
   final String? display;
+
+  /// The translation relation shown instead of [display].
+  final DefinitionTranslationDisplay? displayTranslation;
 
   /// Serverpod fields the class does not declare.
   final List<String> exclude;
@@ -181,6 +185,25 @@ final class DefinitionInput {
 
   /// The table name its model reports.
   final String? table;
+}
+
+/// A display read from a record's translation rows.
+final class DefinitionTranslationDisplay {
+  /// Creates a translation display.
+  const DefinitionTranslationDisplay({
+    required this.relationKey,
+    required this.columnKey,
+    required this.localeKey,
+  });
+
+  /// The relation holding the translation rows.
+  final String relationKey;
+
+  /// The translation column with the text to show.
+  final String columnKey;
+
+  /// The translation column holding the locale code.
+  final String localeKey;
 }
 
 /// Every exposed model and command input.

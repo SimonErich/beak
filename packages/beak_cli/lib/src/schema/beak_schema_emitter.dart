@@ -195,7 +195,9 @@ abstract final class BeakSchemaEmitter {
       ..writeln('  @override')
       ..writeln(
         "  String get displayColumnKey => '${schema.displayColumnKey}';",
-      )
+      );
+    _writeTranslationDisplay(buffer, schema);
+    buffer
       ..writeln()
       ..writeln('  @override')
       ..writeln(
@@ -340,7 +342,9 @@ abstract final class BeakSchemaEmitter {
       ..writeln('  @override')
       ..writeln(
         "  String get displayColumnKey => '${schema.displayColumnKey}';",
-      )
+      );
+    _writeTranslationDisplay(buffer, schema);
+    buffer
       ..writeln()
       ..writeln('  @override')
       ..writeln(
@@ -673,12 +677,38 @@ abstract final class BeakSchemaEmitter {
     buffer
       ..writeln("    relatedTable: '${related.table}',")
       ..writeln("    displayColumnKey: '${related.displayColumnKey}',");
+    if (related.displayTranslationRelation != null) {
+      buffer.writeln('    displayValue: ${related.modelClass}.displayOf,');
+    }
     for (final entry in arguments.entries) {
       buffer.writeln('    ${entry.key}: ${entry.value},');
     }
     buffer
       ..writeln('  );')
       ..writeln();
+  }
+
+  static void _writeTranslationDisplay(
+    StringBuffer buffer,
+    BeakSchemaIr schema,
+  ) {
+    final relation = schema.displayTranslationRelation;
+    if (relation == null) return;
+    buffer
+      ..writeln()
+      ..writeln('  @override')
+      ..writeln(
+        '  BeakTranslationDisplay? get translationDisplay => '
+        'const BeakTranslationDisplay(',
+      )
+      ..writeln("    relationKey: '$relation',")
+      ..writeln("    columnKey: '${schema.displayTranslationColumn}',")
+      ..writeln("    localeKey: '${schema.displayTranslationLocale}',")
+      ..writeln('  );')
+      ..writeln()
+      ..writeln('  /// The display text of [record] in the panel language.')
+      ..writeln('  static String displayOf(BeakRecord record) =>')
+      ..writeln('      const ${schema.modelClass}().displayValueOf(record);');
   }
 
   static void _writeModel(
@@ -721,7 +751,9 @@ abstract final class BeakSchemaEmitter {
       ..writeln('  @override')
       ..writeln(
         "  String get displayColumnKey => '${schema.displayColumnKey}';",
-      )
+      );
+    _writeTranslationDisplay(buffer, schema);
+    buffer
       ..writeln()
       ..writeln('  @override')
       ..writeln(

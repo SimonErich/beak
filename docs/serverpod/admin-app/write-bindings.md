@@ -18,7 +18,7 @@ permissions allow.
 
 ```mermaid
 flowchart LR
-  A["@ServerpodModel<br/>create: custom, commands: [cancelOrder]"] --> B["beak generate"]
+  A["@ServerpodAdminModel<br/>create: custom, commands: [cancelOrder]"] --> B["beak generate"]
   B --> C["abstract OrderHandler<br/>create(), cancelOrder()"]
   C --> D["OrderAdminHandler<br/>calls your use cases"]
   D --> E["ShopHandlers(order: ...)"]
@@ -36,7 +36,7 @@ compile.
 
 | You want | Declare | Implement |
 | --- | --- | --- |
-| Plain persistence | `create: BeakHandling.stock` (or `@ServerpodModel.editable()`) | nothing |
+| Plain persistence | `create: BeakHandling.stock` (or `@ServerpodAdminModel.editable()`) | nothing |
 | A server stamp, then persistence | `update: BeakHandling.derived` | `derive(write)` |
 | An existing use case owns the write | `create: BeakHandling.custom` | `create(write)` |
 | A command such as cancel or revoke | `commands: [BeakCommand('cancelOrder')]` | `cancelOrder(write)` |
@@ -47,7 +47,7 @@ compile.
 
 ```dart
 @Resource()
-@ServerpodModel(
+@ServerpodAdminModel(
   area: 'sales',
   create: BeakHandling.custom,
   commands: [BeakCommand('revokeVoucher')],
@@ -229,7 +229,7 @@ status and message. A project whose models are all stock passes
 A writable translation table (a unique index over the owner foreign key and
 the locale) restores a soft-deleted row: creating a row with a key the trash
 still holds brings that row back instead of inserting a second one, keeping
-its identity and creation time. `@ServerpodModel(restoreKey: [...])` names the
+its identity and creation time. `@ServerpodAdminModel(restoreKey: [...])` names the
 fields for any other table. A live duplicate is a field error on the last key
 column. No handler code is involved.
 

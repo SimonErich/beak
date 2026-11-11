@@ -387,7 +387,7 @@ the server read one declaration:
 
 ```dart
 @Resource()
-@ServerpodModel(area: 'sales', commands: [BeakCommand('cancelOrder')])
+@ServerpodAdminModel(area: 'sales', commands: [BeakCommand('cancelOrder')])
 final class PlacedOrder extends BeakSchema {
   /// Cancel, with its availability and the status it derives.
   static BeakModelBehavior get behavior =>

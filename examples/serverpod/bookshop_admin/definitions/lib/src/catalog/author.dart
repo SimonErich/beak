@@ -6,7 +6,7 @@ part 'author.beak.dart';
 
 /// Someone whose books the shop sells.
 @Resource()
-@ServerpodModel(
+@ServerpodAdminModel(
   area: 'catalog',
   create: BeakHandling.stock,
   update: BeakHandling.stock,

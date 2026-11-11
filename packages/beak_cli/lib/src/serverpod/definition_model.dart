@@ -71,7 +71,7 @@ final class DefinitionClass {
   /// The `@CommandInput(table:)` name.
   final String? inputTable;
 
-  /// The `area:` of `@ServerpodModel`.
+  /// The `area:` of `@ServerpodAdminModel`.
   final String? area;
 
   /// How rows are listed.

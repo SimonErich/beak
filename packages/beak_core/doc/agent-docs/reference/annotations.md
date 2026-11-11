@@ -29,7 +29,7 @@ part 'note.beak.dart';
 | [`@HasOne`](#hasone) | schema-typed field | To-one relationship, the other table holds the key |
 | [`@HasMany`](#hasmany) | `List<Schema>` field | To-many relationship, the other table holds the key |
 | [`@BelongsToMany`](#belongstomany) | `List<Schema>` field | To-many relationship through a pivot table |
-| [`@ServerpodModel`](#serverpod-definition-classes) | class | The class exposes the Serverpod model of its name, and how each operation runs |
+| [`@ServerpodAdminModel`](#serverpod-definition-classes) | class | The class exposes the Serverpod model of its name, and how each operation runs |
 | [`@CommandInput`](#serverpod-definition-classes) | class | A command's typed input that is never stored |
 | [`@ReadOnly`](#serverpod-definition-classes), [`@Hidden`](#serverpod-definition-classes) | field | A server-owned field the admin shows but never writes, or keeps off the wire |
 
@@ -201,6 +201,8 @@ const Display();
 ```
 
 Without one, Beak uses the first single-line text field that is not a password, and the `id` when there is none. A password field cannot be `@Display`. Put it on one field per class: `beak prepare` reports a class that marks two, naming both.
+
+In a Serverpod definition class, put `@Display()` on a `@HasMany` translations relation when the row has no text column of its own. Pickers and relation links then read the target class's `@Display` field for the panel language, falling back to the first translation. The target needs a `locale` field and one `@Display` field.
 
 ## Image and FileField
 
@@ -423,7 +425,7 @@ enum BeakHandling {
 }
 ```
 
-| `@ServerpodModel` parameter | Type | Default | Meaning |
+| `@ServerpodAdminModel` parameter | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `area` | `String?` | `null` | The `generate.areas` entry whose roles read and write the model |
 | `list` | `BeakHandling` | `stock` | `stock` (every row) or `custom` (the handler's `scope`) |
@@ -433,7 +435,7 @@ enum BeakHandling {
 | `reason` | `String?` | `null` | Why the writes are closed; required on a model that opens none |
 | `restoreKey` | `List<String>?` | detected | The fields that identify a soft-deleted row to restore |
 
-`@ServerpodModel.editable(area:)` opens stock create, update and delete in one
+`@ServerpodAdminModel.editable(area:)` opens stock create, update and delete in one
 word. Every other model starts read only.
 
 | Field annotation | Meaning |
