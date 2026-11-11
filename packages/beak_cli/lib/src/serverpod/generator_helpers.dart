@@ -1,8 +1,5 @@
 part of 'generator.dart';
 
-String _partPathOf(String library) =>
-    '${library.substring(0, library.length - '.dart'.length)}.beak.dart';
-
 String _packageName(File pubspec) {
   final Object? yaml = loadYaml(pubspec.readAsStringSync());
   if (yaml is YamlMap && yaml['name'] is String) {

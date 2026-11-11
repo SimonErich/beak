@@ -55,7 +55,10 @@ final class Author extends BeakSchema {
       source,
       contains("reason: 'Read-only until its admin writes are opened.'"),
     );
-    expect(source, contains("part 'book.beak.dart';"));
+    expect(
+      source,
+      contains("part '../generated/models/catalog/book.beak.dart';"),
+    );
     expect(source, contains('@BelongsTo()'));
     expect(source, contains('late final Author? author;'));
     expect(source, contains('late final String title;'));
@@ -68,7 +71,9 @@ final class Author extends BeakSchema {
     final result = runServerpodGenerate(fixture.env());
     expect(result.exitCode, 0);
     expect(
-      fixture.exists('definitions/lib/src/catalog/book.beak.dart'),
+      fixture.exists(
+        'definitions/lib/src/generated/models/catalog/book.beak.dart',
+      ),
       isTrue,
     );
   });

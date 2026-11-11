@@ -36,13 +36,20 @@ final class GeneratedArea {
   /// With [partsOnly], only `*.beak.dart` files in [directory] are generated
   /// (a definitions package's own `lib/`); otherwise every `.dart` file is,
   /// and one without [beakGeneratedHeader] stops the run.
-  const GeneratedArea(this.directory, {this.partsOnly = false});
+  const GeneratedArea(
+    this.directory, {
+    this.partsOnly = false,
+    this.exclude = const [],
+  });
 
   /// The folder.
   final Directory directory;
 
   /// Whether only part files are generated here.
   final bool partsOnly;
+
+  /// Folders another [GeneratedArea] owns, skipped by this one.
+  final List<Directory> exclude;
 }
 
 /// Writes [files] (absolute path to contents) and removes the generated
@@ -81,6 +88,9 @@ GenerateSyncResult syncGeneratedFiles(
     for (final entity in area.directory.listSync(recursive: true)) {
       if (entity is! File) continue;
       final path = p.normalize(entity.path);
+      if (area.exclude.any((folder) => p.isWithin(folder.path, path))) {
+        continue;
+      }
       final generated = area.partsOnly
           ? path.endsWith('.beak.dart')
           : path.endsWith('.dart');

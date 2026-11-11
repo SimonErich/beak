@@ -104,24 +104,31 @@ BeakGenerateResult runServerpodGenerate(
   final lib = p.join(definitions.path, 'lib');
   final generated = p.join(lib, 'src', 'generated');
   final files = <String, String>{};
+  final byClass = {
+    for (final definition in classes) definition.name: definition,
+  };
   for (final model in ir.models) {
+    final definition = byClass[model.schema.className]!;
     files[p.join(
       lib,
-      _partPathOf(model.schema.libraryPath),
+      definition.partPath,
     )] = BeakSchemaEmitter.emitServerpodPart(
       model,
       ir.models,
       labels: labels.labels,
+      package: definitionsPackage,
     );
   }
   for (final input in ir.inputs) {
+    final definition = byClass[input.schema.className]!;
     files[p.join(
       lib,
-      _partPathOf(input.schema.libraryPath),
+      definition.partPath,
     )] = BeakSchemaEmitter.emitServerpodInputPart(
       input,
       ir.models,
       labels: labels.labels,
+      package: definitionsPackage,
     );
   }
   files[p.join(
@@ -156,7 +163,11 @@ BeakGenerateResult runServerpodGenerate(
     );
   }
   final areas = [
-    GeneratedArea(Directory(lib), partsOnly: true),
+    GeneratedArea(
+      Directory(lib),
+      partsOnly: true,
+      exclude: [Directory(generated)],
+    ),
     GeneratedArea(Directory(generated)),
   ];
   final handlerArea = _emitHandlers(

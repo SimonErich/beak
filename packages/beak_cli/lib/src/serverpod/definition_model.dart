@@ -1,4 +1,7 @@
+import 'package:path/path.dart' as p;
+
 import 'definition_field.dart';
+import 'definition_paths.dart';
 
 export 'definition_field.dart';
 
@@ -138,9 +141,14 @@ final class DefinitionClass {
       delete == DefinitionHandling.custom ||
       commands.isNotEmpty;
 
-  /// The part file next to the library (`product.beak.dart`).
-  String get partFile {
-    final base = library.split('/').last;
-    return '${base.substring(0, base.length - '.dart'.length)}.beak.dart';
-  }
+  /// The area folder the generated part lives under.
+  String get generatedArea =>
+      area ?? p.posix.basename(p.posix.dirname(library));
+
+  /// The generated part path under the definitions package's `lib/`.
+  String get partPath => definitionPartPath(area: generatedArea, name: name);
+
+  /// The `part` URI the class library needs.
+  String get partFile =>
+      definitionPartUri(area: generatedArea, name: name, library: library);
 }

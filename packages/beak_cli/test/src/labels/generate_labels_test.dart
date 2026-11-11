@@ -17,8 +17,9 @@ void main() {
 
   void write(String path, String source) => fixture.write(path, source);
 
-  String generated() =>
-      fixture.read('definitions/lib/src/catalog/product.beak.dart');
+  String generated() => fixture.read(
+    'definitions/lib/src/generated/models/catalog/product.beak.dart',
+  );
 
   void project({String labels = 'labels: {path: labels, template: de}'}) {
     fixture

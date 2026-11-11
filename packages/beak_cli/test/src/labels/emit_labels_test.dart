@@ -28,6 +28,7 @@ void main() {
     final source = BeakSchemaEmitter.emitServerpodInputPart(
       const BeakGeneratedInput(_command),
       const <BeakGeneratedModel>[],
+      package: 'shop_definitions',
       labels: const BeakProjectLabels(
         template: 'de',
         bySchema: {

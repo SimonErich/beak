@@ -3,7 +3,7 @@ import 'package:beak_serverpod/schema.dart';
 import '../generated/definitions_support.dart';
 import 'author.dart';
 
-part 'book.beak.dart';
+part '../generated/models/catalog/book.beak.dart';
 
 /// A title the shop stocks. Staff create and edit books; nobody deletes
 /// one, so removing a book is a deliberate server change.

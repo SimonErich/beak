@@ -44,7 +44,7 @@ the allowlist: a Serverpod field the class leaves out is never read or
 written.
 
 ```dart title="examples/serverpod/bookshop_admin/definitions/lib/src/catalog/book.dart"
-part 'book.beak.dart';
+part '../generated/models/catalog/book.beak.dart';
 
 /// A title the shop stocks. Staff create and edit books; nobody deletes
 /// one, so removing a book is a deliberate server change.
@@ -104,9 +104,10 @@ definitions/
     ├── shop_definitions.dart     # yours: export 'src/generated/models.dart';
     └── src/
         ├── catalog/
-        │   ├── book.dart         # yours, the definition class
-        │   └── book.beak.dart    # generated part: BookModel, columns, fields
+        │   └── book.dart         # yours, the definition class
         └── generated/
+            ├── models/
+            │   └── catalog/book.beak.dart  # generated: BookModel, columns, fields
             ├── models.dart       # every class, shopModels, createShopRegistry()
             ├── definitions_support.dart  # exports enums.dart and writes.dart
             ├── enums.dart        # Serverpod's enums, by wire name
@@ -118,7 +119,7 @@ server/lib/src/admin/generated/   # generate.handlers
 
 A definition library imports
 `generated/definitions_support.dart` when it declares an enum field or writes,
-and it has its `part '<file>.beak.dart';`. The package barrel exports
+and it has its `part '../generated/models/<area>/<file>.beak.dart';`. The package barrel exports
 `src/generated/models.dart`. The server handlers are described in
 [Writes, commands and trees](write-bindings.md).
 
@@ -143,8 +144,7 @@ anything:
 
 ## Syncing and checking
 
-The command owns the `*.beak.dart` parts in the definitions package, its
-`lib/src/generated/` and the handler folder. It rewrites changed files, deletes
+The command owns the `lib/src/generated/` folder of the definitions package, including the per-model `models/<area>/*.beak.dart` parts, and the handler folder. It rewrites changed files, deletes
 generated files nothing produces any more, and refuses to touch a file in a
 generated folder whose first line is not the generated header. `--check`
 writes nothing and exits 1 on a stale, missing or orphaned file, which is what

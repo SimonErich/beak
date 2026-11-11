@@ -54,7 +54,7 @@ how-it-works, generate and write-bindings pages. Folder missing? Run
    import 'package:beak_serverpod/schema.dart';
    import 'package:shop_definitions/src/generated/definitions_support.dart';
 
-   part 'product.beak.dart';
+   part '../generated/models/catalog/product.beak.dart';
 
    /// A sellable product.
    @Resource()

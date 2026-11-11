@@ -40,8 +40,12 @@ final class Product extends BeakSchema {
     final first = fixture.env();
     expect(runServerpodGenerate(first).written, isNotEmpty);
     expect(
-      fixture.read('definitions/lib/src/catalog/product.beak.dart'),
-      startsWith("$beakGeneratedHeader\n\npart of 'product.dart';"),
+      fixture.read(
+        'definitions/lib/src/generated/models/catalog/product.beak.dart',
+      ),
+      startsWith(
+        "${beakGeneratedHeader}\n\npart of 'package:shop_definitions/src/catalog/product.dart';",
+      ),
     );
     final models = fixture.read('definitions/lib/src/generated/models.dart');
     expect(models, contains("export 'package:shop_definitions/src/catalog/"));
@@ -49,7 +53,7 @@ final class Product extends BeakSchema {
     expect(runServerpodGenerate(fixture.env(), check: true).isSuccess, isTrue);
 
     fixture.write(
-      'definitions/lib/src/catalog/old.beak.dart',
+      'definitions/lib/src/generated/models/catalog/old.beak.dart',
       '$beakGeneratedHeader\n// stale\n',
     );
     final check = runServerpodGenerate(fixture.env(), check: true);
@@ -58,7 +62,9 @@ final class Product extends BeakSchema {
 
     runServerpodGenerate(fixture.env());
     expect(
-      fixture.exists('definitions/lib/src/catalog/old.beak.dart'),
+      fixture.exists(
+        'definitions/lib/src/generated/models/catalog/old.beak.dart',
+      ),
       isFalse,
     );
   });
@@ -96,7 +102,10 @@ final class Product extends BeakSchema {
       'definitions/lib/src/catalog/product.dart',
       fixture
           .read('definitions/lib/src/catalog/product.dart')
-          .replaceFirst("part 'product.beak.dart';", '')
+          .replaceFirst(
+            "part '../generated/models/catalog/product.beak.dart';",
+            '',
+          )
           .replaceFirst(
             "import 'package:shop_definitions/src/generated/definitions_support.dart';",
             '',
@@ -110,7 +119,9 @@ final class Product extends BeakSchema {
           (error) => error.issues.map((issue) => issue.message).toList(),
           'messages',
           containsAll([
-            contains("add `part 'product.beak.dart';`"),
+            contains(
+              "add `part '../generated/models/catalog/product.beak.dart';`",
+            ),
             contains(
               "add `import 'package:shop_definitions/src/generated/definitions_support.dart';`",
             ),
@@ -325,10 +336,12 @@ final class Product extends BeakSchema {
 
     runServerpodGenerate(fixture.env());
 
-    final part = fixture.read('definitions/lib/src/catalog/category.beak.dart');
+    final part = fixture.read(
+      'definitions/lib/src/generated/models/catalog/category.beak.dart',
+    );
     expect(part, contains('BeakTranslationDisplay? get translationDisplay'));
     final product = fixture.read(
-      'definitions/lib/src/catalog/product.beak.dart',
+      'definitions/lib/src/generated/models/catalog/product.beak.dart',
     );
     expect(
       product,

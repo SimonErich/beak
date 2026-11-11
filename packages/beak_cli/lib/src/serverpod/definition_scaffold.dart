@@ -51,7 +51,9 @@ String scaffoldDefinition(
   }
   buffer
     ..writeln()
-    ..writeln("part '${definitionFileStem(spy.name)}.beak.dart';")
+    ..writeln(
+      "part '${definitionPartUri(area: area, name: spy.name, library: 'src/$area/${definitionFileStem(spy.name)}.dart')}';",
+    )
     ..writeln();
   if (classDoc == null || classDoc.trim().isEmpty) {
     buffer.writeln('/// The ${spy.name} admin model.');

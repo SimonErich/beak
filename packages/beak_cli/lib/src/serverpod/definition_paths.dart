@@ -17,3 +17,17 @@ String definitionFileStem(String name) => name
       (match) => '${match[1]}_${match[2]}',
     )
     .toLowerCase();
+
+/// The generated part path under the definitions package's `lib/`.
+String definitionPartPath({required String area, required String name}) =>
+    'src/generated/models/$area/${definitionFileStem(name)}.beak.dart';
+
+/// The `part` URI from a class library to its generated part.
+String definitionPartUri({
+  required String area,
+  required String name,
+  required String library,
+}) => p.posix.relative(
+  definitionPartPath(area: area, name: name),
+  from: p.posix.dirname(library),
+);

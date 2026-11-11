@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:beak_cli/src/cli_runner.dart';
 import 'package:beak_cli/src/serverpod/database_definition.dart';
 import 'package:beak_cli/src/serverpod/definition_set_builder.dart';
+import 'package:beak_cli/src/serverpod/definition_paths.dart';
 import 'package:beak_cli/src/serverpod/definition_reader.dart';
 import 'package:beak_cli/src/serverpod/generate_issue.dart';
 import 'package:beak_cli/src/serverpod/generate_settings.dart';
@@ -86,7 +87,12 @@ ${handlers == null ? '' : '  handlers: $handlers\n'}  prefix: Shop
     bool writes = false,
     List<String> imports = const [],
   }) {
-    final part = '${p.basename(library)}.beak.dart';
+    final folder = p.posix.basename(p.posix.dirname(library));
+    final part = definitionPartUri(
+      area: folder,
+      name: p.basename(library),
+      library: 'src/$library.dart',
+    );
     const support =
         'package:shop_definitions/src/generated/definitions_support.dart';
     final uris = <String>{
